@@ -34,7 +34,9 @@ const handler = async (req: NextApiRequest,res: NextApiResponse<SearchResoponse|
   }
   else if(req.method=="POST"){
       try {
+        // console.log(req.body)
         const session:any = await getSession(req,res)
+        // console.log(session)
         if (!session?.user?.sub) {
           return res.status(401).json('Unauthorized')
         }
@@ -53,7 +55,6 @@ const handler = async (req: NextApiRequest,res: NextApiResponse<SearchResoponse|
             const data: UserResponseData = await createUser(token,role, email, first_name, last_name, classId,expiration);
             responseData = [...responseData,data]
           } catch (error:any) {
-            console.log(error)
             continue
           }
         }

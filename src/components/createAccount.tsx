@@ -39,15 +39,15 @@ const ManualCreate: FC = () => {
   });
 
   const onSubmitManual = async (values: z.infer<typeof userSchema>) => {
+    setLoading(true)
     try {
-        setLoading(true)
       const payload = { users: [values] };
       const { data } = await axios.post("/api/users", payload);
       //console.log(payload);
-      setLoading(false)
     } catch (error: any) {
       console.log(error.response.message || error.message);
     }
+    setLoading(false)
   };
 
   useEffect(() => {
