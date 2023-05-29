@@ -18,17 +18,17 @@ import {
 import { Input } from "./ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import axios from "axios";
 
-import { role_to_roleName } from "@/models/auth0_interfaces";
-import { userSchema } from "@/models/user";
+import { role_to_roleName,UserCreateResponseArrayScehma } from "@/models/auth0_schemas";
+import { reqBody } from "@/pages/api/users";
+import { UserCreateSchema,UserCreateType } from "@/models/api_schemas";
 
 const ManualCreate: FC = () => {
   const [isLaoding, setLoading] = useState<boolean>(false);
 
-  const form = useForm<z.infer<typeof userSchema>>({
-    resolver: zodResolver(userSchema),
+  const form = useForm<UserCreateType>({
+    resolver: zodResolver(UserCreateSchema),
     defaultValues: {
       email: "",
       first_name: "",
@@ -38,14 +38,15 @@ const ManualCreate: FC = () => {
     },
   });
 
-  const onSubmitManual = async (values: z.infer<typeof userSchema>) => {
+  const onSubmitManual = async (values: UserCreateType) => {
     setLoading(true)
     try {
-      const payload = { users: [values] };
-      const { data } = await axios.post("/api/users", payload);
-      //console.log(payload);
+      const payload:reqBody= { users: [values] };
+      const response = await axios.post("/api/users", payload);
+      const data = UserCreateResponseArrayScehma.parse(response.data)
+      // console.log(data);
     } catch (error: any) {
-      console.log(error.response.message || error.message);
+      console.log(error||error.response.message || error.message);
     }
     setLoading(false)
   };
