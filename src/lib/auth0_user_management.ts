@@ -1,56 +1,54 @@
 import axios, { AxiosResponse } from 'axios';
 import generatePassword from './generate_password';
-import { UserRole,UserCreationResponseData,UserCreationRequestBody,AssignRoleRaequestBody,roleResponseEntry } from '@/type/auth0_interfaces';
+import {UserWithRole,UserResponseData,UserCreationRequestBody,
+  AssignRoleRaequestBody,roleResponseEntry,UserMetadata,role_to_roleId,UserRole} from '@/models/auth0_interfaces';
 import { sendMail } from './mail_sender';
 
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
 
-const roleName_to_roleId ={
-  "admin":"rol_YHRhJdPKTdNaTEPp",
-  "managedStudent":"rol_FLZfpiWTljn9jiOd",
-  "teacher":"rol_tEgERFGnK2D82MFC",
-  "unmanagedStudent":"rol_IBB3Y72SjYuP3tNP"
-}
-
-
-export async function createUser(access_token:string,email: string,first_name:string,last_name:string,role:UserRole="unmanagedStudent", password: string|undefined=undefined,invited:boolean=true): Promise<UserCreationResponseData> {
+export async function createUser(access_token:string,role:UserRole,email: string,first_name:string,last_name:string,classId:string ,expiration:string): Promise<UserResponseData> {
   try {
+    if(!(role in role_to_roleId)) throw new Error("Invalid role")
+    const user_meatadata:UserMetadata ={}
+    if(role!=='admin'&&role!=="unmanagedStudent"){
+      user_meatadata.class_ids=classId
+    }
+    if(role!=="admin"){
+      user_meatadata.account_expiration_date = expiration
+    }
     const create_body:UserCreationRequestBody = {
       "connection": "Username-Password-Authentication",
       "email": email,
-      "password": password||generatePassword(),
+      "password": generatePassword(),
       "verify_email": false,
       "given_name": first_name,
       "family_name": last_name,
       "name": `${first_name} ${last_name}`,
-      "user_metadata": {
-        "class_ids": [],
-      },
+      "user_metadata":user_meatadata,
       "app_metadata":{}
     }
-    if(!(role in roleName_to_roleId)) throw new Error("Invalid role")
-    const {data}: AxiosResponse<UserCreationResponseData> = await axios.post(`${auth0BaseUrl}/api/v2/users`, create_body, {
+    const {data}: AxiosResponse<UserResponseData> = await axios.post(`${auth0BaseUrl}/api/v2/users`, create_body, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${access_token}`,
         },
       });
       const userId:string = data.user_id
-      const roleId:string = roleName_to_roleId[role]
+      const roleId:string = role_to_roleId[role as keyof typeof role_to_roleId]
       const assign_body:AssignRoleRaequestBody = {
         "roles" : [roleId]
       }
-      // console.log("user created")
+      console.log("user created")
      await axios.post(`${auth0BaseUrl}/api/v2/users/${userId}/roles`, assign_body, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${access_token}`,
         },
       });
-      // console.log("role assigned")
-      if(invited){
-        await sendInvitation(access_token,`${first_name} ${last_name}`,email)
-      }
+      console.log("role assigned")
+      //console.log(data,data.name)
+      await sendInvitation(access_token,`${first_name} ${last_name}`,email)
+
       return data;
   } catch (error:any) {
     if(error.response){
@@ -119,6 +117,7 @@ export const sendInvitation = async(access_token:string,receiver_name:string
         },
       });
       const url = data.ticket +"#type=invite" + "#app=AIBlock"
+      // console.log(url)
       await sendMail("Invitation to AI Block","AI Block",sender_email,receiver_name,reciever_mail,url,"SQ")
       console.log(`Invitation mail sent to ${reciever_mail}`)  
   } catch (error:any) {
@@ -130,32 +129,25 @@ export const sendInvitation = async(access_token:string,receiver_name:string
 
 
 
-interface query{
-  name?:string;
-  email?:string;
-  userId?:string;
-}
+export type SearchResoponse = UserWithRole[]
 
-export const searchUser = async (access_token:string,query:query)=>{
-  let queryHolder:string[] = [];
-  //adjust if axact search is needed
-  if(query.name) queryHolder = [...queryHolder,query.name.length>=3?`name:*${query.name}*`:`name:${query.name}`];
-  if(query.email) queryHolder = [...queryHolder,`email:${query.email}`];
-  if(query.userId) queryHolder = [...queryHolder,`user_id:${query.userId}`]
-  const queryString = queryHolder.join("%20AND%20")
-  const apiUrl = new URL(`?q=${queryString}`,`${auth0BaseUrl}/api/v2/users`)
-  // console.log(apiUrl.href)
+export const searchUser = async (access_token:string,studentId:string):Promise<SearchResoponse>=>{
+
+  const apiUrl = new URL(`?q=user_id:${studentId}`,`${auth0BaseUrl}/api/v2/users`)
   try {
     const {data} = await axios.get(apiUrl.href,{
       headers: {
         Authorization: `Bearer ${access_token}`,
       },
     });
-    return data
+    const res:SearchResoponse = await Promise.all(data.map(async (user:UserResponseData)=>{
+      const roles = await checkRole(access_token,user.user_id)
+      return {...user,roles}
+    }))
+    //console.log(res)
+    return res
   } catch (error:any) {
     console.log(error.response.message||error.message)
     throw new Error(error.response.message||error.message)
   }
-  
-
 }
