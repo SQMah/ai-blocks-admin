@@ -1,4 +1,3 @@
-import { Inter } from 'next/font/google'
 import Navbar from '@/components/nav'
 import CreateAccount from '@/components/createAccount'
 

@@ -1,11 +1,12 @@
-import axios, { AxiosResponse } from 'axios';
+import axios from 'axios';
 import generatePassword from './generate_password';
 import { sendMail } from './mail_sender';
-import {string} from "zod"
+import * as z from "zod"
 
 import { role_to_roleId,UserRoleType,UserMetadataType,UserCreationBodyType
   ,AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArraySchema, RoledUserArrayType, 
-  RoleArraySchema, RoleArrayType, UserCreateResponseSchema, UserCreateResponseType, UserSearchResponseArraySchema, UserSearchResponseType } from '@/models/auth0_schemas';
+  RoleArraySchema, RoleArrayType, UserCreateResponseSchema, UserCreateResponseType, UserSearchResponseArraySchema, UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema } from '@/models/auth0_schemas';
+import { PatchUsersReqType } from '@/models/api_schemas';
 
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
 
@@ -27,10 +28,10 @@ export async function createUser(access_token:string,role:UserRoleType,email: st
       "given_name": first_name,
       "family_name": last_name,
       "name": `${first_name} ${last_name}`,
-      "user_metadata":user_meatadata,
+      "user_metadata":UserMetadataSchema.parse(user_meatadata),
       "app_metadata":{}
     }
-    const response = await axios.post(`${auth0BaseUrl}/api/v2/users`, create_body, {
+    const response = await axios.post(`${auth0BaseUrl}/api/v2/users`, UserCreationBodySchema.parse(create_body), {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${access_token}`,
@@ -43,17 +44,13 @@ export async function createUser(access_token:string,role:UserRoleType,email: st
       const assign_body:AssignRoleBodyType = {
         "roles" : [roleId]
       }
-      console.log("user created")
-     await axios.post(`${auth0BaseUrl}/api/v2/users/${userId}/roles`, assign_body, {
+      await axios.post(`${auth0BaseUrl}/api/v2/users/${userId}/roles`, assign_body, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${access_token}`,
         },
       });
-      console.log("role assigned")
-      //console.log(data,data.name)
-      await sendInvitation(access_token,`${first_name} ${last_name}`,email)
-
+      // console.log("user created")
       return data;
   } catch (error:any) {
     if(error.response){
@@ -82,7 +79,7 @@ export async function getAccessToken(): Promise<string> {
     try {
       const response = await axios.post(`${auth0BaseUrl}/oauth/token`,body);
       //console.log('token:',response.data.access_token)
-      const token = string().parse(response.data.access_token)
+      const token = z.string().parse(response.data.access_token)
       return token;
     } catch (err) {
       throw new Error("Fail to get token")
@@ -105,8 +102,8 @@ export const checkRole = async(access_token:string,userId:string):Promise<RoleAr
     res = RoleArraySchema.parse(res)
     return res
   } catch (error:any) {
-    console.log(error||error.response.data.message||error.message)
-    throw new Error(error||error.response.data.message||error.message)
+    console.log(error?.response?.data?.message??error?.message??error)
+    throw new Error(error?.response?.data?.message??error?.message??error)
   }
 }
 
@@ -114,6 +111,9 @@ export const sendInvitation = async(access_token:string,receiver_name:string
   ,reciever_mail:string)=>{
   try {
       const sender_email = "tommy07201@gmail.com"//only for testing
+      const signing_name ="SQ"
+      const formated_addr = "AI Block"
+      const subject = "Invitation to AI Block"
       const body = {
         "client_id": process.env.AUTH0_CLIENT_ID,
         "connection_id": process.env.AUTH0_DB_CONNECTION_ID,
@@ -127,11 +127,11 @@ export const sendInvitation = async(access_token:string,receiver_name:string
       });
       const url = data.ticket +"#type=invite" + "#app=AIBlock"
       // console.log(url)
-      await sendMail("Invitation to AI Block","AI Block",sender_email,receiver_name,reciever_mail,url,"SQ")
+      await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
       console.log(`Invitation mail sent to ${reciever_mail}`)  
   } catch (error:any) {
-    console.log(error.response.data.message||error.message)
-    throw new Error(error.response.data.message||error.message)
+    console.log(error?.response?.data?.message??error?.message??error)
+    throw new Error(error?.response?.data?.message??error?.message??error)
   }
   
 }
@@ -157,8 +157,38 @@ export const searchUser = async (access_token:string,studentId:string):Promise<R
     res = RoledUserArraySchema.parse(res)
     return res
   } catch (error:any) {
-    console.log(error||error.response.message||error.message)
-    throw new Error(error||error.response.message||error.message)
+    console.log(error?.response?.data?.message??error?.message??error)
+    throw new Error(error?.response?.data?.message??error?.message??error)
+  }
+}
+
+const PatchUserBodySchema = z.object({
+  user_metadata:UserMetadataSchema
+})
+
+type PatchUserBodyType = z.infer<typeof PatchUserBodySchema>
+
+
+export const updateUser = async (access_token:string,payload:PatchUsersReqType) =>{
+  const {userId,classIds} = payload
+  const body:PatchUserBodyType ={
+    user_metadata:{}
+  }
+  if(classIds !==undefined){
+    body.user_metadata.class_ids = classIds
+  }
+  // console.log(body)
+  try {
+    const {data} = await axios.patch(`${auth0BaseUrl}/api/v2/users/${userId}`, body, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${access_token}`,
+      },
+    });
+    return UserCreateResponseSchema.parse(data)    
+  } catch (error:any) {
+    console.log(error?.response?.data?.message??error?.message??error)
+    throw new Error(error?.response?.data?.message??error?.message??error)
   }
 }
 

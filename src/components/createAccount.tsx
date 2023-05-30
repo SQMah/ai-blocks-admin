@@ -20,9 +20,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 
-import { role_to_roleName,UserCreateResponseArrayScehma } from "@/models/auth0_schemas";
-import { reqBody } from "@/pages/api/users";
-import { UserCreateSchema,UserCreateType } from "@/models/api_schemas";
+import { role_to_roleName} from "@/models/auth0_schemas";
+import { PostUsersResSchema, UserCreateSchema,UserCreateType } from "@/models/api_schemas";
+import { PostUsersReqSchema } from "@/models/api_schemas";
 
 const ManualCreate: FC = () => {
   const [isLaoding, setLoading] = useState<boolean>(false);
@@ -41,12 +41,13 @@ const ManualCreate: FC = () => {
   const onSubmitManual = async (values: UserCreateType) => {
     setLoading(true)
     try {
-      const payload:reqBody= { users: [values] };
+      const payload= PostUsersReqSchema.parse( { users: [values] });
+      // console.log(payload)
       const response = await axios.post("/api/users", payload);
-      const data = UserCreateResponseArrayScehma.parse(response.data)
-      // console.log(data);
+      const data = PostUsersResSchema.parse(response.data)
+      // console.log(data.messages);
     } catch (error: any) {
-      console.log(error||error.response.message || error.message);
+      console.log(error?.response?.data?.message??error?.message??error)
     }
     setLoading(false)
   };

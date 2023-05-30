@@ -1,5 +1,5 @@
 import * as z from "zod"
-import { UserRoleSchema } from "./auth0_schemas"
+import { UserRoleSchema,UserMetadataSchema } from "./auth0_schemas"
 
 export const UserCreateSchema = z.object({
   role: UserRoleSchema ,
@@ -11,3 +11,23 @@ export const UserCreateSchema = z.object({
 })
 
 export type UserCreateType = z.infer<typeof UserCreateSchema>
+
+export const PostUsersReqSchema = z.object({
+  users: z.array(UserCreateSchema),
+});
+
+
+export type PostUsersReqType = z.infer<typeof PostUsersReqSchema>;
+
+export const PostUsersResSchema = z.object({
+  messages:z.array(z.string())
+});
+
+export type PostUsersResType = z.infer<typeof PostUsersResSchema>;
+
+export const PatchUsersReqSchema = z.object({
+  userId: z.string().trim().nonempty(),
+  classIds: z.string().trim().optional().nullable()
+})
+
+export type PatchUsersReqType = z.infer<typeof PatchUsersReqSchema>

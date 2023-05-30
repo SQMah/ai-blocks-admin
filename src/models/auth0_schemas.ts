@@ -29,16 +29,16 @@ const IdentitySchema = z.object({
   user_id: z.string(),
   provider: z.string(),
   isSocial: z.boolean(),
-});
+}).passthrough();
 
-const UserMetadataSchema = z.object({
-  account_expiration_date: z.string().optional(),
-  class_ids: z.union([z.array(z.string()), z.string()]).optional(),
-});
+export const UserMetadataSchema = z.object({
+  account_expiration_date: z.string().optional().nullable(),
+  class_ids: z.string().optional().nullable(),
+}).passthrough();
 
 export type UserMetadataType = z.infer<typeof UserMetadataSchema>
 
-const AppmetadataSchema = z.object({});
+const AppmetadataSchema = z.object({}).passthrough();
 
 export const UserCreateResponseSchema = z.object({
   created_at: z.string(),
@@ -54,11 +54,11 @@ export const UserCreateResponseSchema = z.object({
   user_id: z.string(),
   user_metadata: UserMetadataSchema.optional(),
   app_metadata: AppmetadataSchema.optional(),
-});
+}).passthrough();
 
 export type UserCreateResponseType = z.infer<typeof UserCreateResponseSchema>
 
-export const UserCreateResponseArrayScehma = z.array(UserCreateResponseSchema)
+export const UserCreateResponseArrayScehma = z.array(UserCreateResponseSchema.nullable().optional())
 export type UserCreateResponseArrayType = z.infer<typeof UserCreateResponseArrayScehma>
 
 export const UserSearchResponseSchema = z.object({
@@ -108,8 +108,6 @@ export const RoleCheckResponseSchema = z.array(z.object({
   name: UserRoleSchema,
   description: z.string(),
 }));
-
-
 
 
 

@@ -1,4 +1,4 @@
-import { FC, useState,Dispatch,SetStateAction, useEffect } from "react";
+import { FC, useState, Dispatch, SetStateAction} from "react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -16,40 +16,43 @@ import { X, Search } from "lucide-react";
 import axios from "axios";
 import { RoledUserArraySchema, RoledUserType } from "@/models/auth0_schemas";
 
+import ManagedStudentOption from "./ManageStudentOption";
 
 const formSchema = z.object({
   studentId: z.string().trim().email().nonempty(),
 });
 
-interface searchProps{
-  loading:boolean
-  setLoading:Dispatch<SetStateAction<boolean>>
-  setData:Dispatch<SetStateAction<RoledUserType|undefined>>
+interface searchProps {
+  loading: boolean;
+  setLoading: Dispatch<SetStateAction<boolean>>;
+  setData: Dispatch<SetStateAction<RoledUserType | undefined>>;
 }
 
-const SearchStudent: FC<searchProps> = ({loading,setLoading,setData}) => {
+const SearchStudent: FC<searchProps> = ({ loading, setLoading, setData }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       studentId: "",
     },
   });
-
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setData(undefined)
-    setLoading(true)
+    setData(undefined);
+    setLoading(true);
     try {
-      console.log(values);
-      const response = await axios.get(`/api/users?studentId=${values.studentId}`)
-      const data = RoledUserArraySchema.parse(response.data)
-      if(data.length){
-        setData(data[0])
+      // console.log(values);
+      const response = await axios.get(
+        `/api/users?studentId=${values.studentId}`
+      );
+      const data = RoledUserArraySchema.parse(response.data);
+      if (data.length) {
+        setData(data[0]);
+      }else{
+        form.setError("studentId",{message:"Invalid student ID!"})
       }
-    } catch (error:any) {
-      console.log(error.response.message||error.message)
+    } catch (error: any) {
+      console.log(error?.response?.data?.message ?? error?.message ?? error);
     }
-    form.reset();
-    setLoading(false)
+    setLoading(false);
   };
 
   return (
@@ -66,7 +69,12 @@ const SearchStudent: FC<searchProps> = ({loading,setLoading,setData}) => {
                   <Search size={16} />
                 </FormLabel>
                 <div className="flex gap-5 items-center">
-                  <Input placeholder="Search..." {...field} type="email"></Input>
+                  <Input
+                    placeholder="Search..."
+                    {...field}
+                    type="email"
+                  ></Input>
+                  <FormControl>
                   <Button
                     onClick={() => form.reset()}
                     variant={"ghost"}
@@ -75,13 +83,18 @@ const SearchStudent: FC<searchProps> = ({loading,setLoading,setData}) => {
                   >
                     <X size={30} />
                   </Button>
+                  </FormControl>
                   <FormControl>
-                    <Button type="submit" className=" rounded-xl" disabled={loading}> 
-                      {loading?"loading...":"search"}
+                    <Button
+                      type="submit"
+                      className=" rounded-xl"
+                      disabled={loading}
+                    >
+                      {loading ? "loading..." : "search"}
                     </Button>
                   </FormControl>
                 </div>
-                <FormMessage />
+                <FormMessage/>
               </FormItem>
             )}
           />
@@ -93,24 +106,45 @@ const SearchStudent: FC<searchProps> = ({loading,setLoading,setData}) => {
 
 
 
+
+
+
 const ManageStudent: FC = () => {
-  const [stduentData,setStudentData] = useState<RoledUserType|undefined>()
-  const [isLaoding,setIsLaoding] = useState<boolean>(false)
+  const [studentData, setStudentData] = useState<RoledUserType | undefined>();
+  const [isLaoding, setIsLaoding] = useState<boolean>(false);
 
-  useEffect(()=>{
-
-  },[stduentData])
+  const reload = async()=>{
+    if(!studentData||isLaoding) return
+    setIsLaoding(true);
+    try {
+      // console.log(values);
+      const response = await axios.get(
+        `/api/users?studentId=${studentData.email}`
+      );
+      const data = RoledUserArraySchema.parse(response.data);
+      if (data.length) {
+       setStudentData(data[0]);
+      }
+    } catch (error: any) {
+      console.log(error?.response?.data?.message ?? error?.message ?? error);
+    }
+    setIsLaoding(false);
+  }
 
   return (
     <>
-      <div className="m-8">
-
-      <SearchStudent loading={isLaoding} setLoading={setIsLaoding} setData={setStudentData} />
-      {stduentData?<>
-        <p>{stduentData.name}</p>
-        <p>Type: {stduentData.roles.join(",")}</p>
-      </>:null}
-      </div>
+    <SearchStudent
+          loading={isLaoding}
+          setLoading={setIsLaoding}
+          setData={setStudentData}
+        />
+        {studentData ? 
+          <div className="my-8">
+            <p>{studentData.name}</p>
+            <p>Type: {studentData.roles.join(",")}</p>
+            {studentData.roles.includes("managedStudent")?<ManagedStudentOption student={studentData} reload={reload} isLoading={isLaoding} setIsLoading={setIsLaoding}/>:null}
+          </div>
+         :null}
     </>
   );
 };

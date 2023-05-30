@@ -7,7 +7,9 @@ export default function Home() {
     <>
     <main>
     <Navbar active="manage_student"/>
+    <div className='m-8'>
     <ManageStudent/>
+    </div>
     </main>
     </>
   )
