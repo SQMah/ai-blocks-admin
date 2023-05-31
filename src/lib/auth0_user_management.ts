@@ -3,22 +3,21 @@ import generatePassword from './generate_password';
 import { sendMail } from './mail_sender';
 import * as z from "zod"
 
-import { role_to_roleId,UserRoleType,UserMetadataType,UserCreationBodyType
+import { roleMapping,UserMetadataType,UserCreationBodyType
   ,AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArraySchema, RoledUserArrayType, 
   RoleArraySchema, RoleArrayType, UserCreateResponseSchema, UserCreateResponseType, UserSearchResponseArraySchema, UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema } from '@/models/auth0_schemas';
-import { PatchUsersReqType } from '@/models/api_schemas';
+import { PutUsersReqType, UserCreateDataType} from '@/models/api_schemas';
 
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
 
-export async function createUser(access_token:string,role:UserRoleType,email: string,first_name:string,last_name:string,classId:string ,expiration:string): Promise<UserCreateResponseType> {
+
+export async function createUser(access_token:string,payload:UserCreateDataType): Promise<UserCreateResponseType> {
   try {
-    if(!(role in role_to_roleId)) throw new Error("Invalid role")
-    const user_meatadata:UserMetadataType ={}
-    if(role!=='admin'&&role!=="unmanagedStudent"){
-      user_meatadata.class_ids=classId
-    }
-    if(role!=="admin"){
-      user_meatadata.account_expiration_date = expiration
+    const {role,first_name,last_name,email,enrolled_class_id,teaching_class_ids,account_expiration_date} = payload
+    const user_meatadata:UserMetadataType ={
+      ...(role === "managedStudent" && { enrolled_class_id }),
+      ...(role==="teacher"&&{teaching_class_ids}),
+      ...(role !== "admin" && { account_expiration_date }),
     }
     const create_body:UserCreationBodyType = {
       "connection": "Username-Password-Authentication",
@@ -28,7 +27,7 @@ export async function createUser(access_token:string,role:UserRoleType,email: st
       "given_name": first_name,
       "family_name": last_name,
       "name": `${first_name} ${last_name}`,
-      "user_metadata":UserMetadataSchema.parse(user_meatadata),
+      "user_metadata":user_meatadata,
       "app_metadata":{}
     }
     const response = await axios.post(`${auth0BaseUrl}/api/v2/users`, UserCreationBodySchema.parse(create_body), {
@@ -40,7 +39,10 @@ export async function createUser(access_token:string,role:UserRoleType,email: st
 
     const data = UserCreateResponseSchema.parse(response.data)
       const userId:string = data.user_id
-      const roleId:string = role_to_roleId[role as keyof typeof role_to_roleId]
+      const roleId:string|undefined = roleMapping[role]?.id
+      if(!roleId){
+        throw new Error("Invalid role.")
+      }
       const assign_body:AssignRoleBodyType = {
         "roles" : [roleId]
       }
@@ -56,8 +58,8 @@ export async function createUser(access_token:string,role:UserRoleType,email: st
     if(error.response){
       const statusCode = error.response.status;
       const errorMessage = error.response.data.message;
-      console.log(`Error occcurs with status code ${statusCode} for email: ${email}, message: ${errorMessage}`)
-      throw new Error(`${errorMessage}  Email: ${email}`)
+      console.log(`Error occcurs with status code ${statusCode} for email: ${payload.email}, message: ${errorMessage}`)
+      throw new Error(`${errorMessage}  Email: ${payload.email}`)
     }
     console.log(error)
     throw error
@@ -162,20 +164,22 @@ export const searchUser = async (access_token:string,studentId:string):Promise<R
   }
 }
 
-const PatchUserBodySchema = z.object({
-  user_metadata:UserMetadataSchema
+const PutUserBodySchema = z.object({
+  user_metadata:z.object({
+    enrolled_class_id:z.string().nullish()
+  })
 })
 
-type PatchUserBodyType = z.infer<typeof PatchUserBodySchema>
+type PutUserBodyType = z.infer<typeof PutUserBodySchema>
 
 
-export const updateUser = async (access_token:string,payload:PatchUsersReqType) =>{
-  const {userId,classIds} = payload
-  const body:PatchUserBodyType ={
+export const updateUser = async (access_token:string,payload:PutUsersReqType) =>{
+  const {userId,enrolled_class_id} = payload
+  const body:PutUserBodyType ={
     user_metadata:{}
   }
-  if(classIds !==undefined){
-    body.user_metadata.class_ids = classIds
+  if(enrolled_class_id !==undefined){
+    body.user_metadata.enrolled_class_id =  enrolled_class_id
   }
   // console.log(body)
   try {

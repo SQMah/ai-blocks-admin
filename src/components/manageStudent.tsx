@@ -44,7 +44,13 @@ const SearchStudent: FC<searchProps> = ({ loading, setLoading, setData }) => {
         `/api/users?studentId=${values.studentId}`
       );
       const data = RoledUserArraySchema.parse(response.data);
-      if (data.length) {
+      if (!data.length) {
+        form.setError("studentId",{message:"Invalid student ID!"})
+        setLoading(false);
+        return
+      }
+      const student = data[0]
+      if(student.roles.includes("managedStudent")||student.roles.includes("unmanagedStudent")){
         setData(data[0]);
       }else{
         form.setError("studentId",{message:"Invalid student ID!"})
@@ -116,10 +122,12 @@ const ManageStudent: FC = () => {
   const reload = async()=>{
     if(!studentData||isLaoding) return
     setIsLaoding(true);
+    const email = studentData.email;
+    setStudentData(undefined)
     try {
       // console.log(values);
       const response = await axios.get(
-        `/api/users?studentId=${studentData.email}`
+        `/api/users?studentId=${email}`
       );
       const data = RoledUserArraySchema.parse(response.data);
       if (data.length) {

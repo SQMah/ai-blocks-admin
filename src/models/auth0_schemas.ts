@@ -1,40 +1,53 @@
 import * as z from "zod"
 
+export const dateRegex = /^(\d{4}[\-\/\s]?((((0[13578])|(1[02]))[\-\/\s]?(([0-2][0-9])|(3[01])))|(((0[469])|(11))[\-\/\s]?(([0-2][0-9])|(30)))|(02[\-\/\s]?[0-2][0-9])))?$/;
+
 export const PossilbeRoles = ["admin","managedStudent","teacher","unmanagedStudent"] as const
-
 export const  UserRoleSchema = z.enum(PossilbeRoles)
-
 export type UserRoleType = z.infer<typeof UserRoleSchema>
-
 export const RoleArraySchema = z.array(UserRoleSchema)
 
 export type RoleArrayType = z.infer<typeof RoleArraySchema>
 
-export const role_to_roleId ={
-    "admin":"rol_YHRhJdPKTdNaTEPp",
-    "managedStudent":"rol_FLZfpiWTljn9jiOd",
-    "teacher":"rol_tEgERFGnK2D82MFC",
-    "unmanagedStudent":"rol_IBB3Y72SjYuP3tNP"
-}
+const RoleRecordSchema =z.record(UserRoleSchema,z.object({
+  name:z.string().trim().nonempty(),
+  id:z.string().trim().nonempty(),
+}))
 
-export const role_to_roleName= {
-    "unmanagedStudent":"unmanaged student",
-    "managedStudent":"student",
-    "admin":"admin",
-    "teacher":"teacher"
-}
+type RoleRecord =z.infer<typeof RoleRecordSchema>
+
+export const roleMapping: RoleRecord = {
+  admin: {
+    name: "admin",
+    id: "rol_YHRhJdPKTdNaTEPp",
+  },
+  managedStudent: {
+    name: "student",
+    id: "rol_FLZfpiWTljn9jiOd",
+  },
+  teacher: {
+    name: "teacher",
+    id: "rol_tEgERFGnK2D82MFC",
+  },
+  unmanagedStudent: {
+    name: "unmanaged student",
+    id: "rol_IBB3Y72SjYuP3tNP",
+  },
+};
+
 
 const IdentitySchema = z.object({
   connection: z.string(),
   user_id: z.string(),
   provider: z.string(),
   isSocial: z.boolean(),
-}).passthrough();
+});
 
 export const UserMetadataSchema = z.object({
-  account_expiration_date: z.string().optional().nullable(),
-  class_ids: z.string().optional().nullable(),
-}).passthrough();
+  account_expiration_date: z.string().regex(dateRegex,{message:"Invalid date format, YYYY-MM-DD is supported"}).nullish(),
+  enrolled_class_id: z.string().nullish(),
+  teaching_class_ids:z.array(z.string()).nullish(),
+});
 
 export type UserMetadataType = z.infer<typeof UserMetadataSchema>
 

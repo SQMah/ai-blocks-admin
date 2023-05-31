@@ -20,29 +20,39 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 
-import { role_to_roleName} from "@/models/auth0_schemas";
-import { PostUsersResSchema, UserCreateSchema,UserCreateType } from "@/models/api_schemas";
-import { PostUsersReqSchema } from "@/models/api_schemas";
+import { roleMapping} from "@/models/auth0_schemas";
+import { PostUsersResSchema, PostUsersReqSchema,UserCreateFormSchema,UserCreateFormType,UserCreateDataType } from "@/models/api_schemas";
 
 const ManualCreate: FC = () => {
   const [isLaoding, setLoading] = useState<boolean>(false);
 
-  const form = useForm<UserCreateType>({
-    resolver: zodResolver(UserCreateSchema),
+  const form = useForm<UserCreateFormType>({
+    resolver: zodResolver(UserCreateFormSchema),
     defaultValues: {
       email: "",
       first_name: "",
       last_name: "",
-      classId: "",
-      expiration: "",
+      enrolled_class_id:"",
+      teaching_class_ids_str:"",
+      account_expiration_date:"",
     },
   });
 
-  const onSubmitManual = async (values: UserCreateType) => {
+  const onSubmitManual = async (values: UserCreateFormType) => {
     setLoading(true)
     try {
-      const payload= PostUsersReqSchema.parse( { users: [values] });
-      // console.log(payload)
+      const {role,email,first_name,last_name,enrolled_class_id,teaching_class_ids_str,account_expiration_date} = values
+      const userData: UserCreateDataType = {
+        role,
+        email,
+        first_name,
+        last_name,
+        ...(role === "managedStudent" && { enrolled_class_id }),
+        ...(role==="teacher"&&{teaching_class_ids:teaching_class_ids_str?.split(",").filter(id=>id.length)??[]}),
+        ...(role !== "admin" && { account_expiration_date }),
+      };      
+      // console.log(userData)
+      const payload= PostUsersReqSchema.parse( { users: [userData] });
       const response = await axios.post("/api/users", payload);
       const data = PostUsersResSchema.parse(response.data)
       // console.log(data.messages);
@@ -51,25 +61,6 @@ const ManualCreate: FC = () => {
     }
     setLoading(false)
   };
-
-  useEffect(() => {
-    const role = form.watch("role");
-    const classId = form.watch("classId");
-    const expiration = form.watch("expiration");
-    if ((role === "admin" || role === "unmanagedStudent") && !classId.length) {
-      form.setValue("classId", "...");
-    } else if (
-      (role === "managedStudent" || role === "teacher") &&
-      !form.formState.dirtyFields.classId
-    ) {
-      form.setValue("classId", "");
-    }
-    if (role === "admin" && !expiration.length) {
-      form.setValue("expiration", "...");
-    } else if (role !== "admin" && !form.formState.dirtyFields.expiration) {
-      form.setValue("expiration", "");
-    }
-  }, [form.watch("role")]);
 
   return (
     <>
@@ -117,11 +108,7 @@ const ManualCreate: FC = () => {
                   <FormItem>
                     <FormLabel>
                       Email{" "}
-                      {`(${
-                        role_to_roleName[
-                          form.watch("role") as keyof typeof role_to_roleName
-                        ]
-                      } ID)`}
+                      {`(${roleMapping[form.watch("role")]?.name} ID)`}
                     </FormLabel>
                     <FormControl>
                       <Input placeholder="Email..." type="email" {...field} />
@@ -161,12 +148,11 @@ const ManualCreate: FC = () => {
             </>
           ) : null}
           {form.watch("role") &&
-          form.watch("role") !== "admin" &&
-          form.watch("role") !== "unmanagedStudent" ? (
+          form.watch("role") === "managedStudent" ? (
             <>
               <FormField
                 control={form.control}
-                name="classId"
+                name="enrolled_class_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Class ID</FormLabel>
@@ -179,11 +165,29 @@ const ManualCreate: FC = () => {
               />
             </>
           ) : null}
+          {form.watch("role") &&
+          form.watch("role") === "teacher" ? (
+            <>
+              <FormField
+                control={form.control}
+                name="teaching_class_ids_str"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teacing classss</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Class IDs..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
+          ) : null}
           {form.watch("role") && form.watch("role") !== "admin" ? (
             <>
               <FormField
                 control={form.control}
-                name="expiration"
+                name="account_expiration_date"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Account expiration</FormLabel>

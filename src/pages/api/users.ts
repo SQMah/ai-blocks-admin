@@ -12,7 +12,7 @@ import {
   RoledUserArrayType,
   UserCreateResponseType,
 } from "@/models/auth0_schemas";
-import { PatchUsersReqSchema, PostUsersReqSchema,PostUsersResType} from "@/models/api_schemas";
+import { PutUsersReqSchema, PostUsersReqSchema,PostUsersResType} from "@/models/api_schemas";
 
 
 const handleGet = async (req: NextApiRequest,res: NextApiResponse<RoledUserArrayType| string>)=>{
@@ -52,28 +52,28 @@ const handlePost = async (req: NextApiRequest,res: NextApiResponse<PostUsersResT
       return 
     }
     const { users } = PostUsersReqSchema.parse(req.body);
-    let messages:string[] = []
-    await  Promise.all(
+    let success:boolean = false
+    const messages:(string|undefined)[]=await  Promise.all(
       users.map(async (user) => {
         try {
-          const { email, first_name, last_name, role, classId, expiration } =
-            user;
-          const data = await createUser(token,role,email,first_name,last_name,classId,expiration);
-          // await sendInvitation(token, data.name, data.email);
-          const message = `${role} account for ${data.email} is creacted`
+          const data = await createUser(token,user);
+          await sendInvitation(token, data.name, data.email);
+          const message = `${user.role} account for ${data.email} is creacted`
           console.log(message);
-          messages = [...messages,message ];
+          success=true;
+          return message
         } catch (error:any) {
-          const message = error?.response?.data?.message??error?.message
+          const message = String(error?.response?.data?.message??error?.message)
           if(message){
-            messages = [...messages, message]
+            return message
           }else{
             console.log(error)
           }
         }
       })
     );
-    res.status(201).json({messages});
+    // console.log(messages)
+    res.status(success?201:500).json({messages});
   } catch (error: any) {
     console.log(error);
     res.status(500).send(error.message);
@@ -81,10 +81,10 @@ const handlePost = async (req: NextApiRequest,res: NextApiResponse<PostUsersResT
   }
 }
 
-const handlePatch = async (req: NextApiRequest,res: NextApiResponse<UserCreateResponseType| string>)=>{
+const handlePut = async (req: NextApiRequest,res: NextApiResponse<UserCreateResponseType| string>)=>{
   try {
     const token =  await getAccessToken()
-    const payload = PatchUsersReqSchema.parse(req.body)
+    const payload = PutUsersReqSchema.parse(req.body)
     // console.log(payload)
     const data = await updateUser(token,payload)
     // console.log(data)
@@ -108,8 +108,8 @@ const handler = async (req: NextApiRequest,res: NextApiResponse<RoledUserArrayTy
     case "POST":
       await handlePost(req,res);
       break;
-    case "PATCH":
-      await handlePatch(req,res)
+    case "PUT":
+      await handlePut(req,res)
       break;
     default:
       res.status(500).send(`${method} is not supported`);

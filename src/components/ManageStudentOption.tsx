@@ -1,6 +1,5 @@
 import { FC, FormEvent, useId, useState,Dispatch,SetStateAction} from "react";
 import axios from "axios";
-import { X } from "lucide-react";
 
 import { RoledUserType } from "@/models/auth0_schemas";
 import { Button } from "./ui/button";
@@ -16,7 +15,7 @@ import {
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { PatchUsersReqType } from "@/models/api_schemas";
+import { PutUsersReqType } from "@/models/api_schemas";
 
 import RemoveStudentFromClass from "./removeStudentFromClass";
 
@@ -31,7 +30,7 @@ interface ManagedStudentOptionProps{
 
 
 const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,reload,isLoading,setIsLoading})=>{
-    const currentClass = student.user_metadata?.class_ids
+    const currentClass = student.user_metadata?.enrolled_class_id
     const [classId,setClassId] = useState<string>("")
     const [message,setMessage] = useState<string>("")
     const oldClass = useId()
@@ -48,11 +47,11 @@ const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,reload,isLo
             setMessage("The new class ID is not same as the old ID.")
         }else{
             try {
-                const paylaod:PatchUsersReqType={
+                const paylaod:PutUsersReqType={
                   userId :student.user_id,
-                  classIds:classId
+                  enrolled_class_id:classId
                 }
-                const response =await  axios.patch("/api/users",paylaod)
+                const response =await  axios.put("/api/users",paylaod)
                 setClassId('')
                 reload()
             } catch (error:any) {
@@ -89,7 +88,7 @@ const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,reload,isLo
             <Label htmlFor={oldClass} className="text-right col-span-2 ">
               Current class ID
             </Label>
-            <div id={oldClass} className=" col-span-4" > {student.user_metadata?.class_ids}</div>
+            <div id={oldClass} className=" col-span-4" > {student.user_metadata?.enrolled_class_id}</div>
           </div>
           <div className="grid grid-cols-6 items-center gap-x-4 gap-y-1 ">
             <Label htmlFor={newClass} className="text-right col-span-2 ">
