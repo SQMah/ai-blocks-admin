@@ -12,7 +12,7 @@ import {
   RoledUserArrayType,
   UserCreateResponseType,
 } from "@/models/auth0_schemas";
-import { PutUsersReqSchema, PostUsersReqSchema,PostUsersResType} from "@/models/api_schemas";
+import { PutUsersReqSchema, PostUsersReqSchema,PostUsersResType, UserCreateDataType} from "@/models/api_schemas";
 
 
 const handleGet = async (req: NextApiRequest,res: NextApiResponse<RoledUserArrayType| string>)=>{
@@ -38,42 +38,73 @@ const handleGet = async (req: NextApiRequest,res: NextApiResponse<RoledUserArray
 const handlePost = async (req: NextApiRequest,res: NextApiResponse<PostUsersResType| string>)=>{
   try {
     // console.log(req.body)
-    const session = await getSession(req, res);
-    // console.log(session)
-    if (!session?.user?.sub) {
-      res.status(401).json("Unauthorized");
-      return 
-    }
+    // const session = await getSession(req, res);
+    // // console.log(session)
+    // if (!session?.user?.sub) {
+    //   res.status(401).json("Unauthorized");
+    //   return 
+    // }
     const token = await getAccessToken();
-    const userId = session.user.sub;
-    const roles = await checkRole(token, userId);
-    if (!roles.includes("admin")) {
-      res.status(403).send("Forbidden");
-      return 
-    }
-    const { users } = PostUsersReqSchema.parse(req.body);
+    // const userId = session.user.sub;
+    // const roles = await checkRole(token, userId);
+    // if (!roles.includes("admin")) {
+    //   res.status(403).send("Forbidden");
+    //   return 
+    // }
+    const { user,users ,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = PostUsersReqSchema.parse(req.body);
     let success:boolean = false
-    const messages:(string|undefined)[]=await  Promise.all(
-      users.map(async (user) => {
-        try {
-          const data = await createUser(token,user);
-          await sendInvitation(token, data.name, data.email);
-          const message = `${user.role} account for ${data.email} is creacted`
-          console.log(message);
-          success=true;
-          return message
-        } catch (error:any) {
-          const message = String(error?.response?.data?.message??error?.message)
-          if(message){
+    let messages:string[] = []
+    if(users?.length){
+      if(!role) throw new Error("Role is required for batch create.")
+      messages= await Promise.all(
+        users.map(async ({email,first_name,last_name},index) => {
+          try {
+            const payload:UserCreateDataType ={
+              email,first_name,last_name,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date
+            }
+            const data = await createUser(token,payload);
+            console.log(`${payload.role} account for ${data.email} is creacted`)
+            await sendInvitation(token, data.name, data.email);
+            const message = `account creation for ${data.email} is done`
+            console.log(message);
+            success=true;
             return message
-          }else{
-            console.log(error)
+          } catch (error:any) {
+            const message = String(error?.response?.data?.message??error?.message)
+            if(message){
+              return message
+            }else{
+              const waring = `Fail to process data at index ${index}, email:${user?.email??"error"}`
+              console.log(waring,error)
+              return waring
+            }
           }
+        })
+      );
+    }
+    if(user){
+      try {
+        const data = await createUser(token,user);
+        console.log(`${user.role} account for ${data.email} is creacted`)
+        await sendInvitation(token, data.name, data.email);
+        const message = `account creation for ${data.email} is done`
+        console.log(message);
+        success=true;
+        messages = [...messages,message]
+      } catch (error:any) {
+        const message = String(error?.response?.data?.message??error?.message)
+        if(message){
+          messages =[...messages,message]
+        }else{
+          const waring = `Fail to process data at email:${user?.email??"error"}`
+          console.log(waring,error)
+          messages =[...messages,waring]
         }
-      })
-    );
+      }
+    }
     // console.log(messages)
     res.status(success?201:500).json({messages});
+    return
   } catch (error: any) {
     console.log(error);
     res.status(500).send(error.message);
@@ -86,7 +117,8 @@ const handlePut = async (req: NextApiRequest,res: NextApiResponse<UserCreateResp
     const token =  await getAccessToken()
     const payload = PutUsersReqSchema.parse(req.body)
     // console.log(payload)
-    const data = await updateUser(token,payload)
+    const roles = await checkRole(token,payload.userId)
+    const data = await updateUser(token,payload,roles)
     // console.log(data)
     res.status(200).json(data);
     return

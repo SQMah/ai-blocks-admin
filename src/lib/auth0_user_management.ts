@@ -5,7 +5,7 @@ import * as z from "zod"
 
 import { roleMapping,UserMetadataType,UserCreationBodyType
   ,AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArraySchema, RoledUserArrayType, 
-  RoleArraySchema, RoleArrayType, UserCreateResponseSchema, UserCreateResponseType, UserSearchResponseArraySchema, UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema } from '@/models/auth0_schemas';
+  RoleArraySchema, RoleArrayType, UserCreateResponseSchema, UserCreateResponseType, UserSearchResponseArraySchema, UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType } from '@/models/auth0_schemas';
 import { PutUsersReqType, UserCreateDataType} from '@/models/api_schemas';
 
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
@@ -13,10 +13,15 @@ const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
 
 export async function createUser(access_token:string,payload:UserCreateDataType): Promise<UserCreateResponseType> {
   try {
-    const {role,first_name,last_name,email,enrolled_class_id,teaching_class_ids,account_expiration_date} = payload
+    const {role,first_name,last_name,email,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
+    const roleId:string|undefined = roleMapping[role]?.id
+    if(!roleId){
+      throw new Error("Invalid role.")
+    }
     const user_meatadata:UserMetadataType ={
       ...(role === "managedStudent" && { enrolled_class_id }),
       ...(role==="teacher"&&{teaching_class_ids}),
+      ...((role==="unmanagedStudent"||role==="managedStudent")&&{available_modules:available_modules??defaultModels}),
       ...(role !== "admin" && { account_expiration_date }),
     }
     const create_body:UserCreationBodyType = {
@@ -38,22 +43,10 @@ export async function createUser(access_token:string,payload:UserCreateDataType)
       });
 
     const data = UserCreateResponseSchema.parse(response.data)
-      const userId:string = data.user_id
-      const roleId:string|undefined = roleMapping[role]?.id
-      if(!roleId){
-        throw new Error("Invalid role.")
-      }
-      const assign_body:AssignRoleBodyType = {
-        "roles" : [roleId]
-      }
-      await axios.post(`${auth0BaseUrl}/api/v2/users/${userId}/roles`, assign_body, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${access_token}`,
-        },
-      });
-      // console.log("user created")
-      return data;
+    const userId:string = data.user_id
+    await assignRole(access_token,userId,role)
+    // console.log("user created")
+    return data;
   } catch (error:any) {
     if(error.response){
       const statusCode = error.response.status;
@@ -64,9 +57,6 @@ export async function createUser(access_token:string,payload:UserCreateDataType)
     console.log(error)
     throw error
   }
-  
-
-  
 }
 
 export async function getAccessToken(): Promise<string> {
@@ -89,7 +79,48 @@ export async function getAccessToken(): Promise<string> {
     
 }
 
+export const assignRole = async (access_token:string,userId:string,role:UserRoleType)=>{
+    const roleId:string|undefined = roleMapping[role]?.id
+    if(!roleId){
+      throw new Error("Invalid role.")
+    }
+    const assign_body:AssignRoleBodyType = {
+      "roles" : [roleId]
+    }
+    try {
+      await axios.post(`${auth0BaseUrl}/api/v2/users/${userId}/roles`, assign_body, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
+      });
+    } catch (error:any) {
+      console.log(error?.response?.data?.message??error?.message??error)
+      throw new Error(error?.response?.data?.message??error?.message??error)
+    }
+}
 
+export const deleteRole = async (access_token:string,userId:string,role:UserRoleType)=>{
+  const roleId:string|undefined = roleMapping[role]?.id
+  if(!roleId){
+    throw new Error("Invalid role.")
+  }
+  const body:AssignRoleBodyType = {
+    "roles" : [roleId]
+  }
+  try {
+    await axios.delete(`${auth0BaseUrl}/api/v2/users/${userId}/roles`,  {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${access_token}`,
+      },
+      data:body
+    });
+  } catch (error:any) {
+    console.log(error?.response?.data?.message??error?.message??error)
+    throw new Error(error?.response?.data?.message??error?.message??error)
+  }
+}
 
 export const checkRole = async(access_token:string,userId:string):Promise<RoleArrayType> =>{
   try {
@@ -165,21 +196,41 @@ export const searchUser = async (access_token:string,studentId:string):Promise<R
 }
 
 const PutUserBodySchema = z.object({
-  user_metadata:z.object({
-    enrolled_class_id:z.string().nullish()
-  })
+  user_metadata:UserMetadataSchema.optional()
 })
 
 type PutUserBodyType = z.infer<typeof PutUserBodySchema>
 
 
-export const updateUser = async (access_token:string,payload:PutUsersReqType) =>{
-  const {userId,enrolled_class_id} = payload
-  const body:PutUserBodyType ={
-    user_metadata:{}
+export const updateUser = async (access_token:string,payload:PutUsersReqType,roles:RoleArrayType) =>{
+  const {userId,enrolled_class_id,available_modules} = payload
+  const body:PutUserBodyType ={}
+  let changeRole:undefined|{remove:UserRoleType,add:UserRoleType}=undefined
+  if(enrolled_class_id!==undefined&&roles.includes("managedStudent")){
+    body.user_metadata = {
+      ...body.user_metadata,
+      enrolled_class_id
+    }
+    if(enrolled_class_id===null) changeRole = {
+      remove:"managedStudent",
+      add:"unmanagedStudent",
+    }
   }
-  if(enrolled_class_id !==undefined){
-    body.user_metadata.enrolled_class_id =  enrolled_class_id
+  if(enrolled_class_id&&roles.includes("unmanagedStudent")){
+    body.user_metadata = {
+      ...body.user_metadata,
+      enrolled_class_id
+    }
+    changeRole = {
+      remove:"unmanagedStudent",
+      add:"managedStudent",
+    }
+  }
+  if(available_modules&&roles.includes("unmanagedStudent")){
+    body.user_metadata = {
+      ...body.user_metadata,
+      available_modules
+    }
   }
   // console.log(body)
   try {
@@ -189,6 +240,10 @@ export const updateUser = async (access_token:string,payload:PutUsersReqType) =>
         Authorization: `Bearer ${access_token}`,
       },
     });
+    if(changeRole){
+      await deleteRole(access_token,userId,changeRole.remove);
+      await assignRole(access_token,userId,changeRole.add);
+    }
     return UserCreateResponseSchema.parse(data)    
   } catch (error:any) {
     console.log(error?.response?.data?.message??error?.message??error)

@@ -11,24 +11,24 @@ import {
 import { Input } from "./ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import {z}from "zod";
 import { X, Search } from "lucide-react";
 import axios from "axios";
-import { RoledUserArraySchema, RoledUserType } from "@/models/auth0_schemas";
+import { RoledUserArraySchema, RoledUserType ,roleMapping} from "@/models/auth0_schemas";
 
-import ManagedStudentOption from "./ManageStudentOption";
+import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOptions";
 
 const formSchema = z.object({
   studentId: z.string().trim().email().nonempty(),
 });
 
 interface searchProps {
-  loading: boolean;
-  setLoading: Dispatch<SetStateAction<boolean>>;
-  setData: Dispatch<SetStateAction<RoledUserType | undefined>>;
+  isLoading: boolean;
+  setIsLoading: Dispatch<SetStateAction<boolean>>;
+  setStudent: Dispatch<SetStateAction<RoledUserType | undefined>>;
 }
 
-const SearchStudent: FC<searchProps> = ({ loading, setLoading, setData }) => {
+const SearchStudent: FC<searchProps> = ({ isLoading,setIsLoading,setStudent }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -36,8 +36,8 @@ const SearchStudent: FC<searchProps> = ({ loading, setLoading, setData }) => {
     },
   });
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setData(undefined);
-    setLoading(true);
+    setStudent(undefined);
+    setIsLoading(true);
     try {
       // console.log(values);
       const response = await axios.get(
@@ -46,19 +46,19 @@ const SearchStudent: FC<searchProps> = ({ loading, setLoading, setData }) => {
       const data = RoledUserArraySchema.parse(response.data);
       if (!data.length) {
         form.setError("studentId",{message:"Invalid student ID!"})
-        setLoading(false);
+        setIsLoading(false);
         return
       }
       const student = data[0]
       if(student.roles.includes("managedStudent")||student.roles.includes("unmanagedStudent")){
-        setData(data[0]);
+        setStudent(data[0]);
       }else{
         form.setError("studentId",{message:"Invalid student ID!"})
       }
     } catch (error: any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
     }
-    setLoading(false);
+    setIsLoading(false);
   };
 
   return (
@@ -94,9 +94,9 @@ const SearchStudent: FC<searchProps> = ({ loading, setLoading, setData }) => {
                     <Button
                       type="submit"
                       className=" rounded-xl"
-                      disabled={loading}
+                      disabled={isLoading}
                     >
-                      {loading ? "loading..." : "search"}
+                      {isLoading ? "loading..." : "search"}
                     </Button>
                   </FormControl>
                 </div>
@@ -116,14 +116,14 @@ const SearchStudent: FC<searchProps> = ({ loading, setLoading, setData }) => {
 
 
 const ManageStudent: FC = () => {
-  const [studentData, setStudentData] = useState<RoledUserType | undefined>();
-  const [isLaoding, setIsLaoding] = useState<boolean>(false);
+  const [student, setStudent] = useState<RoledUserType | undefined>();
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const reload = async()=>{
-    if(!studentData||isLaoding) return
-    setIsLaoding(true);
-    const email = studentData.email;
-    setStudentData(undefined)
+    if(!student||isLoading) return
+    setIsLoading(true);
+    const email = student.email;
+    setStudent(undefined)
     try {
       // console.log(values);
       const response = await axios.get(
@@ -131,26 +131,24 @@ const ManageStudent: FC = () => {
       );
       const data = RoledUserArraySchema.parse(response.data);
       if (data.length) {
-       setStudentData(data[0]);
+       setStudent(data[0]);
       }
     } catch (error: any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
     }
-    setIsLaoding(false);
+    setIsLoading(false);
   }
 
   return (
     <>
-    <SearchStudent
-          loading={isLaoding}
-          setLoading={setIsLaoding}
-          setData={setStudentData}
-        />
-        {studentData ? 
-          <div className="my-8">
-            <p>{studentData.name}</p>
-            <p>Type: {studentData.roles.join(",")}</p>
-            {studentData.roles.includes("managedStudent")?<ManagedStudentOption student={studentData} reload={reload} isLoading={isLaoding} setIsLoading={setIsLaoding}/>:null}
+    <SearchStudent {...{isLoading,setIsLoading,setStudent}} />
+        {student ? 
+          <div className="my-2 space-y-3">
+            <p>{student.name}</p>
+            <p>Type: {student.roles.map(role=>roleMapping[role]?.name).join(",")}</p>
+            {student.roles.includes("managedStudent")?<ManagedStudentOption {...{student,reload,isLoading,setIsLoading}}/>:
+            student.roles.includes("unmanagedStudent")?<UnmanagedStudentOption {...{student,reload,isLoading,setIsLoading}}/>
+            :null}
           </div>
          :null}
     </>

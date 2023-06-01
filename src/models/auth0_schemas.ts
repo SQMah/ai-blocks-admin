@@ -2,6 +2,9 @@ import * as z from "zod"
 
 export const dateRegex = /^(\d{4}[\-\/\s]?((((0[13578])|(1[02]))[\-\/\s]?(([0-2][0-9])|(3[01])))|(((0[469])|(11))[\-\/\s]?(([0-2][0-9])|(30)))|(02[\-\/\s]?[0-2][0-9])))?$/;
 
+export const defaultModels:string[] = ["Module A","Module B", "Module C"]
+export const modulesReady:string[] = defaultModels.concat(["Module D","Module E"])
+
 export const PossilbeRoles = ["admin","managedStudent","teacher","unmanagedStudent"] as const
 export const  UserRoleSchema = z.enum(PossilbeRoles)
 export type UserRoleType = z.infer<typeof UserRoleSchema>
@@ -45,8 +48,9 @@ const IdentitySchema = z.object({
 
 export const UserMetadataSchema = z.object({
   account_expiration_date: z.string().regex(dateRegex,{message:"Invalid date format, YYYY-MM-DD is supported"}).nullish(),
-  enrolled_class_id: z.string().nullish(),
-  teaching_class_ids:z.array(z.string()).nullish(),
+  enrolled_class_id: z.string().trim().nonempty().nullish(),
+  teaching_class_ids:z.array(z.string().trim().nonempty()).nullish(),
+  available_modules:z.array(z.string().trim().nonempty()).nullish(),
 });
 
 export type UserMetadataType = z.infer<typeof UserMetadataSchema>

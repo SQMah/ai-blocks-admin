@@ -1,6 +1,5 @@
 import Navbar from '@/components/nav'
-import CreateAccount from '@/components/createAccount'
-
+import CreateAccount from '@/components/CreateAccount'
 export default function Home() {
   return (
     <>

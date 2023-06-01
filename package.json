@@ -17,6 +17,8 @@
     "@radix-ui/react-popover": "^1.0.6",
     "@radix-ui/react-select": "^1.2.2",
     "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-tabs": "^1.0.4",
+    "@tanstack/react-table": "^8.9.1",
     "@types/node": "20.2.5",
     "@types/react": "18.2.7",
     "@types/react-dom": "18.2.4",
@@ -30,6 +32,7 @@
     "lucide-react": "^0.221.0",
     "next": "13.4.4",
     "nodemailer": "^6.9.2",
+    "papaparse": "^5.4.1",
     "postcss": "8.4.23",
     "react": "18.2.0",
     "react-day-picker": "^8.7.1",
@@ -42,6 +45,7 @@
     "zod": "^3.21.4"
   },
   "devDependencies": {
-    "@types/nodemailer": "^6.4.8"
+    "@types/nodemailer": "^6.4.8",
+    "@types/papaparse": "^5.3.7"
   }
 }
