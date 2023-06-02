@@ -198,7 +198,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
           ...(role==="teacher"&&{teaching_class_ids:teaching_class_ids_str?.split(",").filter(id=>id.length)??[]}),
           ...(role !== "admin" && { account_expiration_date }),
         };      
-        console.log(payload)
+        // console.log(payload)
         const response = await axios.post("/api/users", payload);
         const data = PostUsersResSchema.parse(response.data)
         console.log(data.messages);

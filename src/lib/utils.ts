@@ -17,3 +17,7 @@ export function getOrdinal(number:number):string {
   }
 }
 
+export function delay(time:number) {
+  return new Promise(resolve => setTimeout(resolve, time));
+}
+

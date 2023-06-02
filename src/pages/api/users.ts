@@ -13,6 +13,7 @@ import {
   UserCreateResponseType,
 } from "@/models/auth0_schemas";
 import { PutUsersReqSchema, PostUsersReqSchema,PostUsersResType, UserCreateDataType} from "@/models/api_schemas";
+import { delay } from "@/lib/utils";
 
 
 const handleGet = async (req: NextApiRequest,res: NextApiResponse<RoledUserArrayType| string>)=>{
@@ -56,31 +57,32 @@ const handlePost = async (req: NextApiRequest,res: NextApiResponse<PostUsersResT
     let messages:string[] = []
     if(users?.length){
       if(!role) throw new Error("Role is required for batch create.")
-      messages= await Promise.all(
-        users.map(async ({email,first_name,last_name},index) => {
-          try {
-            const payload:UserCreateDataType ={
-              email,first_name,last_name,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date
-            }
-            const data = await createUser(token,payload);
-            console.log(`${payload.role} account for ${data.email} is creacted`)
-            await sendInvitation(token, data.name, data.email);
+      for(const index in users){
+        const {email,first_name,last_name} = users[index]
+        try {
+          const payload:UserCreateDataType ={
+            email,first_name,last_name,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date
+          }
+          const data = await createUser(token,payload);
+          console.log(`${payload.role} account for ${data.email} is creacted`)
+          sendInvitation(token, data.name, data.email).then(()=>{
             const message = `account creation for ${data.email} is done`
             console.log(message);
             success=true;
-            return message
-          } catch (error:any) {
-            const message = String(error?.response?.data?.message??error?.message)
-            if(message){
-              return message
-            }else{
-              const waring = `Fail to process data at index ${index}, email:${user?.email??"error"}`
-              console.log(waring,error)
-              return waring
-            }
+            messages = [...messages,message]
+          }).catch(err=>console.log(err))
+        } catch (error:any) {
+          const message = String(error?.response?.data?.message??error?.message)
+          if(message){
+            messages = [...messages,message]
+          }else{
+            const waring = `Fail to process data at index ${index}, email:${user?.email??"error"}`
+            console.log(waring,error)
+            messages = [...messages,error]
           }
-        })
-      );
+        }
+        await delay(1000)
+      }
     }
     if(user){
       try {
