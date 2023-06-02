@@ -1,6 +1,5 @@
-import * as z from "zod"
-
-export const dateRegex = /^(\d{4}[\-\/\s]?((((0[13578])|(1[02]))[\-\/\s]?(([0-2][0-9])|(3[01])))|(((0[469])|(11))[\-\/\s]?(([0-2][0-9])|(30)))|(02[\-\/\s]?[0-2][0-9])))?$/;
+import {z} from "zod"
+import { validDateString } from "@/lib/utils"
 
 export const defaultModels:string[] = ["Module A","Module B", "Module C"]
 export const modulesReady:string[] = defaultModels.concat(["Module D","Module E"])
@@ -47,7 +46,9 @@ const IdentitySchema = z.object({
 });
 
 export const UserMetadataSchema = z.object({
-  account_expiration_date: z.string().regex(dateRegex,{message:"Invalid date format, YYYY-MM-DD is supported"}).nullish(),
+  account_expiration_date: z.string().refine(str=>validDateString(str),
+  {message:"Invalid date string,Please provide the date string in the format of YYYY-MM-DD"})
+  .nullish(),
   enrolled_class_id: z.string().trim().nonempty().nullish(),
   teaching_class_ids:z.array(z.string().trim().nonempty()).nullish(),
   available_modules:z.array(z.string().trim().nonempty()).nullish(),

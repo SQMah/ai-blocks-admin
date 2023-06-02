@@ -28,8 +28,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios"; 
 
 import { getOrdinal } from "@/lib/utils"
-import { UserRoleSchema,dateRegex } from "@/models/auth0_schemas"
-import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema } from "@/models/api_schemas"
+import { UserRoleSchema} from "@/models/auth0_schemas"
+import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema,SetExpriationSchema } from "@/models/api_schemas"
 
 type CSVData = {
     data: any[];
@@ -150,13 +150,7 @@ const formSchema= z.object({
     enrolled_class_id: z.string().optional(),
     teaching_class_ids_str:z.string().optional(),  
     available_modules:z.array(z.string()).optional(),
-    account_expiration_date: z.string().regex(dateRegex,{message:"Invalid date format, YYYY-MM-DD is supported"}).optional()
-    .refine(dateStr=>{
-      if(!dateStr) return true
-      const today = new Date()
-      const input = new Date(dateStr)
-      return input > today
-    },{message:"Expiration date is at least after the current date"}),
+    account_expiration_date:  SetExpriationSchema.optional(),
   }).refine((input)=>{
     if(input.role==="managedStudent"){
       return input.enrolled_class_id?.length

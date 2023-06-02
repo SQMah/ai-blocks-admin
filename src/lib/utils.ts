@@ -17,7 +17,23 @@ export function getOrdinal(number:number):string {
   }
 }
 
-export function delay(time:number) {
+export function delay(time:number):Promise<void> {
   return new Promise(resolve => setTimeout(resolve, time));
 }
 
+export function validDateString(str: string | undefined | null): boolean {
+  if(!str) return false
+  return !isNaN(Date.parse(`${str}T00:00:00`))
+}
+
+export function expirated(str:string):boolean{
+  const tdy = new Date()
+  const data = new Date(`${str}T00:00:00`);
+  return data < tdy
+}
+
+export function afterToday(str:string):boolean{
+  const tdy = new Date()
+  const data = new Date(`${str}T00:00:00`);
+  return data > tdy
+}

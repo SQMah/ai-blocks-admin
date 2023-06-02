@@ -18,15 +18,15 @@ import { delay } from "@/lib/utils";
 
 const handleGet = async (req: NextApiRequest,res: NextApiResponse<RoledUserArrayType| string>)=>{
   try {
-    let { studentId } = req.query;
-    if (studentId == undefined) {
+    let { email} = req.query;
+    if (email == undefined) {
       res.status(500).send("Student ID is required");
       return;
-    } else if (Array.isArray(studentId)) {
-      studentId = studentId[studentId.length - 1];
+    } else if (Array.isArray(email)) {
+      email = email[email.length - 1];
     }
     const token = await getAccessToken();
-    const users = await searchUser(token, studentId);
+    const users = await searchUser(token, email);
     res.status(200).json(users);
     return;
   } catch (error: any) {
@@ -64,7 +64,6 @@ const handlePost = async (req: NextApiRequest,res: NextApiResponse<PostUsersResT
             email,first_name,last_name,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date
           }
           const data = await createUser(token,payload);
-          console.log(`${payload.role} account for ${data.email} is creacted`)
           sendInvitation(token, data.name, data.email).then(()=>{
             const message = `account creation for ${data.email} is done`
             console.log(message);
@@ -87,7 +86,6 @@ const handlePost = async (req: NextApiRequest,res: NextApiResponse<PostUsersResT
     if(user){
       try {
         const data = await createUser(token,user);
-        console.log(`${user.role} account for ${data.email} is creacted`)
         await sendInvitation(token, data.name, data.email);
         const message = `account creation for ${data.email} is done`
         console.log(message);

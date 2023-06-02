@@ -35,11 +35,13 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
         try {
             const paylaod:PutUsersReqType={
               userId :student.user_id,
-              enrolled_class_id:null
+              content:{
+                enrolled_class_id:null
+              }
             }
             // console.log(paylaod)
             const response =await  axios.put("/api/users",paylaod)
-            reload()
+            await reload()
         } catch (error:any) {
           console.log(error?.response?.data?.message ?? error?.message ?? error);
         }

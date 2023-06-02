@@ -7,7 +7,7 @@ interface props {
   active?:
     | "craete_class"
     | "manage_class"
-    | "manage_student"
+    | "manage_user"
     | "create_account";
 }
 
@@ -23,11 +23,11 @@ const Navbar: FC<props> = ({ active }) => {
         <Button variant={active === "manage_class" ? undefined : "outline"}>
           Manage class
         </Button>
-        <Button variant={active === "manage_student" ? undefined : "outline"}>
-          <Link href="/manageStudent">Manage student</Link>
+        <Button variant={active === "manage_user" ? undefined : "outline"}>
+          <Link href="/ManageUser">Manage user</Link>
         </Button>
         <Button variant={active === "create_account" ? undefined : "outline"}>
-        <Link href="/createAccount">Create Account</Link>
+        <Link href="/CreateAccount">Create account</Link>
         </Button>
         {user ? (
           <>

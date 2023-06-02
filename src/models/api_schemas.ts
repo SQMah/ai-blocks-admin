@@ -1,5 +1,10 @@
 import {z}from "zod"
-import { UserMetadataSchema, UserRoleSchema,dateRegex } from "./auth0_schemas"
+import { UserMetadataSchema, UserRoleSchema } from "./auth0_schemas"
+import { validDateString,afterToday} from "@/lib/utils"
+
+export const SetExpriationSchema = z.string().refine(str=>validDateString(str),
+{message:"Invalid date string,Please provide the date string in the format of YYYY-MM-DD"}
+).refine(str=>afterToday(str),{message:"Expiration date is required to be set after today"})
 
 export const UserCreateFormSchema = z.object({
   role: UserRoleSchema ,
@@ -9,13 +14,7 @@ export const UserCreateFormSchema = z.object({
   enrolled_class_id: z.string().optional(),
   teaching_class_ids_str:z.string().optional(),  
   available_modules:z.array(z.string()).optional(),
-  account_expiration_date: z.string().regex(dateRegex,{message:"Invalid date format, YYYY-MM-DD is supported"}).optional()
-  .refine(dateStr=>{
-    if(!dateStr) return true
-    const today = new Date ()
-    const input = new Date(dateStr)
-    return input > today
-  },{message:"Expiration date is at least after the current date"}),
+  account_expiration_date: SetExpriationSchema.optional(),
 })
 .refine((input)=>{
   if(input.role==="managedStudent"){
@@ -47,13 +46,7 @@ export const UserCreateDataSchema = z.object({
   enrolled_class_id: z.string().optional(),
   teaching_class_ids:z.array(z.string().trim().nonempty()).optional(),
   available_modules:z.array(z.string()).optional(),
-  account_expiration_date: z.string().regex(dateRegex,{message:"Invalid date format, YYYY-MM-DD is supported"}).optional()
-  .refine(dateStr=>{
-    if(!dateStr) return true
-    const today = new Date()
-    const input = new Date(dateStr)
-    return input > today
-  },{message:"Expiration date is at least after the current date"}),
+  account_expiration_date: SetExpriationSchema.optional(),
 })
 .refine((input)=>{
   if(input.role==="managedStudent"){
@@ -76,13 +69,7 @@ export const PostUsersReqSchema = z.object({
   enrolled_class_id: z.string().optional(),
   teaching_class_ids:z.array(z.string().trim().nonempty()).optional(),
   available_modules:z.array(z.string()).optional(),
-  account_expiration_date: z.string().regex(dateRegex,{message:"Invalid date format, YYYY-MM-DD is supported"}).optional()
-  .refine(dateStr=>{
-    if(!dateStr) return true
-    const today = new Date()
-    const input = new Date(dateStr)
-    return input > today
-  },{message:"Expiration date is at least after the current date"}),
+  account_expiration_date:  SetExpriationSchema.optional(),
 }).refine(input=>{
   if(input.users?.length) return input.role
   else return true
@@ -107,8 +94,10 @@ export const PostUsersResSchema = z.object({
 
 export type PostUsersResType = z.infer<typeof PostUsersResSchema>;
 
-export const PutUsersReqSchema = UserMetadataSchema.extend({
+export const PutUsersReqSchema = z.object({
   userId: z.string().trim().nonempty(),
+  content:UserMetadataSchema.extend({
+  })
 })
 
 export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>

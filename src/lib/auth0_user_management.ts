@@ -3,9 +3,10 @@ import generatePassword from './generate_password';
 import { sendMail } from './mail_sender';
 import * as z from "zod"
 
-import { roleMapping,UserMetadataType,UserCreationBodyType
-  ,AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArraySchema, RoledUserArrayType, 
-  RoleArraySchema, RoleArrayType, UserCreateResponseSchema, UserCreateResponseType, UserSearchResponseArraySchema, UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType } from '@/models/auth0_schemas';
+import { roleMapping,UserMetadataType,UserCreationBodyType,
+  AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArraySchema, RoledUserArrayType, 
+  RoleArraySchema, RoleArrayType, UserCreateResponseSchema, UserCreateResponseType, UserSearchResponseArraySchema,
+   UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType } from '@/models/auth0_schemas';
 import { PutUsersReqType, UserCreateDataType} from '@/models/api_schemas';
 
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
@@ -45,7 +46,7 @@ export async function createUser(access_token:string,payload:UserCreateDataType)
     const data = UserCreateResponseSchema.parse(response.data)
     const userId:string = data.user_id
     await assignRole(access_token,userId,role)
-    // console.log("user created")
+    console.log(`${payload.role} account for ${data.email} is creacted`)
     return data;
   } catch (error:any) {
     if(error.response){
@@ -132,7 +133,6 @@ export const checkRole = async(access_token:string,userId:string):Promise<RoleAr
     });
     const data = RoleCheckResponseSchema.parse(response.data)
     let res = data.map((role)=>role.name)
-    res = RoleArraySchema.parse(res)
     return res
   } catch (error:any) {
     console.log(error?.response?.data?.message??error?.message??error)
@@ -160,7 +160,7 @@ export const sendInvitation = async(access_token:string,receiver_name:string
       });
       const url = data.ticket +"#type=invite" + "#app=AIBlock"
       // console.log(url)
-      await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
+      // await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
       console.log(`Invitation mail sent to ${reciever_mail}`)  
   } catch (error:any) {
     console.log(error?.response?.data?.message??error?.message??error)
@@ -170,9 +170,9 @@ export const sendInvitation = async(access_token:string,receiver_name:string
 }
 
 
-export const searchUser = async (access_token:string,studentId:string):Promise<RoledUserArrayType>=>{
+export const searchUser = async (access_token:string,email:string):Promise<RoledUserArrayType>=>{
 
-  const apiUrl = new URL(`?fields=email%2Cuser_metadata%2Cname%2Cuser_id%2Capp_metadata&include_fields=true&email=${studentId}`,`${auth0BaseUrl}/api/v2/users-by-email`)
+  const apiUrl = new URL(`?fields=email%2Cuser_metadata%2Cname%2Cuser_id%2Capp_metadata&include_fields=true&email=${email}`,`${auth0BaseUrl}/api/v2/users-by-email`)
   try {
     const response = await axios.get(apiUrl.href,{
       headers: {
@@ -187,7 +187,6 @@ export const searchUser = async (access_token:string,studentId:string):Promise<R
       return {...user,roles}
     }))
     // console.log(res)
-    res = RoledUserArraySchema.parse(res)
     return res
   } catch (error:any) {
     console.log(error?.response?.data?.message??error?.message??error)
@@ -203,7 +202,8 @@ type PutUserBodyType = z.infer<typeof PutUserBodySchema>
 
 
 export const updateUser = async (access_token:string,payload:PutUsersReqType,roles:RoleArrayType) =>{
-  const {userId,enrolled_class_id,available_modules} = payload
+  const {userId,content} = payload
+  const {available_modules,enrolled_class_id,account_expiration_date} = content
   const body:PutUserBodyType ={}
   let changeRole:undefined|{remove:UserRoleType,add:UserRoleType}=undefined
   if(enrolled_class_id!==undefined&&roles.includes("managedStudent")){
@@ -232,6 +232,13 @@ export const updateUser = async (access_token:string,payload:PutUsersReqType,rol
       available_modules
     }
   }
+  if(account_expiration_date&&(roles.includes("unmanagedStudent")||roles.includes("managedStudent")||roles.includes("teacher"))){
+    body.user_metadata = {
+      ...body.user_metadata,
+     account_expiration_date
+    }
+  }
+  if(!body) throw new Error("Invalid update content")
   // console.log(body)
   try {
     const {data} = await axios.patch(`${auth0BaseUrl}/api/v2/users/${userId}`, body, {

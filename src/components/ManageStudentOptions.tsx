@@ -49,13 +49,15 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             setMessage("The new class ID is not same as the old ID.")
         }else{
             try {
-                const paylaod:PutUsersReqType={
+                const payload:PutUsersReqType={
                   userId :student.user_id,
-                  enrolled_class_id:classId
+                  content:{
+                    enrolled_class_id:classId
+                  }
                 }
                 setClassId('')
-                const response =await  axios.put("/api/users",paylaod)
-                reload()
+                const response =await  axios.put("/api/users",payload)
+                await reload()
             } catch (error:any) {
               console.log(error?.response?.data?.message ?? error?.message ?? error);
             }
@@ -66,7 +68,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
 
     return <>
     <div className="space-y-2">
-      <p>Class</p>
+      <p>Current class</p>
       <div className=" min-h-[40px] w-3/5 rounded-md border border-input bg-transparent px-3 py-2 ">
        {currentClass?<div className="flex mx-1 items-center">
             <p className=" flex-grow">{currentClass}</p>
@@ -139,10 +141,12 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
       try {
         const paylaod:PutUsersReqType={
           userId :student.user_id,
-          available_modules:availableModules,
+          content:{
+            available_modules:availableModules,
+          }
         }
         const response =await  axios.put("/api/users",paylaod)
-        reload()
+        await reload()
       } catch (error:any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
       }
@@ -158,13 +162,15 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             setNewClassId('')
         }else{
             try {
-                const paylaod:PutUsersReqType={
+                const payload:PutUsersReqType={
                   userId :student.user_id,
-                  enrolled_class_id:newClassId
+                  content:{
+                    enrolled_class_id:newClassId
+                  }
                 }
                 setNewClassId('')
-                const response =await  axios.put("/api/users",paylaod)
-                reload()
+                const response =await  axios.put("/api/users",payload)
+                await  reload()
             } catch (error:any) {
               console.log(error?.response?.data?.message ?? error?.message ?? error);
             }

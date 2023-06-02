@@ -14,47 +14,47 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {z}from "zod";
 import { X, Search } from "lucide-react";
 import axios from "axios";
+
+import { validDateString,expirated } from "@/lib/utils";
 import { RoledUserArraySchema, RoledUserType ,roleMapping} from "@/models/auth0_schemas";
 
 import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOptions";
+import UpdateExpiration from "./UpdateExpiration";
+
 
 const formSchema = z.object({
-  studentId: z.string().trim().email().nonempty(),
+  userId: z.string().trim().email().nonempty(),
 });
 
 interface searchProps {
   isLoading: boolean;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
-  setStudent: Dispatch<SetStateAction<RoledUserType | undefined>>;
+  setUser: Dispatch<SetStateAction<RoledUserType | undefined>>;
 }
 
-const SearchStudent: FC<searchProps> = ({ isLoading,setIsLoading,setStudent }) => {
+const SearchStudent: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      studentId: "",
+      userId: "",
     },
   });
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setStudent(undefined);
+    setUser(undefined);
     setIsLoading(true);
     try {
       // console.log(values);
       const response = await axios.get(
-        `/api/users?studentId=${values.studentId}`
+        `/api/users?email=${values.userId}`
       );
       const data = RoledUserArraySchema.parse(response.data);
       if (!data.length) {
-        form.setError("studentId",{message:"Invalid student ID!"})
+        form.setError("userId",{message:"Invalid account ID!"})
         setIsLoading(false);
         return
       }
-      const student = data[0]
-      if(student.roles.includes("managedStudent")||student.roles.includes("unmanagedStudent")){
-        setStudent(data[0]);
-      }else{
-        form.setError("studentId",{message:"Invalid student ID!"})
-      }
+      const user = data[0]
+      setUser(data[0]);
     } catch (error: any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
     }
@@ -67,11 +67,11 @@ const SearchStudent: FC<searchProps> = ({ isLoading,setIsLoading,setStudent }) =
         <form onSubmit={form.handleSubmit(onSubmit)} className="w-1/2">
           <FormField
             control={form.control}
-            name="studentId"
+            name="userId"
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="flex gap-2 items-center">
-                  Find by student ID (email)
+                  Find by user ID (email)
                   <Search size={16} />
                 </FormLabel>
                 <div className="flex gap-5 items-center">
@@ -115,23 +115,24 @@ const SearchStudent: FC<searchProps> = ({ isLoading,setIsLoading,setStudent }) =
 
 
 
-const ManageStudent: FC = () => {
-  const [student, setStudent] = useState<RoledUserType | undefined>();
+const ManageUser: FC = () => {
+  const [user, setUser] = useState<RoledUserType | undefined>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
-
+  const expiration = user?.user_metadata?.account_expiration_date
   const reload = async()=>{
-    if(!student||isLoading) return
     setIsLoading(true);
-    const email = student.email;
-    setStudent(undefined)
+    if(!user||isLoading) return
+    const email = user.email;
+    setUser(undefined)
     try {
       // console.log(values);
       const response = await axios.get(
-        `/api/users?studentId=${email}`
+        `/api/users?email=${email}`
       );
       const data = RoledUserArraySchema.parse(response.data);
       if (data.length) {
-       setStudent(data[0]);
+       setUser(data[0]);
+      //  console.log(data[0])
       }
     } catch (error: any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
@@ -139,15 +140,25 @@ const ManageStudent: FC = () => {
     setIsLoading(false);
   }
 
+  
+
   return (
     <>
-    <SearchStudent {...{isLoading,setIsLoading,setStudent}} />
-        {student ? 
+    <SearchStudent {...{isLoading,setIsLoading,setUser}} />
+        {user ? 
+          
           <div className="my-2 space-y-3">
-            <p>{student.name}</p>
-            <p>Type: {student.roles.map(role=>roleMapping[role]?.name).join(",")}</p>
-            {student.roles.includes("managedStudent")?<ManagedStudentOption {...{student,reload,isLoading,setIsLoading}}/>:
-            student.roles.includes("unmanagedStudent")?<UnmanagedStudentOption {...{student,reload,isLoading,setIsLoading}}/>
+            <p>Name: {user.name}</p>
+            <p>Type: {user.roles.map(role=>roleMapping[role]?.name).join(",")}</p>
+            {user.roles.includes("managedStudent")||user.roles.includes("unmanagedStudent")||user.roles.includes("teacher")?
+            <div className=" space-x-3"><span>Expiration date:</span> 
+            {expiration?<span>{expiration}</span>:<span className=" text-destructive">None</span>}
+            {expiration&&validDateString(expiration)&&expirated(expiration)?<span className="text-destructive">{" (Expirated)"}</span>:null}
+            <span><UpdateExpiration {...{user,reload,isLoading,setIsLoading}}/></span>
+            </div>
+            :null}
+            {user.roles.includes("managedStudent")?<ManagedStudentOption {...{student:user,reload,isLoading,setIsLoading}}/>:
+            user.roles.includes("unmanagedStudent")?<UnmanagedStudentOption {...{student:user,reload,isLoading,setIsLoading}}/>
             :null}
           </div>
          :null}
@@ -155,4 +166,4 @@ const ManageStudent: FC = () => {
   );
 };
 
-export default ManageStudent;
+export default ManageUser;
