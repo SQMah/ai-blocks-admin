@@ -61,6 +61,14 @@ export const UserCreateDataSchema = z.object({
 
 export type UserCreateDataType = z.infer<typeof UserCreateDataSchema>
 
+export const CreateClassDataSchema=z.object({
+    teacherId:z.string().email().trim().nonempty(),
+    capacity:z.number().nonnegative(),
+    available_modules:z.array(z.string())
+})
+
+export type CreateClassDataType = z.infer<typeof CreateClassDataSchema>
+
 
 export const PostUsersReqSchema = z.object({
   user:UserCreateDataSchema.optional(),

@@ -45,7 +45,7 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
     return <>
     <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant={"destructive"}>Delete user</Button>
+                <Button variant={"destructive"} disabled={isLoading}>{isLoading?"Loading...":"Delete user"}</Button>
               </AlertDialogTrigger>
               <AlertDialogContent >
                 <AlertDialogHeader>
@@ -64,7 +64,7 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
                     </div>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogCancel onClick={()=>setConfirm(false)}>Cancel</AlertDialogCancel>
                   <AlertDialogAction disabled={isLoading||!confirm} onClick={handleRemove}>{isLoading?"Loading...":"Confirm"}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

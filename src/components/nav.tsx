@@ -18,10 +18,10 @@ const Navbar: FC<props> = ({ active }) => {
     <>
       <div className="w-full flex justify-around my-2 items-center">
         <Button variant={active === "craete_class" ? undefined : "outline"}>
-          Create class
+         <Link href="/CreateClass"> Create class</Link>
         </Button>
         <Button variant={active === "manage_class" ? undefined : "outline"}>
-          Manage class
+        <Link href="/ManageClass"> Manage class</Link>
         </Button>
         <Button variant={active === "manage_user" ? undefined : "outline"}>
           <Link href="/ManageUser">Manage user</Link>

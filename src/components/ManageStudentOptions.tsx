@@ -67,7 +67,8 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
 
 
     return <>
-    <div className="space-y-2">
+    <div className="space-y-10">
+      <div className="space-y-4">
       <p>Current class</p>
       <div className=" min-h-[40px] w-3/5 rounded-md border border-input bg-transparent px-3 py-2 ">
        {currentClass?<div className="flex mx-1 items-center">
@@ -75,9 +76,10 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             <RemoveStudentFromClass {...{student,reload,isLoading,setIsLoading}}/>
        </div>:null}
       </div>
+      </div>
       <Dialog>
       <DialogTrigger asChild>
-        <Button  disabled={isLoading}>{isLoading?"loading...":"Change class by ID"}</Button>
+        <Button   disabled={isLoading}>{isLoading?"loading...":"Change class by ID"}</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
       <form onSubmit={handleChange}>
