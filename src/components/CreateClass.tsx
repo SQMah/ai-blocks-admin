@@ -41,6 +41,12 @@ const CreateClass:FC= ()=>{
         setIsLoading(true)
         try { 
             // console.log(values,availableModules)
+            let {teacherId,capacity} = values
+            if(isNaN(Number(capacity))){
+                form.setError("capacity",{message:"Invalid number"})
+                setIsLoading(false)
+                return
+            }
             const payload:CreateClassDataType={
                 teacherId:values.teacherId,
                 capacity:Number(values.capacity),
