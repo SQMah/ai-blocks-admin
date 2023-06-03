@@ -70,7 +70,7 @@ const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,}) => {
     <>
       <Dialog>
         <DialogTrigger asChild>
-          <Button disabled={isLoading} className="">
+          <Button disabled={isLoading} variant={"secondary"} className="">
             {isLoading ? "loading..." : "Edit account expiration"}
           </Button>
         </DialogTrigger>

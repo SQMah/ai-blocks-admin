@@ -20,6 +20,7 @@ import { RoledUserArraySchema, RoledUserType ,roleMapping} from "@/models/auth0_
 
 import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOptions";
 import UpdateExpiration from "./UpdateExpiration";
+import DeleteUser from "./DeleteUser";
 
 
 const formSchema = z.object({
@@ -112,9 +113,6 @@ const SearchStudent: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
 
 
 
-
-
-
 const ManageUser: FC = () => {
   const [user, setUser] = useState<RoledUserType | undefined>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -160,6 +158,9 @@ const ManageUser: FC = () => {
             {user.roles.includes("managedStudent")?<ManagedStudentOption {...{student:user,reload,isLoading,setIsLoading}}/>:
             user.roles.includes("unmanagedStudent")?<UnmanagedStudentOption {...{student:user,reload,isLoading,setIsLoading}}/>
             :null}
+            <div className=" flex justify-end">
+            <DeleteUser {...{user,reload,isLoading,setIsLoading}}/>
+            </div>
           </div>
          :null}
     </>

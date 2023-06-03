@@ -258,3 +258,17 @@ export const updateUser = async (access_token:string,payload:PutUsersReqType,rol
   }
 }
 
+export const deleteUser = async (access_token:string,userId:string) =>{
+  try {
+    // console.log('enetered delteuser')
+    const response = await axios.delete(`${auth0BaseUrl}/api/v2/users/${userId}`,{
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+      },
+    });
+    return response.data
+  } catch (error:any) {
+    console.log(error?.response?.data?.message??error?.message??error)
+    throw new Error(error?.response?.data?.message??error?.message??error)
+  }
+}
