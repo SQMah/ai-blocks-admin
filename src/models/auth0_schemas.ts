@@ -8,6 +8,8 @@ export const PossilbeRoles = ["admin","managedStudent","teacher","unmanagedStude
 export const  UserRoleSchema = z.enum(PossilbeRoles)
 export type UserRoleType = z.infer<typeof UserRoleSchema>
 export const RoleArraySchema = z.array(UserRoleSchema)
+export const nonAdminRoles = PossilbeRoles.filter(role=>role!=="admin")
+
 
 export type RoleArrayType = z.infer<typeof RoleArraySchema>
 
@@ -85,7 +87,7 @@ export const UserSearchResponseSchema = z.object({
   user_id: z.string(),
   user_metadata: UserMetadataSchema.optional(),
   app_metadata: AppmetadataSchema.optional(),
-})
+}).passthrough()
 
 export type UserSearchResponseType = z.infer<typeof UserSearchResponseSchema>
 

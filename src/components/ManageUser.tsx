@@ -1,4 +1,10 @@
 import { FC, useState, Dispatch, SetStateAction} from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {z}from "zod";
+import { X, Search,Check } from "lucide-react";
+import axios from "axios";
+
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -7,16 +13,24 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription
 } from "@/components/ui/form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Input } from "./ui/input";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {z}from "zod";
-import { X, Search } from "lucide-react";
-import axios from "axios";
 
 import { validDateString,expirated } from "@/lib/utils";
 import { RoledUserArraySchema, RoledUserType ,roleMapping} from "@/models/auth0_schemas";
+import { PutUsersReqType } from "@/models/api_schemas";
 
 import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOptions";
 import UpdateExpiration from "./UpdateExpiration";
@@ -33,7 +47,7 @@ interface searchProps {
   setUser: Dispatch<SetStateAction<RoledUserType | undefined>>;
 }
 
-const SearchStudent: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
+const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -50,7 +64,7 @@ const SearchStudent: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
       );
       const data = RoledUserArraySchema.parse(response.data);
       if (!data.length) {
-        form.setError("userId",{message:"Invalid account ID!"})
+        form.setError("userId",{message:"Invalid user ID!"})
         setIsLoading(false);
         return
       }
@@ -112,6 +126,164 @@ const SearchStudent: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
 };
 
 
+interface TeacherOptionProps{
+  teacher:RoledUserType,
+  reload:()=>Promise<void>,
+  isLoading:boolean,
+  setIsLoading:Dispatch<SetStateAction<boolean>>
+}
+
+const classFromSchema = z.object({
+  teaching_class_ids_str:z.string().trim().nonempty({message:"Required"}),  
+})
+
+type ClassForm = z.infer<typeof classFromSchema>
+
+const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoading})=>{
+    const storedClaess= teacher.user_metadata?.teaching_class_ids?.sort()??[]
+    const [displayClasses,setDisplayClaesses] = useState<string[]>(storedClaess)
+    const [removed,SetRemoved]  = useState<string[]>([])
+    const disableSave:boolean = storedClaess.toString()===displayClasses.toString()
+    const classesToBeRemoved = removed.filter(id=>storedClaess.includes(id))
+
+    const form = useForm<ClassForm>({
+      resolver: zodResolver(classFromSchema),
+      defaultValues: {
+        teaching_class_ids_str:""
+      },
+    });
+
+    const handleAddClass = (toAdd:string)=>{
+      SetRemoved(prev=>prev.filter(id=>id!==toAdd).sort())
+      setDisplayClaesses(prev=>[...prev,toAdd].sort())
+    }
+
+    const handleRemoveClass = (toRemove:string)=>{
+      SetRemoved(prev=>[...prev,toRemove].sort())
+      setDisplayClaesses(prev=>prev.filter(classId=>classId!==toRemove).sort())
+    }
+    const handleAddNew= async (values:ClassForm)=>{
+      const classIds = values.teaching_class_ids_str.split(",").filter(id=>id.length)
+      if(!classIds.length){
+        form.setError("teaching_class_ids_str",{message:"Required"})
+        return
+      }
+      form.reset()
+      setDisplayClaesses(prev=>prev.concat(classIds).sort())
+    }
+    
+    const handleAssignClass = async ()=>{
+      if(disableSave||isLoading) return
+      form.clearErrors()
+      setIsLoading(true)
+      try {
+        const payload:PutUsersReqType={
+          userId :teacher.user_id,
+          content:{
+            teaching_class_ids:displayClasses
+          }
+        }
+        const response =await  axios.put("/api/users",payload)
+        await  reload()
+      } catch (error:any) {
+        console.log(error?.response?.data?.message ?? error?.message ?? error);
+      }
+      setIsLoading(false)
+    }
+    
+
+    return <>
+      <div className=" space-y-5 w-2/3">
+        <p>Current classes </p>
+        <div className=" min-h-[40px] w-full rounded-md border border-input bg-transparent px-3 py-2 ">
+        <ul>
+          {displayClasses.map((id,index)=>{
+            return <li key ={`${id}-${index}`} className="flex items-center gap-2">
+              <div className="flex-grow">{id}</div>
+              <Button variant={"ghost"} className="p-0" onClick={()=>handleRemoveClass(id)}><X color="red"/></Button>
+              </li>
+          })}
+        </ul>
+        </div>
+        <p>Classes to be removed</p>
+        <div className=" min-h-[40px] w-full rounded-md border border-input bg-transparent px-3 py-2 ">
+        <ul>
+          {removed.map((id,index)=>{
+            return <li key ={`${module}-${index}`} className="flex items-center gap-2">
+            <div className="flex-grow">{id}</div>
+            <Button variant={"ghost"} className="p-0" onClick={()=>handleAddClass(id)}><Check color="green"/></Button>
+            </li>
+          })}
+        </ul>
+        </div>
+        <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(handleAddNew)}
+          className=""
+        >
+        <FormField
+                control={form.control}
+                name="teaching_class_ids_str"
+                render={({ field }) => (
+                  <FormItem className="">
+                    <FormLabel>New class: </FormLabel>
+                    <div className="flex items-center">
+                    <FormControl>
+                      <Input placeholder="Class IDs..." {...field} />
+                    </FormControl>
+                    <FormControl>
+                      <Button
+                        onClick={() => form.reset()}
+                        variant={"ghost"}
+                        className="p-1"
+                        type="reset"
+                      >
+                        <X size={30} />
+                      </Button>
+                    </FormControl>
+                    <FormControl>
+                        <Button
+                          type="submit"
+                          className=" rounded-xl"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? "loading..." : "Add"}
+                        </Button>
+                    </FormControl>
+                    </div>
+                    <FormDescription>Seperate class IDs by "," .</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+             
+           </form>
+      </Form>
+      <AlertDialog>
+              <AlertDialogTrigger asChild>
+              <Button disabled={isLoading||disableSave} >{isLoading?"loading...":"Save class changes"}</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure to update the classes of {teacher.name} ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. {classesToBeRemoved.length?`This will permanently remove ${classesToBeRemoved.join(", ")} from the class list of ${teacher.name}.`:""}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction disabled={isLoading} onClick={handleAssignClass}>{isLoading?"Loading...":"Confirm"}</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+      
+      </div>
+      
+    </>
+
+}
+
+
 
 const ManageUser: FC = () => {
   const [user, setUser] = useState<RoledUserType | undefined>();
@@ -142,7 +314,7 @@ const ManageUser: FC = () => {
 
   return (
     <>
-    <SearchStudent {...{isLoading,setIsLoading,setUser}} />
+    <SearchUser {...{isLoading,setIsLoading,setUser}} />
         {user ? 
           
           <div className="my-2 space-y-3">
@@ -156,8 +328,9 @@ const ManageUser: FC = () => {
             </div>
             :null}
             {user.roles.includes("managedStudent")?<ManagedStudentOption {...{student:user,reload,isLoading,setIsLoading}}/>:
-            user.roles.includes("unmanagedStudent")?<UnmanagedStudentOption {...{student:user,reload,isLoading,setIsLoading}}/>
-            :null}
+            user.roles.includes("unmanagedStudent")?<UnmanagedStudentOption {...{student:user,reload,isLoading,setIsLoading}}/>:
+            user.roles.includes("teacher")?<TeacherOption {...{teacher:user,reload,isLoading,setIsLoading}}/>:
+            null}
             <div className=" flex justify-end">
             <DeleteUser {...{user,reload,isLoading,setIsLoading}}/>
             </div>

@@ -2,9 +2,15 @@ import {z}from "zod"
 import { UserMetadataSchema, UserRoleSchema } from "./auth0_schemas"
 import { validDateString,afterToday} from "@/lib/utils"
 
-export const SetExpriationSchema = z.string().refine(str=>validDateString(str),
+export const SetExpriationSchema = z.string().refine(str=>{
+    if(str) return validDateString(str)
+    return true
+  },
 {message:"Invalid date string,Please provide the date string in the format of YYYY-MM-DD"}
-).refine(str=>afterToday(str),{message:"Expiration date is required to be set after today"})
+).refine(str=>{
+  if(str) return afterToday(str)
+  return true
+},{message:"Expiration date is required to be set after today"})
 
 export const UserCreateFormSchema = z.object({
   role: UserRoleSchema ,
@@ -21,7 +27,8 @@ export const UserCreateFormSchema = z.object({
     return input.enrolled_class_id?.length
   }else return true
 },{path:["enrolled_class_id"],message:"Enrolled class ID is required for student account"}
-).refine(input=>{
+)
+.refine(input=>{
   if(input.role!=="admin"){
     return input.account_expiration_date?.length
   }else return true

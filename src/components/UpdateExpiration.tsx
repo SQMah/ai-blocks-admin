@@ -97,7 +97,7 @@ const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,}) => {
                     type="date"
                   ></Input>
                 <FormDescription>
-                <span className=" space-x-3"><span>Expiration date:</span> 
+                <span className=" space-x-3"><span>Current expiration date:</span> 
                 {expiration?<span>{expiration}</span>:<span className=" text-destructive">None</span>}
                 {expiration&&validDateString(expiration)&&expirated(expiration)?<span className="text-destructive">{" (Expirated)"}</span>:null}
                 </span>

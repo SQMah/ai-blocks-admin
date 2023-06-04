@@ -49,15 +49,23 @@ const handleGet = async (
   res: NextApiResponse<RoledUserArrayType | string>
 ) => {
   try {
-    let { email } = req.query;
-    if (email == undefined) {
-      res.status(500).send("Student ID is required");
-      return;
-    } else if (Array.isArray(email)) {
-      email = email[email.length - 1];
+    // console.log(req.query)
+    let  { email,enrolled_class_id,teaching_class_id,type} = req.query;
+    const inputs = [email,enrolled_class_id,teaching_class_id,type]
+    .map(input=>{
+      if(Array.isArray(input)){
+        input = input.at(-1)
+      }
+      return input
+    })
+    const  query = {
+      email:inputs[0],
+      enrolled_class_id:inputs[1],
+      teaching_class_id:inputs[2],
     }
+    const searchType = inputs[3]==="AND"||inputs[3]==="OR"?inputs[3]:undefined
     const token = await getAccessToken();
-    const users = await searchUser(token, email);
+    const users = await searchUser(token, query,searchType);
     res.status(200).json(users);
     return;
   } catch (error: any) {

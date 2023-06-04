@@ -4,12 +4,13 @@ import { sendMail } from './mail_sender';
 import * as z from "zod"
 
 import { roleMapping,UserMetadataType,UserCreationBodyType,
-  AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArraySchema, RoledUserArrayType, 
-  RoleArraySchema, RoleArrayType, UserCreateResponseSchema, UserCreateResponseType, UserSearchResponseArraySchema,
-   UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType } from '@/models/auth0_schemas';
+  AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArrayType,  RoleArrayType, UserCreateResponseSchema, 
+  UserCreateResponseType, UserSearchResponseArraySchema,
+   UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType} from '@/models/auth0_schemas';
 import { PutUsersReqType, UserCreateDataType} from '@/models/api_schemas';
 
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
+
 
 
 export async function createUser(access_token:string,payload:UserCreateDataType): Promise<UserCreateResponseType> {
@@ -160,7 +161,7 @@ export const sendInvitation = async(access_token:string,receiver_name:string
       });
       const url = data.ticket +"#type=invite" + "#app=AIBlock"
       // console.log(url)
-      // await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
+      await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
       console.log(`Invitation mail sent to ${reciever_mail}`)  
   } catch (error:any) {
     console.log(error?.response?.data?.message??error?.message??error)
@@ -169,10 +170,24 @@ export const sendInvitation = async(access_token:string,receiver_name:string
   
 }
 
+interface SerachQuery {
+    email?:string
+    enrolled_class_id?:string
+    teaching_class_id?:string
+}
 
-export const searchUser = async (access_token:string,email:string):Promise<RoledUserArrayType>=>{
 
-  const apiUrl = new URL(`?fields=email%2Cuser_metadata%2Cname%2Cuser_id%2Capp_metadata&include_fields=true&email=${email}`,`${auth0BaseUrl}/api/v2/users-by-email`)
+export const searchUser = async (access_token:string,query:SerachQuery,type:"AND"|"OR"="AND"):Promise<RoledUserArrayType>=>{
+  // console.log(query)
+  const {email,enrolled_class_id,teaching_class_id} = query
+  const queryStrs = [
+    email&&`email:${email}`,
+    enrolled_class_id&&`user_metadata.enrolled_class_id:${enrolled_class_id}`,
+    teaching_class_id&&`user_metadata.teaching_class_id${teaching_class_id}`
+  ].filter(input=>!!input).map(input=>input?.replaceAll(" ","\\ "))
+  // console.log(queryStrs)
+  const apiUrl = new URL(`?q=${queryStrs.join(type)}`,`${auth0BaseUrl}/api/v2/users`)
+  // console.log(apiUrl.href)
   try {
     const response = await axios.get(apiUrl.href,{
       headers: {
@@ -203,43 +218,32 @@ type PutUserBodyType = z.infer<typeof PutUserBodySchema>
 
 export const updateUser = async (access_token:string,payload:PutUsersReqType,roles:RoleArrayType) =>{
   const {userId,content} = payload
-  const {available_modules,enrolled_class_id,account_expiration_date} = content
+  const {available_modules,enrolled_class_id,teaching_class_ids,account_expiration_date} = content
   const body:PutUserBodyType ={}
+  const isStudent = roles.includes("managedStudent")||roles.includes("unmanagedStudent")
+  const isTeacher =roles.includes("teacher")
+  const isAdmin = roles.includes('admin')
+  body.user_metadata={
+    ...(isStudent && { enrolled_class_id }),
+    ...(isTeacher&&{teaching_class_ids}),
+    ...(isStudent&&{available_modules}),
+    ...(isAdmin&&account_expiration_date===null&&{account_expiration_date}),
+    ...(!isAdmin&&{account_expiration_date})
+  }
   let changeRole:undefined|{remove:UserRoleType,add:UserRoleType}=undefined
-  if(enrolled_class_id!==undefined&&roles.includes("managedStudent")){
-    body.user_metadata = {
-      ...body.user_metadata,
-      enrolled_class_id
-    }
-    if(enrolled_class_id===null) changeRole = {
+  if(enrolled_class_id===null&&roles.includes("managedStudent")){
+    changeRole = {
       remove:"managedStudent",
       add:"unmanagedStudent",
     }
   }
   if(enrolled_class_id&&roles.includes("unmanagedStudent")){
-    body.user_metadata = {
-      ...body.user_metadata,
-      enrolled_class_id
-    }
     changeRole = {
       remove:"unmanagedStudent",
       add:"managedStudent",
     }
   }
-  if(available_modules&&roles.includes("unmanagedStudent")){
-    body.user_metadata = {
-      ...body.user_metadata,
-      available_modules
-    }
-  }
-  if(account_expiration_date&&(roles.includes("unmanagedStudent")||roles.includes("managedStudent")||roles.includes("teacher"))){
-    body.user_metadata = {
-      ...body.user_metadata,
-     account_expiration_date
-    }
-  }
-  if(!body) throw new Error("Invalid update content")
-  // console.log(body)
+  if(!Object.keys(body).length) throw new Error("Invalid update content")
   try {
     const {data} = await axios.patch(`${auth0BaseUrl}/api/v2/users/${userId}`, body, {
       headers: {
