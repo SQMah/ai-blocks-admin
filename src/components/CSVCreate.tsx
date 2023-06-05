@@ -129,7 +129,7 @@ const CSVCreate:FC<CSVCreateProps> = ({isLoading,setIsLoading})=>{
 
     return <>
     <div className="grid w-full items-center gap-1.5">
-      <Label htmlFor="picture">CSV:</Label>
+      <Label htmlFor="picture">Account data:</Label>
       <Input id="picture" type="file" accept=".csv" onChange={handleFileUpload} className="max-w-sm  cursor-pointer"/>
       <p className="text-sm text-muted-foreground">Please upload a CSV file that includes the following headers: 'First name', 
       'Last name', and 'Email'. All three headers are required and must be present in the CSV file. 

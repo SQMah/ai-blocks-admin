@@ -167,7 +167,7 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
       <Dialog>
         <DialogTrigger asChild>
           <Button disabled={isLoading||users.length===0} className="">
-            {isLoading ? "loading..." : "Edit account expiration"}
+            {isLoading ? "loading..." : "Edit students' expirations"}
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">

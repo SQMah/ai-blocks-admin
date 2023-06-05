@@ -53,7 +53,7 @@ export const UserCreateDataSchema = z.object({
   enrolled_class_id: z.string().optional(),
   teaching_class_ids:z.array(z.string().trim().nonempty()).optional(),
   available_modules:z.array(z.string()).optional(),
-  account_expiration_date: SetExpriationSchema.optional(),
+  account_expiration_date: SetExpriationSchema.or(z.literal("")).optional(),
 })
 .refine((input)=>{
   if(input.role==="managedStudent"){
@@ -69,7 +69,7 @@ export const UserCreateDataSchema = z.object({
 export type UserCreateDataType = z.infer<typeof UserCreateDataSchema>
 
 export const CreateClassDataSchema=z.object({
-    teacherId:z.string().email().trim().nonempty(),
+    teacherId:z.array(z.string().email().trim().nonempty()),
     capacity:z.number().nonnegative(),
     available_modules:z.array(z.string())
 })
@@ -84,7 +84,7 @@ export const PostUsersReqSchema = z.object({
   enrolled_class_id: z.string().optional(),
   teaching_class_ids:z.array(z.string().trim().nonempty()).optional(),
   available_modules:z.array(z.string()).optional(),
-  account_expiration_date:  SetExpriationSchema.optional(),
+  account_expiration_date:  SetExpriationSchema.or(z.literal("")).optional(),
 }).refine(input=>{
   if(input.users?.length) return input.role
   else return true

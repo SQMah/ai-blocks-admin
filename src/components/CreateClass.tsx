@@ -14,14 +14,25 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription
 } from "@/components/ui/form";
 
 import { defaultModels,modulesReady } from "@/models/auth0_schemas"
-import { CreateClassDataType } from "@/models/api_schemas";
+import { CreateClassDataType} from "@/models/api_schemas";
 
 const FormSchema = z.object({
-    teacherId:z.string().email().trim().nonempty(),
+    teacherIds: z.string().trim().nonempty({message:"Required"})
+    .refine(input=>{
+      const idList = input.split(",").filter(id=>id.length).map(id=>id.trim())
+      for (const id of idList){
+        if(!z.string().email().safeParse(id).success){
+          return false
+        }
+      }
+      return true
+    },{message:`Invalid email, please provide a list of email seperated by ","`}),
     capacity:z.string().nonempty({message:"Required"})
+    .refine(input=>!isNaN(Number(input)),{message:"Invalid number"})
 })
 
 const CreateClass:FC= ()=>{
@@ -32,7 +43,7 @@ const CreateClass:FC= ()=>{
     const form = useForm<z.infer<typeof FormSchema>>({
         resolver: zodResolver(FormSchema),
         defaultValues: {
-          teacherId:"",
+          teacherIds:"",
           capacity:"10"
         },
       });
@@ -41,14 +52,9 @@ const CreateClass:FC= ()=>{
         setIsLoading(true)
         try { 
             // console.log(values,availableModules)
-            let {teacherId,capacity} = values
-            if(isNaN(Number(capacity))){
-                form.setError("capacity",{message:"Invalid number"})
-                setIsLoading(false)
-                return
-            }
+            let {teacherIds,capacity} = values
             const payload:CreateClassDataType={
-                teacherId:values.teacherId,
+                teacherId:values.teacherIds.split(",").filter(id=>id.length).map(id=>id.trim()),
                 capacity:Number(values.capacity),
                 available_modules:availableModules||[]
             }
@@ -73,22 +79,22 @@ const CreateClass:FC= ()=>{
      <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className=" grid grid-cols-3  items-center gap-12"
+          className=" grid grid-cols-2  items-center gap-12"
         >
         <div className=" space-y-5 col-span-2">
           <FormField
                 control={form.control}
-                name="teacherId"
+                name="teacherIds"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Teacher ID</FormLabel>
+                    <FormLabel>Teacher IDs (email)</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Teacher ID ..."
-                        type="email"
+                        placeholder="Teacher IDs ..."
                         {...field}
                       />
                     </FormControl>
+                    <FormDescription>Seperate teacher IDs by "," </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -110,30 +116,34 @@ const CreateClass:FC= ()=>{
                   </FormItem>
                 )}
               />
-                <p>current modules</p>
-                <div className=" min-h-[40px] w-full rounded-md border border-input bg-transparent px-3 py-2 ">
-                    <ul>
-                        {availableModules.map((module,index)=>{
-                        return <li key ={`${module}-${index}`} className="flex items-center gap-2">
-                            <div className="flex-grow">{module}</div>
-                            <Button type="button" variant={"ghost"} className="p-0" onClick={()=>handleRemoveModule(module)}><X color="red"/></Button>
-                            </li>
-                        })}
-                    </ul>
+              </div>
+                <div className="space-y-5 ">
+                  <p>current modules</p>
+                      <ul className="h-64 overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+                          {availableModules.map((module,index)=>{
+                          return <li key ={`${module}-${index}`} className="flex items-center gap-2">
+                              <div className="flex-grow">{module}</div>
+                              <Button type="button" variant={"ghost"} className="p-0" onClick={()=>handleRemoveModule(module)}><X color="red"/></Button>
+                              </li>
+                          })}
+                      </ul>
                 </div>
-                <p>modules to add</p>
-                <div className=" min-h-[40px] w-full rounded-md border border-input bg-transparent px-3 py-2 ">
-                    <ul>
-                        {modulesToAdd.map((module,index)=>{
-                        return <li key ={`${module}-${index}`} className="flex items-center gap-2">
-                        <div className="flex-grow">{module}</div>
-                        <Button type="button" variant={"ghost"} className="p-0" onClick={()=>handleAddModule(module)}><Check color="green"/></Button>
-                        </li>
-                        })}
-                    </ul>
+                <div className="space-y-5">
+                  <p>modules to add</p>
+                      <div className="  h-64 overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+                          {modulesToAdd.map((module,index)=>{
+                          return <div key ={`${module}-${index}`} className="flex items-center gap-2">
+                          <div className="flex-grow">{module}</div>
+                          <Button type="button" variant={"ghost"} className="p-0" onClick={()=>handleAddModule(module)}><Check color="green"/></Button>
+                          </div>
+                          })}
+                      </div>
                 </div>
-            </div>
-            <div className="items-center justify-center flex">
+            <div className="items-center justify-end flex col-span-2 space-x-10">
+            <Button type="reset" onClick={()=>{
+              setAvailableModules(defaultModels)
+              form.reset()
+            }} variant={"secondary"} >Default values</Button>
             <Button type="submit" disabled={isLoading}>{isLoading?"Loading...":"Create Class"}</Button>
             </div>
         </form>
