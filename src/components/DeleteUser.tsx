@@ -49,7 +49,7 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
               </AlertDialogTrigger>
               <AlertDialogContent >
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure to delte {user.name}?</AlertDialogTitle>
+                  <AlertDialogTitle>Are you absolutely sure to delete {user.name}?</AlertDialogTitle>
                   <AlertDialogDescription>
                     This action cannot be undone. This will permanently delete  the account of {user.name}.
                   </AlertDialogDescription>

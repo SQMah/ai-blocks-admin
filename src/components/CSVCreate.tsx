@@ -150,7 +150,7 @@ const formSchema= z.object({
     enrolled_class_id: z.string().optional(),
     teaching_class_ids_str:z.string().optional(),  
     available_modules:z.array(z.string()).optional(),
-    account_expiration_date:  SetExpriationSchema.optional(),
+    account_expiration_date:  SetExpriationSchema.or(z.literal("")).optional(),
   }).refine((input)=>{
     if(input.role==="managedStudent"){
       return input.enrolled_class_id?.length

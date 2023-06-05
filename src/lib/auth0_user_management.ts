@@ -161,7 +161,7 @@ export const sendInvitation = async(access_token:string,receiver_name:string
       });
       const url = data.ticket +"#type=invite" + "#app=AIBlock"
       // console.log(url)
-      await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
+      // await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
       console.log(`Invitation mail sent to ${reciever_mail}`)  
   } catch (error:any) {
     console.log(error?.response?.data?.message??error?.message??error)
@@ -171,22 +171,23 @@ export const sendInvitation = async(access_token:string,receiver_name:string
 }
 
 interface SerachQuery {
-    email?:string
-    enrolled_class_id?:string
-    teaching_class_id?:string
+    email?:string[]
+    enrolled_class_id?:string[]
+    teaching_class_ids?:string[]
 }
 
 
-export const searchUser = async (access_token:string,query:SerachQuery,type:"AND"|"OR"="AND"):Promise<RoledUserArrayType>=>{
-  // console.log(query)
-  const {email,enrolled_class_id,teaching_class_id} = query
+export const searchUser = async (access_token:string,query:SerachQuery,type:"AND"|"OR"="OR"):Promise<RoledUserArrayType>=>{
+  // console.log(query,type)
+  const {email,enrolled_class_id,teaching_class_ids} = query
+  const seperator = `%20${type}%20`
   const queryStrs = [
-    email&&`email:${email}`,
-    enrolled_class_id&&`user_metadata.enrolled_class_id:${enrolled_class_id}`,
-    teaching_class_id&&`user_metadata.teaching_class_id${teaching_class_id}`
-  ].filter(input=>!!input).map(input=>input?.replaceAll(" ","\\ "))
-  // console.log(queryStrs)
-  const apiUrl = new URL(`?q=${queryStrs.join(type)}`,`${auth0BaseUrl}/api/v2/users`)
+    email&&email.map(input=>`email:${input}`),
+    enrolled_class_id&&enrolled_class_id.map(input=>`user_metadata.enrolled_class_id:${input}`),
+    teaching_class_ids&&teaching_class_ids.map(input=>`user_metadata.teaching_class_ids:${input}`)
+  ].filter(input=>!!input).map(input=>input?.join(seperator).replaceAll(" ","\\ "))
+  // console.log(queryStrs,seperator)
+  const apiUrl = new URL(`?q=${queryStrs.join(seperator)}`,`${auth0BaseUrl}/api/v2/users`)
   // console.log(apiUrl.href)
   try {
     const response = await axios.get(apiUrl.href,{
@@ -201,7 +202,7 @@ export const searchUser = async (access_token:string,query:SerachQuery,type:"AND
       const roles = await checkRole(access_token,user.user_id)
       return {...user,roles}
     }))
-    // console.log(res)
+    // console.log(res.map(user=>user.name))
     return res
   } catch (error:any) {
     console.log(error?.response?.data?.message??error?.message??error)

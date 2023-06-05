@@ -33,8 +33,9 @@ import { RoledUserArraySchema, RoledUserType ,roleMapping} from "@/models/auth0_
 import { PutUsersReqType } from "@/models/api_schemas";
 
 import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOptions";
-import UpdateExpiration from "./UpdateExpiration";
+import {UpdateExpiration} from "./UpdateExpiration";
 import DeleteUser from "./DeleteUser";
+import ShowExpiration from "./ShowExpiration";
 
 
 const formSchema = z.object({
@@ -321,9 +322,8 @@ const ManageUser: FC = () => {
             <p>Name: {user.name}</p>
             <p>Type: {user.roles.map(role=>roleMapping[role]?.name).join(",")}</p>
             {user.roles.includes("managedStudent")||user.roles.includes("unmanagedStudent")||user.roles.includes("teacher")?
-            <div className=" space-x-3"><span>Expiration date:</span> 
-            {expiration?<span>{expiration}</span>:<span className=" text-destructive">None</span>}
-            {expiration&&validDateString(expiration)&&expirated(expiration)?<span className="text-destructive">{" (Expirated)"}</span>:null}
+            <div className=" space-x-3">
+            <ShowExpiration expiration={user.user_metadata?.account_expiration_date}/>
             <span><UpdateExpiration {...{user,reload,isLoading,setIsLoading}}/></span>
             </div>
             :null}

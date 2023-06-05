@@ -1,4 +1,4 @@
-import { FC, Dispatch, SetStateAction } from "react";
+import { FC, Dispatch, SetStateAction, useState } from "react";
 import axios from "axios";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -22,12 +22,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 
 import { PutUsersReqType, SetExpriationSchema } from "@/models/api_schemas";
-import { RoledUserType } from "@/models/auth0_schemas";
-import { validDateString,expirated } from "@/lib/utils";
+import { RoledUserType,RoledUserArrayType } from "@/models/auth0_schemas";
+import {findEarliestDate,delay} from "@/lib/utils"
+import ShowExpiration from "./ShowExpiration";
 
 interface props {
   isLoading: boolean;
@@ -40,7 +42,7 @@ const formSchema = z.object({
   account_expiration_date: SetExpriationSchema,
 });
 
-const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,}) => {
+export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,}) => {
 
   const expiration = user.user_metadata?.account_expiration_date
   const form = useForm<z.infer<typeof formSchema>>({
@@ -97,10 +99,7 @@ const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,}) => {
                     type="date"
                   ></Input>
                 <FormDescription>
-                <span className=" space-x-3"><span>Current expiration date:</span> 
-                {expiration?<span>{expiration}</span>:<span className=" text-destructive">None</span>}
-                {expiration&&validDateString(expiration)&&expirated(expiration)?<span className="text-destructive">{" (Expirated)"}</span>:null}
-                </span>
+                <ShowExpiration expiration={expiration} content="Current expiration date:"/>
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -122,4 +121,97 @@ const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,}) => {
   );
 };
 
-export default UpdateExpiration;
+interface AllProps{
+  isLoading: boolean;
+  setIsLoading: Dispatch<SetStateAction<boolean>>;
+  reload: () => Promise<void> | ((id: string) => Promise<void>);
+  users: RoledUserArrayType;
+}
+
+export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload,users,}) => {
+  const [updating,setUpdating] = useState<number>(0)
+
+  const   eariliestExpiration = findEarliestDate(users.map(user=>user.user_metadata?.account_expiration_date))
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      account_expiration_date:"",
+    },
+  });
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if(isLoading||form.watch("account_expiration_date").length===0)return
+    for(const user of users){
+      setUpdating(prev=>prev+1)
+      try {
+        const payload: PutUsersReqType = {
+          userId: user.user_id,
+          content:{
+            account_expiration_date: values.account_expiration_date,
+          }
+        };
+        const response =await  axios.put("/api/users",payload)
+        await delay(1000)
+      } catch (error: any) {
+        console.log(error?.response?.data?.message ?? error?.message ?? error);
+      }
+    }
+    await reload()
+    setUpdating(0)
+  };
+
+
+  return (
+    <>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button disabled={isLoading||users.length===0} className="">
+            {isLoading ? "loading..." : "Edit account expiration"}
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Update expiration dates</DialogTitle>
+              <DialogDescription>
+               Update the expiration dates of all {users.length} students in this class. Click save when you're done.
+              </DialogDescription>
+            </DialogHeader>
+        <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <FormField
+            control={form.control}
+            name="account_expiration_date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="date update">
+                  Update Expirtaion
+                </FormLabel>
+                  <Input
+                    id = "date update"
+                    {...field}
+                    type="date"
+                  ></Input>
+                <FormDescription>
+                <ShowExpiration expiration={eariliestExpiration} content="Eariliest expiration date:"/>
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+            <DialogFooter>
+              <FormControl>
+              <Button type="submit" disabled={isLoading||updating>0} >
+                {updating>0?`Updating ${updating}/${users.length} students`:isLoading ? "Loading..." : "Save changes"}
+              </Button>
+              </FormControl>
+            </DialogFooter>
+        </form>
+      </Form>
+        </DialogContent>
+      </Dialog>
+      
+    </>
+  );
+};
+

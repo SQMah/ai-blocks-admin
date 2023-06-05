@@ -50,20 +50,20 @@ const handleGet = async (
 ) => {
   try {
     // console.log(req.query)
-    let  { email,enrolled_class_id,teaching_class_id,type} = req.query;
-    const inputs = [email,enrolled_class_id,teaching_class_id,type]
+    let  { email,enrolled_class_id,teaching_class_ids,type} = req.query;
+    const inputs = [email,enrolled_class_id,teaching_class_ids]
     .map(input=>{
-      if(Array.isArray(input)){
-        input = input.at(-1)
-      }
+      if(input===undefined) return undefined
+      if(!Array.isArray(input)) return [input]
       return input
     })
     const  query = {
       email:inputs[0],
       enrolled_class_id:inputs[1],
-      teaching_class_id:inputs[2],
+      teaching_class_ids:inputs[2],
     }
-    const searchType = inputs[3]==="AND"||inputs[3]==="OR"?inputs[3]:undefined
+    const searchType = type==="AND"||type==="OR"?type:undefined
+    // console.log(query,searchType)
     const token = await getAccessToken();
     const users = await searchUser(token, query,searchType);
     res.status(200).json(users);

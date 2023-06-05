@@ -32,6 +32,8 @@ import { Label } from "./ui/label";
 
 import { cn } from "@/lib/utils"
 import { RoledUserArraySchema, RoledUserArrayType, RoledUserType ,modulesReady} from "@/models/auth0_schemas";
+import ShowExpiration from "./ShowExpiration";
+import { UpdateAllExpiration } from "./UpdateExpiration";
 
 
 
@@ -233,42 +235,42 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeCla
 const ManageClass: FC = () => {
   const [classId,setClassId] = useState<string>("")
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [students,setStudents] = useState<RoledUserArrayType>([])
 
-  let currentModules:string[] =[]
+  const [users,setUsers] = useState<RoledUserArrayType>([])
+  const teachers= users.filter(user=>user.roles.includes("teacher"))
+  const students = users.filter(user=>user.roles.includes("managedStudent"))
+
+  const [currentModules,setCurrentModules] = useState<string[]>([])
   const [availableModules,setAvailableModules] = useState<string[]>([])
   const modulesToAdd:string[] = modulesReady.filter(module=>!availableModules.includes(module))
   const disableSave:boolean = currentModules.toString()===availableModules.toString()
 
+  const reload = async(id:string=classId)=>{
+    setUsers([])
+    setCurrentModules([])
+    setAvailableModules(currentModules)
+    if(!id.length||isLoading) return
+    setIsLoading(true);
+    try {
+      // console.log(values);
+      const response = await axios.get(
+        `/api/users?enrolled_class_id=${id}&teaching_class_ids=${id}&type=OR`
+      );
+      const data = RoledUserArraySchema.parse(response.data);
+      // console.log(data)
+      setUsers(data)
+    } catch (error: any) {
+      console.log(error?.response?.data?.message ?? error?.message ?? error);
+    }
+    setIsLoading(false);
+  }
 
   const handleChangeClassId =async (id:string):Promise<void> => {
-    setStudents([])
-    currentModules=[]
-    setAvailableModules(currentModules)
-    setClassId("")
-    if(!id.length){
-        return
-    }
-    setIsLoading(true)
-    try {
-        //todo: ftech db for modules
-        //current modules = data.sort()
-        //setAvaibleModules(currentModules)
-
-        const response = await axios.get(
-          `/api/users?enrolled_class_id=${id}`
-        );
-        const data = RoledUserArraySchema.parse(response.data);
-        // console.log(data)
-        setStudents(data)
-        setClassId(id)
-      } catch (error: any) {
-        console.log(error?.response?.data?.message ?? error?.message ?? error);
-    }
-    setIsLoading(false)
-    return
+    setClassId(id)
+    await reload(id)
   }
   
+
   const handleAddModule = (toAdd:string)=>{
     setAvailableModules(prev=>[...prev,toAdd].sort())
   }
@@ -288,13 +290,14 @@ const ManageClass: FC = () => {
     console.log(error?.response?.data?.message ?? error?.message ?? error);
     }
     setIsLoading(false)
-    await handleChangeClassId(classId)
+    await reload()
   }
   
 
   return (
     <>
     <div className="m-8">
+    <div>Class ID: {classId}</div>
     <Tabs defaultValue="teacher" className="">
     <div className="flex justify-center">
       <TabsList className="">
@@ -309,23 +312,29 @@ const ManageClass: FC = () => {
         <InputClassID {...{isLoading,setIsLoading,handleChangeClassId,classId} }/>
         </TabsContent>
       </Tabs>
-      {classId?<>
+      {classId&&!isLoading?<>
       <div className="grid grid-cols-2 gap-6">
+        <div className="space-y-3 col-span-2">
+          <p>Teachers in class:</p>
+          <p className="space-x-3">{teachers.map(teacher=>{
+            return <span>{`${teacher.name} (${teacher.email})`}</span>
+          })}</p>
+        </div>
         <div className=" space-y-3">
             <p>Students</p>
-            <div className=" min-h-[350px] w-full rounded-md border border-input bg-transparent px-3 py-2 ">
+            <div className="h-2/3 overflow-auto w-full rounded-md border border-input bg-transparent px-3 py-2 ">
                 <ul>
                     {students.map((student,index)=>{
-                    return <li key ={`${module}-${index}`} className="flex items-center gap-2">
-                        <div className="flex-grow ">
+                    return <li key ={`${module}-${index}`} className="flex items-center  space-x-4">
                             <span>{`${index+1}.`}</span>
                             <span className="mx-4">{student.name}</span>
                             <span>{student.email}</span>
-                            </div>
+                            <ShowExpiration expiration={student.user_metadata?.account_expiration_date} content=""/>
                         </li>
                     })}
                 </ul>
             </div>
+            <UpdateAllExpiration {...{isLoading,setIsLoading,users:students,reload}}/>
         </div>
         <div className=" space-y-3">
             <p>current modules</p>

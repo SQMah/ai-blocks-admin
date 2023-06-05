@@ -2,7 +2,7 @@ import {z}from "zod"
 import { UserMetadataSchema, UserRoleSchema } from "./auth0_schemas"
 import { validDateString,afterToday} from "@/lib/utils"
 
-export const SetExpriationSchema = z.string().refine(str=>{
+export const SetExpriationSchema = z.string().nonempty({message:"Required"}).refine(str=>{
     if(str) return validDateString(str)
     return true
   },
@@ -20,7 +20,7 @@ export const UserCreateFormSchema = z.object({
   enrolled_class_id: z.string().optional(),
   teaching_class_ids_str:z.string().optional(),  
   available_modules:z.array(z.string()).optional(),
-  account_expiration_date: SetExpriationSchema.optional(),
+  account_expiration_date: SetExpriationSchema.or(z.literal("")).optional(),
 })
 .refine((input)=>{
   if(input.role==="managedStudent"){

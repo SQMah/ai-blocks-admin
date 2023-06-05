@@ -37,3 +37,19 @@ export function afterToday(str:string):boolean{
   const data = new Date(`${str}T00:00:00`);
   return data > tdy
 }
+
+export function findEarliestDate(dates: (string | undefined|null)[]): string | undefined {
+  const validDates = dates.filter(date => date !== undefined) as string[];
+
+  if (validDates.length === 0) {
+    return undefined;
+  }
+
+  const sortedDates = validDates.sort((a, b) => {
+    const dateA = new Date(a);
+    const dateB = new Date(b);
+    return dateA.getTime() - dateB.getTime();
+  });
+
+  return sortedDates[0];
+}
