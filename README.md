@@ -115,7 +115,7 @@ This is an admin panel for managing user and class information using Auth0 authe
 - Schemas and types
     - all types and schemas of API request and response can be found and updated in `src/models/api_schemas.ts` and `src/models/auth0_schemas.ts`
 - Invitation email
-    - Sender mail address, address formating, signing name can be configurated in `sendInvitation` from src/lib/auth0_user_management.ts
+    - Sender mail address, address formating, signing name can be configurated in `sendInvitation` from `src/lib/auth0_user_management.ts`
     - The email templates can be changed in `src/lib/email_template.ts`
     - For medias, te attachment setting can be found in `src/lib/mail_sender.ts`
     - references: <https://nodemailer.com/about/>
