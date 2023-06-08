@@ -111,7 +111,7 @@ This is an admin panel for managing user and class information using Auth0 authe
     npm start
     ```
 
-##Customisation
+## Customisation
 - Schemas and types
     - all types and schemas of API request and response can be found and updated in `src/models/api_schemas.ts` and `src/models/auth0_schemas.ts`
 - Invitation email
