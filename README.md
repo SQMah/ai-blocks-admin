@@ -51,12 +51,12 @@ This is an admin panel for managing user and class information using Auth0 authe
             const expiration = event.user.user_metadata?.account_expiration_date
             if(expiration == undefined) return
             if(isNaN(Date.parse(`${expiration}T00:00:00`))){
-                api.redirect.sendUserTo("https://dev-o2bp3ke34tr10dsd.us.auth0.com/v2/logout")
+                api.redirect.sendUserTo("https://{Auth0 m2m app domain}/v2/logout")
             }
             const tdy = new Date()
             const data = new Date(`${expiration}T00:00:00`);
             if (data < tdy){
-                api.redirect.sendUserTo("https://dev-o2bp3ke34tr10dsd.us.auth0.com/v2/logout")
+                api.redirect.sendUserTo("https://{Auth0 m2m app domain}/v2/logout")
             }
             };
             ```
@@ -82,7 +82,7 @@ This is an admin panel for managing user and class information using Auth0 authe
     
     AUTH0_SECRET = use [openssl rand -hex 32] to generate a 32 bytes value
     AUTH0_BASE_URL= base url of the app e.g. http://localhost:3000 
-    AUTH0_ISSUER_BASE_URL=  'https://{Auth0 regular web app domain}'
+    AUTH0_ISSUER_BASE_URL=  'https://{Auth0 regular web app domain}' 
     AUTH0_CLIENT_ID= client id of the web app
     AUTH0_CLIENT_SECRET=the client secret of the regular web app
 
@@ -118,5 +118,5 @@ This is an admin panel for managing user and class information using Auth0 authe
     - Sender mail address, address formating, signing name can be configurated in `sendInvitation` from `src/lib/auth0_user_management.ts`
     - The email templates can be changed in `src/lib/email_template.ts`
     - For medias, te attachment setting can be found in `src/lib/mail_sender.ts`
-    - references: <https://nodemailer.com/about/>
+    - Library reference: <https://nodemailer.com/about/>
 
