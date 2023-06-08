@@ -25,11 +25,13 @@ import {
 
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
+import { useToast } from "./ui/use-toast";
 
 import { PutUsersReqType, SetExpriationSchema } from "@/models/api_schemas";
 import { RoledUserType,RoledUserArrayType } from "@/models/auth0_schemas";
 import {findEarliestDate,delay} from "@/lib/utils"
 import ShowExpiration from "./ShowExpiration";
+
 
 interface props {
   isLoading: boolean;
@@ -43,6 +45,7 @@ const formSchema = z.object({
 });
 
 export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,}) => {
+  const {toast} = useToast()
 
   const expiration = user.user_metadata?.account_expiration_date
   const form = useForm<z.infer<typeof formSchema>>({
@@ -61,9 +64,20 @@ export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,
         }
       };
       const response =await  axios.put("/api/users",payload)
+      toast({
+        title:"Updated"
+      })
       await reload();
     } catch (error: any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
+      const message = error?.response?.data?.message
+      if(message){
+        toast({
+          variant:"destructive",
+          title: "Update error",
+          description: message,
+        })
+      }
     }
     setIsLoading(false);
   };
@@ -80,7 +94,7 @@ export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,
             <DialogHeader>
               <DialogTitle>Update expiration date</DialogTitle>
               <DialogDescription>
-               Update the expiration date of {user.name}. Click save when you're done.
+               Update the expiration date of {user.name}. Click save when you are done.
               </DialogDescription>
             </DialogHeader>
         <Form {...form}>
@@ -130,6 +144,7 @@ interface AllProps{
 
 export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload,users,}) => {
   const [updating,setUpdating] = useState<number>(0)
+  const {toast} = useToast()
 
   const   eariliestExpiration = findEarliestDate(users.map(user=>user.user_metadata?.account_expiration_date))
 
@@ -141,6 +156,7 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
   });
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if(isLoading||form.watch("account_expiration_date").length===0)return
+    let success = 0
     for(const user of users){
       setUpdating(prev=>prev+1)
       try {
@@ -151,11 +167,25 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
           }
         };
         const response =await  axios.put("/api/users",payload)
-        await delay(1000)
+        await delay(500)
+        success+=1
       } catch (error: any) {
         console.log(error?.response?.data?.message ?? error?.message ?? error);
+        const message = error?.response?.data?.message
+        if(message){
+          toast({
+            variant:"destructive",
+            title: "Update error for "+user.email,
+            description: message ,
+          })
+        }
+        continue
       }
     }
+    toast({
+      title:"Updated",
+      description:`Updated expiration date for ${success} students`
+    })
     await reload()
     setUpdating(0)
   };
@@ -174,7 +204,7 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
             <DialogHeader>
               <DialogTitle>Update expiration dates</DialogTitle>
               <DialogDescription>
-               Update the expiration dates of all {users.length} students in this class. Click save when you're done.
+               Update the expiration dates of all {users.length} students in this class. Click save when you are done.
               </DialogDescription>
             </DialogHeader>
         <Form {...form}>

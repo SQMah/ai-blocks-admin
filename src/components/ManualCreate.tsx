@@ -1,5 +1,6 @@
 import { FC, Dispatch,SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast"
 import {
   Form,
   FormControl,
@@ -30,6 +31,8 @@ interface ManualCreateProps{
 }
 
 const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
+  const { toast } = useToast()
+
 
   const form = useForm<UserCreateFormType>({
     resolver: zodResolver(UserCreateFormSchema),
@@ -61,9 +64,20 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       const payload:PostUsersReqType=  { user: userData };
       const response = await axios.post("/api/users", payload);
       const data = PostUsersResSchema.parse(response.data)
+      toast({
+        title: "Creation status",
+        description: data.message,
+      })
       // console.log(data.messages);
     } catch (error: any) {
       console.log(error?.response?.data?.messages??error?.message??error)
+      if(error.response?.data){
+        toast({
+          variant:"destructive",
+          title: "Creation error",
+          description: error.response.data.message,
+        })
+      }
     }
     setIsLoading(false)
   };
@@ -183,7 +197,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
                     <FormControl>
                       <Input placeholder="Class IDs..." {...field} />
                     </FormControl>
-                    <FormDescription>Seperate class IDs by "," .</FormDescription>
+                    <FormDescription>{`Seperate class IDs by "," .`}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -211,7 +225,9 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
               />
             </>
           ) : null}
+          <div className="flex justify-end">
           {form.watch("role")?<Button type="submit" disabled={isLoading}>{isLoading?"Loading...":"Submit"}</Button>:null}
+          </div>
         </form>
       </Form>
     </>

@@ -4,6 +4,7 @@ import axios from "axios";
 import { RoledUserType } from "@/models/auth0_schemas";
 import { Button } from "./ui/button";
 import { Checkbox } from "@/components/ui/checkbox"
+import { useToast } from "./ui/use-toast";
 
 
 import {
@@ -30,6 +31,7 @@ interface props{
 
 const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
     const [confirm,setConfirm] = useState<boolean>(false)
+    const {toast} = useToast()
     const handleRemove =async () => {
         setIsLoading(true)
         try {
@@ -37,6 +39,14 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
             await reload()
         } catch (error:any) {
           console.log(error?.response?.data?.message ?? error?.message ?? error);
+          const message = error?.response?.data?.message
+          if(message){
+            toast({
+              variant:"destructive",
+              title: "Delete error",
+              description: message,
+            })
+          }
         }
         setIsLoading(false)
     }

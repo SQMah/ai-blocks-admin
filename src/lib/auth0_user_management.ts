@@ -9,6 +9,8 @@ import { roleMapping,UserMetadataType,UserCreationBodyType,
    UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType} from '@/models/auth0_schemas';
 import { PutUsersReqType, UserCreateDataType} from '@/models/api_schemas';
 
+import { removeDuplicates } from './utils';
+
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
 
 
@@ -22,8 +24,8 @@ export async function createUser(access_token:string,payload:UserCreateDataType)
     }
     const user_meatadata:UserMetadataType ={
       ...(role === "managedStudent" && { enrolled_class_id }),
-      ...(role==="teacher"&&{teaching_class_ids}),
-      ...((role==="unmanagedStudent"||role==="managedStudent")&&{available_modules:available_modules??defaultModels}),
+      ...(role==="teacher"&&{teaching_class_ids:teaching_class_ids?removeDuplicates(teaching_class_ids):teaching_class_ids}),
+      ...((role==="unmanagedStudent"||role==="managedStudent")&&{available_modules:available_modules?removeDuplicates(available_modules):defaultModels}),
       ...(role !== "admin" && { account_expiration_date }),
     }
     const create_body:UserCreationBodyType = {
@@ -144,10 +146,13 @@ export const checkRole = async(access_token:string,userId:string):Promise<RoleAr
 export const sendInvitation = async(access_token:string,receiver_name:string
   ,reciever_mail:string)=>{
   try {
-      const sender_email = "tommy07201@gmail.com"//only for testing
+      const sender_email =   process.env.SMTP_USER//can be changed
+      if(!sender_email){
+        throw new Error("Email not found")
+      }
       const signing_name ="SQ"
-      const formated_addr = "AI Block"
-      const subject = "Invitation to AI Block"
+      const formated_addr = "AI Blocks"
+      const subject = "Invitation to AI Blocks"
       const body = {
         "client_id": process.env.AUTH0_CLIENT_ID,
         "connection_id": process.env.AUTH0_DB_CONNECTION_ID,
@@ -161,7 +166,7 @@ export const sendInvitation = async(access_token:string,receiver_name:string
       });
       const url = data.ticket +"#type=invite" + "#app=AIBlock"
       // console.log(url)
-      // await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
+      await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
       console.log(`Invitation mail sent to ${reciever_mail}`)  
   } catch (error:any) {
     console.log(error?.response?.data?.message??error?.message??error)
@@ -226,8 +231,8 @@ export const updateUser = async (access_token:string,payload:PutUsersReqType,rol
   const isAdmin = roles.includes('admin')
   body.user_metadata={
     ...(isStudent && { enrolled_class_id }),
-    ...(isTeacher&&{teaching_class_ids}),
-    ...(isStudent&&{available_modules}),
+    ...(isTeacher&&{teaching_class_ids:teaching_class_ids?removeDuplicates(teaching_class_ids):teaching_class_ids}),
+    ...(isStudent&&{available_modules:available_modules?removeDuplicates(available_modules):available_modules}),
     ...(isAdmin&&account_expiration_date===null&&{account_expiration_date}),
     ...(!isAdmin&&{account_expiration_date})
   }

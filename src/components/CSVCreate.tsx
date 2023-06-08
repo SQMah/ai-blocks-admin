@@ -5,6 +5,8 @@ import { ColumnDef } from "@tanstack/react-table"
 import { DataTable} from "./ui/data-table"
 
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast"
+
 import {
   Form,
   FormControl,
@@ -131,9 +133,9 @@ const CSVCreate:FC<CSVCreateProps> = ({isLoading,setIsLoading})=>{
     <div className="grid w-full items-center gap-1.5">
       <Label htmlFor="picture">Account data:</Label>
       <Input id="picture" type="file" accept=".csv" onChange={handleFileUpload} className="max-w-sm  cursor-pointer"/>
-      <p className="text-sm text-muted-foreground">Please upload a CSV file that includes the following headers: 'First name', 
+      <p className="text-sm text-muted-foreground">{`Please upload a CSV file that includes the following headers: 'First name', 
       'Last name', and 'Email'. All three headers are required and must be present in the CSV file. 
-      Please ensure that your CSV file is formatted correctly before uploading.</p>
+      Please ensure that your CSV file is formatted correctly before uploading.`}</p>
       <p className="text-sm font-medium text-destructive">{errorMessage}</p>
     </div>
     {csvData.data.length?<div className="grid grid-cols-2 gap-4">
@@ -171,6 +173,7 @@ interface formProps{
 }
 
 const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
+    const { toast } = useToast()
 
     const form = useForm<formType>({
       resolver: zodResolver(formSchema),
@@ -195,9 +198,20 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
         // console.log(payload)
         const response = await axios.post("/api/users", payload);
         const data = PostUsersResSchema.parse(response.data)
-        console.log(data.messages);
+        console.log(data.message);
+        toast({
+          title: "Creation status",
+          description: data.message,
+        })
       } catch (error: any) {
         console.log(error?.response?.data?.messages??error?.message??error)
+        if(error.response?.data){
+          toast({
+            variant:"destructive",
+            title: "Creation error",
+            description: error.response.data.message,
+          })
+        }
       }
       setIsLoading(false)
     };
@@ -269,7 +283,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
                       <FormControl>
                         <Input placeholder="Class IDs..." {...field} />
                       </FormControl>
-                      <FormDescription>Seperate class IDs by "," .</FormDescription>
+                      <FormDescription>{`Seperate class IDs by "," `}.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -53,3 +53,8 @@ export function findEarliestDate(dates: (string | undefined|null)[]): string | u
 
   return sortedDates[0];
 }
+
+export function removeDuplicates<T>(arr:T[]){
+  const set = new Set(arr)
+  return Array.from(set)
+}

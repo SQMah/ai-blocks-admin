@@ -1,38 +1,122 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Admin panel for data management
 
-## Getting Started
+This is an admin panel for managing user and class information using Auth0 authentication.
 
-First, run the development server:
+## Features
+- Create classes (unfinish)
+    - teacherss, capacity and modules
+- Manage classes (unfinish)
+    - managed students enrolled
+    - update avaiables modules
+    - delete class
+- Manage users
+    - tecahers: update teaching class IDs
+    - managed students: alter enrolled class ID, remove class ID and turn into unmanaged student
+    - unmanaged students: manage avaible modules, enroll in class and turn into managed student
+    - update expiration date for non-admin user
+    - delete account
+- Create account
+    - manual data input
+    - using csv file
+- RESTful api for above features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
+## Todo
+- [ ] Read data from class database
+- [ ] Able to create, update and delete classes in DB
+- Related file(s): `src/components/CreateClass.tsx`, `src/components/ManageClass.tsx`
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+## Getting started
+### Auth 0 
+- Create an Auth0 account
+- In Application tab, create a regular web appliaction folowing the tutorial
+    - In Settings tab,
+        - Allowed Callback URL: {base URL}/api/auth/callback e.g.http://localhost:3000/api/auth/callback
+        - Allowed Logout URL: {base URL} e.g. http://localhost:3000
+- In Applications tab, create a Machine to Machine Applications
+    - Select the AAuth0 Management API
+    - Provide all premssions for the application
+- Create the roles in User Management/Roles
+    <ol>
+    <li>admin
+    <li>teacher
+    <li>managedStudent
+    <li>unmanagedStudent
+    </ol>
+- For expiration to work, configurate the login flow and logout urls
+    - Aadd a custom action in the Login flow in the action tab.
+         - Example:
+            ```js
+            exports.onExecutePostLogin = async (event, api) => {
+            const expiration = event.user.user_metadata?.account_expiration_date
+            if(expiration == undefined) return
+            if(isNaN(Date.parse(`${expiration}T00:00:00`))){
+                api.redirect.sendUserTo("https://dev-o2bp3ke34tr10dsd.us.auth0.com/v2/logout")
+            }
+            const tdy = new Date()
+            const data = new Date(`${expiration}T00:00:00`);
+            if (data < tdy){
+                api.redirect.sendUserTo("https://dev-o2bp3ke34tr10dsd.us.auth0.com/v2/logout")
+            }
+            };
+            ```
+        - Expirated user can be directed to specific URL by adding returnTo	parameter to the url
+        - Add the logout URL for expirated users in Allowed Logout URL of the application setting
+        - API reference: <https://auth0.com/docs/api/authentication#logout>
+    - In the Setting/Advanced tab, add the logout url in the Allowed logout URLs
+        - If the URL for expirated users is not specificed, the url should be same as the base URL of the application e.g. http://localhost:3000
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+### Email service
+- Prepare a SMTP account that is able to send emails
+    - These information is needed:
+        <ol>
+        <li>address for connecting to SMTP server
+        <li>connection port number
+        <li>account username
+        <li>accoubnt password
+        </ol>
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+### Application setting
+- Create a `.env.local` file in the current directory
+    ```ini
+    
+    AUTH0_SECRET = use [openssl rand -hex 32] to generate a 32 bytes value
+    AUTH0_BASE_URL= base url of the app e.g. http://localhost:3000 
+    AUTH0_ISSUER_BASE_URL=  'https://{Auth0 regular web app domain}'
+    AUTH0_CLIENT_ID= client id of the web app
+    AUTH0_CLIENT_SECRET=the client secret of the regular web app
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+    AUTH0_API_CLIENT_ID= client id of the machine to machine app
+    AUTH0_API_CLIENT_SECRET= client secrect of the m2m app
+    AUTH0_API_BASE_URL='https://{Auth0 m2m app domain}/api/v2/'
+    AUTH0_DB_CONNECTION_ID = database identifier of Username-Password-Authentication
 
-## Learn More
+    SMTP_SERVER = addr of stmp connection
+    SMTP_USER = username of smtp account
+    SMTP_PASSWORD = password of smtp pasword
+    ```
+- install dependences
+    ```bash
+    npm install
+    ```
+- In src/models/auth0_schemas, update the variable `roleMapping` by the correct role id in the Auth0 dash board
+- Requries for admin user is on by default, you can either create an a/c and assign it to admin role in the Auth0 dash board, or the admin check can be turned off in `src/pages/api/users.ts` by setting `requireAdminCheck` to `false`
+- Start for development
+    ```bash
+    npm run dev
+    ```
+- Start for production
+    ```bash
+    npm run build
+    npm start
+    ```
 
-To learn more about Next.js, take a look at the following resources:
+##Customisation
+- Schemas and types
+    - all types and schemas of API request and response can be found and updated in `src/models/api_schemas.ts` and `src/models/auth0_schemas.ts`
+- Invitation email
+    - Sender mail address, address formating, signing name can be configurated in `sendInvitation` from src/lib/auth0_user_management.ts
+    - The email templates can be changed in `src/lib/email_template.ts`
+    - For medias, te attachment setting can be found in `src/lib/mail_sender.ts`
+    - references: <https://nodemailer.com/about/>
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.

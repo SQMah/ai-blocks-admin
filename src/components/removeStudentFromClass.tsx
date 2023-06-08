@@ -17,7 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { PutUsersReqType } from "@/models/api_schemas";
-
+import { useToast } from "./ui/use-toast";
 
 interface props{
   student:RoledUserType,
@@ -29,6 +29,7 @@ interface props{
 
 
 const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})=>{
+    const {toast} = useToast()
     
     const handleRemove =async () => {
         setIsLoading(true)
@@ -44,6 +45,14 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
             await reload()
         } catch (error:any) {
           console.log(error?.response?.data?.message ?? error?.message ?? error);
+          const message = error?.response?.data?.message
+          if(message){
+            toast({
+              variant:"destructive",
+              title: "Remove error",
+              description: message,
+            })
+          }
         }
         setIsLoading(false)
     }
@@ -57,7 +66,7 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
                 <AlertDialogHeader>
                   <AlertDialogTitle>Are you absolutely sure to remove {student.name} from {student.user_metadata?.enrolled_class_id} ?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently remove {student.name} from {student.user_metadata?.enrolled_class_id}.
+                    This action cannot be undone. This will permanently remove {student.name} from {student.user_metadata?.enrolled_class_id}. {student.name} will become an unmanaged student.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

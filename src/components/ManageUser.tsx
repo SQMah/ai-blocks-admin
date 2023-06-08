@@ -27,8 +27,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Input } from "./ui/input";
+import { useToast } from "./ui/use-toast";
 
-import { validDateString,expirated } from "@/lib/utils";
 import { RoledUserArraySchema, RoledUserType ,roleMapping} from "@/models/auth0_schemas";
 import { PutUsersReqType } from "@/models/api_schemas";
 
@@ -49,6 +49,7 @@ interface searchProps {
 }
 
 const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
+  const { toast } = useToast()
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -73,6 +74,14 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
       setUser(data[0]);
     } catch (error: any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
+      const message = error?.response?.data?.message
+      if(message){
+        toast({
+          variant:"destructive",
+          title: "Search error",
+          description: message,
+        })
+      }
     }
     setIsLoading(false);
   };
@@ -147,6 +156,8 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
     const disableSave:boolean = storedClaess.toString()===displayClasses.toString()
     const classesToBeRemoved = removed.filter(id=>storedClaess.includes(id))
 
+    const {toast} = useToast()
+
     const form = useForm<ClassForm>({
       resolver: zodResolver(classFromSchema),
       defaultValues: {
@@ -185,9 +196,20 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
           }
         }
         const response =await  axios.put("/api/users",payload)
+        toast({
+          title:"Updated",
+        })
         await  reload()
       } catch (error:any) {
         console.log(error?.response?.data?.message ?? error?.message ?? error);
+        const message = error?.response?.data?.message
+        if (message){
+          toast({
+            variant:"destructive",
+            title:"Update error",
+            description:message
+          })
+        }
       }
       setIsLoading(false)
     }
@@ -252,7 +274,7 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
                         </Button>
                     </FormControl>
                     </div>
-                    <FormDescription>Seperate class IDs by "," .</FormDescription>
+                    <FormDescription>{`Seperate class IDs by "," .`}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -289,7 +311,7 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
 const ManageUser: FC = () => {
   const [user, setUser] = useState<RoledUserType | undefined>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const expiration = user?.user_metadata?.account_expiration_date
+  const {toast} = useToast()
   const reload = async()=>{
     setIsLoading(true);
     if(!user||isLoading) return
@@ -307,6 +329,14 @@ const ManageUser: FC = () => {
       }
     } catch (error: any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
+      const message = error?.response?.data?.message
+      if(message){
+        toast({
+          variant:"destructive",
+          title: "Search error",
+          description: message,
+        })
+      }
     }
     setIsLoading(false);
   }

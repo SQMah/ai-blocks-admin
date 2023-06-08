@@ -1,7 +1,6 @@
 import { FC,useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-
 import ManualCreate from "./ManualCreate";
 import CSVCreate from "./CSVCreate";
 

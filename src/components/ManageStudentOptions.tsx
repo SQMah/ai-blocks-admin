@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { useToast } from "./ui/use-toast";
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +36,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
     const currentClass = student.user_metadata?.enrolled_class_id
     const [classId,setClassId] = useState<string>("")
     const [message,setMessage] = useState<string>("")
+    const {toast} = useToast()
     const oldClass = useId()
     const newClass = useId()
 
@@ -57,9 +59,20 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
                 }
                 setClassId('')
                 const response =await  axios.put("/api/users",payload)
+                toast({
+                  title:"Updated"
+                })
                 await reload()
             } catch (error:any) {
               console.log(error?.response?.data?.message ?? error?.message ?? error);
+              const message = error?.response?.data?.message
+              if(message){
+                toast({
+                  variant:"destructive",
+                  title: "Update error",
+                  description: message,
+                })
+              }
             }
         }
         setIsLoading(false)
@@ -86,7 +99,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
         <DialogHeader>
           <DialogTitle>Change class</DialogTitle>
           <DialogDescription>
-            Change the class of {student.name}. Click save when you're done.
+            {`Change the class of ${student.name}. Click save when you are done.`}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -132,6 +145,8 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
     const [errorMessage,setErrorMessage] = useState<string>("")
     const newClass = useId()
 
+    const {toast} = useToast()
+
     const handleAddModule = (toAdd:string)=>{
       setAvailableModules(prev=>[...prev,toAdd].sort())
     }
@@ -148,9 +163,20 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
           }
         }
         const response =await  axios.put("/api/users",paylaod)
+        toast({
+          title:"Updated"
+        })
         await reload()
       } catch (error:any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
+      const message = error?.response?.data?.message
+      if(message){
+        toast({
+          variant:"destructive",
+          title: "Update error",
+          description: message,
+        })
+      }
       }
       setIsLoading(false)
     }
@@ -172,9 +198,20 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
                 }
                 setNewClassId('')
                 const response =await  axios.put("/api/users",payload)
+                toast({
+                  title:"Updated"
+                })
                 await  reload()
             } catch (error:any) {
               console.log(error?.response?.data?.message ?? error?.message ?? error);
+              const message = error?.response?.data?.message
+              if(message){
+                toast({
+                  variant:"destructive",
+                  title: "Update error",
+                  description: message,
+                })
+              }
             }
         }
         setIsLoading(false)

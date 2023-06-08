@@ -77,6 +77,7 @@ export const CreateClassDataSchema=z.object({
 export type CreateClassDataType = z.infer<typeof CreateClassDataSchema>
 
 
+
 export const PostUsersReqSchema = z.object({
   user:UserCreateDataSchema.optional(),
   users: z.array(UserCreateCSVSchema).optional(),
@@ -104,7 +105,8 @@ export const PostUsersReqSchema = z.object({
 export type PostUsersReqType = z.infer<typeof PostUsersReqSchema>;
 
 export const PostUsersResSchema = z.object({
-  messages:z.array(z.string())
+  message:z.string(),
+  details:z.array(z.string())
 });
 
 export type PostUsersResType = z.infer<typeof PostUsersResSchema>;

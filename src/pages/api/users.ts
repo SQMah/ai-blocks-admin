@@ -19,21 +19,23 @@ import {
   PostUsersResType,
   UserCreateDataType,
 } from "@/models/api_schemas";
-import { delay } from "@/lib/utils";
+import { delay ,removeDuplicates} from "@/lib/utils";
 
-const adminCheck = async (req: NextApiRequest,res: NextApiResponse<string>): Promise<boolean> => {
+const requireAdminCheck = true
+
+const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>): Promise<boolean> => {
   try {
     const session = await getSession(req, res);
     // console.log(session)
     if (!session?.user?.sub) {
-      res.status(401).json("Unauthorized");
+      res.status(401).json({message:"Unauthorized"});
       return false
     }
     const token = await getAccessToken();
     const userId = session.user.sub;
     const roles = await checkRole(token, userId);
     if (!roles.includes("admin")) {
-      res.status(403).send("Forbidden");
+      res.status(403).send({message:"Forbidden"});
       return false
     }
     return true
@@ -55,7 +57,7 @@ const handleGet = async (
     .map(input=>{
       if(input===undefined) return undefined
       if(!Array.isArray(input)) return [input]
-      return input
+      return removeDuplicates(input)
     })
     const  query = {
       email:inputs[0],
@@ -83,8 +85,9 @@ const handlePost = async (
     const token = await getAccessToken();
     const {user,users,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date,}
      = PostUsersReqSchema.parse(req.body);
-    let success: boolean = false;
-    let messages: string[] = [];
+    let success =0;
+    let fail = 0
+    let details:string[] = []
     if (users?.length) {
       if (!role) throw new Error("Role is required for batch create.");
       for (const index in users) {
@@ -101,56 +104,56 @@ const handlePost = async (
             account_expiration_date,
           };
           const data = await createUser(token, payload);
-          sendInvitation(token, data.name, data.email)
-            .then(() => {
-              const message = `account creation for ${data.email} is done`;
-              console.log(message);
-              success = true;
-              messages = [...messages, message];
-            })
-            .catch((err) => console.log(err));
+          await sendInvitation(token, data.name, data.email)
+          success+=1;
+          const message = `account creation for ${data.email} is done`;
+          details.push(message)
+          console.log(message);
         } catch (error: any) {
           const message = String(
             error?.response?.data?.message ?? error?.message
           );
           if (message) {
-            messages = [...messages, message];
+            details.push(message)
+            console.log(message);
           } else {
             const waring = `Fail to process data at index ${index}, email:${
               user?.email ?? "error"
             }`;
             console.log(waring, error);
-            messages = [...messages, error];
+            details.push(waring)
           }
+          fail+=1
         }
-        await delay(1000);
+        await delay(500);
       }
     }
     if (user) {
       try {
         const data = await createUser(token, user);
+        success +=1
         await sendInvitation(token, data.name, data.email);
         const message = `account creation for ${data.email} is done`;
         console.log(message);
-        success = true;
-        messages = [...messages, message];
+        details.push(message)
       } catch (error: any) {
         const message = String(
           error?.response?.data?.message ?? error?.message
         );
-        if (message) {
-          messages = [...messages, message];
-        } else {
+        details.push(message)
+        if (!message) {
           const waring = `Fail to process data at email:${
             user?.email ?? "error"
           }`;
           console.log(waring, error);
-          messages = [...messages, waring];
+          details.push(waring)
         }
+        fail+=1
       }
     }
-    // console.log(messages)
-    res.status(success ? 201 : 500).json({ messages });
+    res.status(success>=1 ? 201 : 500).json({ message:`
+    Successful case${success>1?"s":""}: ${success} | Failed case${fail>1?"s":""}: ${fail}
+    `,details});
     return;
   } catch (error: any) {
     console.log(error);
@@ -204,9 +207,10 @@ const handleDelete = async (
 };
 
 const handler = async (req: NextApiRequest,res: NextApiResponse<RoledUserArrayType | PostUsersResType | UserCreateResponseType | string>) => {
-  // if(!await adminCheck(req,res)){
-  //   return
-  // }
+  //configurate for authentication
+  if(requireAdminCheck && !await adminCheck(req,res)){
+    return
+  }
   const method: string | undefined = req.method;
   switch (method) {
     case "GET":
