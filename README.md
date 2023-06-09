@@ -34,7 +34,7 @@ This is an admin panel for managing user and class information using Auth0 authe
         - Allowed Callback URL: {base URL}/api/auth/callback e.g.http://localhost:3000/api/auth/callback
         - Allowed Logout URL: {base URL} e.g. http://localhost:3000
 - In Applications tab, create a Machine to Machine Applications
-    - Select the AAuth0 Management API
+    - Select the Auth0 Management API
     - Provide all premssions for the application
 - Create the roles in User Management/Roles
     <ol>
