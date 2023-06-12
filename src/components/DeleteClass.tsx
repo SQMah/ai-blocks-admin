@@ -82,7 +82,7 @@ const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading
     return <>
     <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant={"destructive"} disabled={isLoading}>{isLoading?"Loading...":"Delete class"}</Button>
+                <Button  variant={"destructive"} disabled={isLoading}>{isLoading?"Loading...":"Delete class"}</Button>
               </AlertDialogTrigger>
               <AlertDialogContent >
                 <AlertDialogHeader>

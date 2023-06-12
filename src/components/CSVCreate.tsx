@@ -279,7 +279,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
                   name="teaching_class_ids_str"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Teacing classss</FormLabel>
+                      <FormLabel>Teaching classes</FormLabel>
                       <FormControl>
                         <Input placeholder="Class IDs..." {...field} />
                       </FormControl>
