@@ -197,7 +197,7 @@ const handleDelete = async (
     }
     const data = await deleteUser(token, userId);
     console.log(`deleted user, user_id: ${userId}`);
-    res.status(204).send(data);
+    res.status(204).end();
     return;
   } catch (error: any) {
     console.log(error);

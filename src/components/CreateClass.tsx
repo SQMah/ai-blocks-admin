@@ -21,7 +21,7 @@ import { useToast } from "@/components/ui/use-toast"
 
 
 import { RoledUserArraySchema, defaultModels,modulesReady } from "@/models/auth0_schemas"
-import { PutClassesReqType,PutUsersReqType} from "@/models/api_schemas";
+import { PostClassesReqType,PutUsersReqType} from "@/models/api_schemas";
 import { delay } from "@/lib/utils";
 
 
@@ -77,7 +77,7 @@ const CreateClass:FC= ()=>{
             //generate class id using timestamp based uuid
             const classId = uuidv1()
             // console.log(classId)
-            const payload:PutClassesReqType={
+            const payload:PostClassesReqType={
                 class_id:classId,
                 teacherIds:teachersEmails,
                 capacity:Number(values.capacity),

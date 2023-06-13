@@ -13,6 +13,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription
 } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "./ui/input";
@@ -28,6 +29,15 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useToast } from "./ui/use-toast";
 import { Label } from "./ui/label";
 
@@ -37,7 +47,7 @@ import ShowExpiration from "./ShowExpiration";
 import { UpdateAllExpiration } from "./UpdateExpiration";
 import RemoveStudentFromClass from "./removeStudentFromClass";
 import DeleteClass from "./DeleteClass";
-import { GetClassResSchema, GetClassesResType } from "@/models/api_schemas";
+import { GetClassResSchema, GetClassesResType, PutClassesReqType } from "@/models/api_schemas";
 
 
 
@@ -48,7 +58,7 @@ const formSchema = z.object({
 interface Props {
   isLoading: boolean;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
-  handleChangeClass :(data:GetClassesResType|null|undefined)=>Promise<void>
+  handleChangeClass :(data:GetClassesResType|undefined)=>Promise<void>
 }
 
 const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) => {
@@ -98,7 +108,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
   const handleSelect = async (class_id:string) => {
     if(isLoading) return
     if(!class_id.length){
-      await handleChangeClass(null)
+      await handleChangeClass(undefined)
       setIsLoading(false)
       return
     }
@@ -112,8 +122,8 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
       if(error?.response?.status===404){
         setMessage("Invalid class ID")
       }
-      await handleChangeClass(null)
-      // console.log(error)
+      else console.log(error)
+      await handleChangeClass(undefined)
 
     }
     setIsLoading(false)
@@ -243,14 +253,14 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
         try {
           // console.log("/api/classes?class_id="+class_id)
           const {data} = await axios.get("/api/classes?class_id="+input)
-          // console.log(data)
+          console.log(data)
           await handleChangeClass(GetClassResSchema.parse(data))
         } catch (error:any) {
           if(error?.response?.status===404){
             setMessage("Invalid class ID")
           }
-          await handleChangeClass(null)
-          // console.log(error)
+          else console.log(error)
+          await handleChangeClass(undefined)
         }
         setIsLoading(false)
     }
@@ -289,10 +299,108 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
 
 }
 
+interface CapacProps extends Props{
+  data:GetClassesResType
+}
+
+const UpdateCapacity:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,data})=>{
+  const {toast} = useToast()
+  const updateScehma = z.object({
+    capacity:z.string().nonempty({message:"Required"}).refine(cap=>!isNaN(Number(cap)),{message:"Invalid input"})
+  }).refine(input=>{
+    const cap = Number(input.capacity)
+    return cap !==data.capacity
+  },{message:"Updated capacity must not be same as the old value."})
+
+  const form = useForm<z.infer<typeof updateScehma>>({
+    resolver: zodResolver(updateScehma),
+    defaultValues: {
+      capacity:String(data.capacity)
+    },
+  });
+
+  const onSubmit = async(values:z.infer<typeof updateScehma>)=>{
+    if(isLoading) return 
+    setIsLoading(true)
+    try {
+      const payload:PutClassesReqType = {
+        class_id:data.class_id,
+        capacity:Number(values.capacity)
+      }
+      const response = await axios.put('/api/classes',payload)
+      toast({
+        title:"Updated"
+      })
+      await handleChangeClass(GetClassResSchema.parse(response.data))
+    } catch (error:any) {
+      console.log(error?.response?.data?.message ?? error?.message ?? error);
+      const message = error?.response?.data?.message
+      toast({
+        variant:"destructive",
+        title: "Update error",
+        description: message,
+      })
+    }
+  }
+
+  const disableSave = form.watch("capacity") === String(data.capacity)
+
+  return<>
+    <Dialog>
+        <DialogTrigger asChild>
+          <Button disabled={isLoading} variant={"secondary"} className="">
+            {isLoading ? "loading..." : "Update class capacity"}
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Update capacity</DialogTitle>
+              <DialogDescription>
+               Update the capacity of {data.class_id}. Click save when you are done.
+              </DialogDescription>
+            </DialogHeader>
+        <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <FormField
+            control={form.control}
+            name="capacity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="update cap">
+                  Update Capacity
+                </FormLabel>
+                <Input
+                    id = "update cap"
+                    type="number"
+                    min="0"
+                    {...field}
+                      />
+                <FormDescription>
+                <span>Current number of students: {data.studentIds.length}. Current capacity: {data.capacity}</span>
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+            <DialogFooter>
+              <FormControl>
+              <Button type="submit" disabled={isLoading||disableSave} className="mt-4"> 
+                {isLoading ? "Loading..." : "Save changes"}
+              </Button>
+              </FormControl>
+            </DialogFooter>
+        </form>
+      </Form>
+        </DialogContent>
+      </Dialog>
+      
+  </>
+}
+
 
 const ManageClass: FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [data, setData] = useState<GetClassesResType|null>()
+  const [data, setData] = useState<GetClassesResType>()
 
 
   const [users,setUsers] = useState<RoledUserArrayType>([])
@@ -305,11 +413,10 @@ const ManageClass: FC = () => {
 
   const {toast} = useToast()
 
-  const reload = async(currentClass:GetClassesResType|null|undefined = data)=>{
+  const reload = async(currentClass:GetClassesResType|undefined = data)=>{
     // console.log(currentClass)
-    setUsers([])
-    setAvailableModules(currentClass?.available_modules??[])
     if(!currentClass) return
+    setAvailableModules(currentClass.available_modules)
     setIsLoading(true);
     try {
       const emails = currentClass.studentIds.concat(currentClass.teacherIds)
@@ -329,20 +436,22 @@ const ManageClass: FC = () => {
     } catch (error: any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
       const message = error?.response?.data?.message??error.message
-      if(message){
-        toast({
-          variant:"destructive",
-          title: "Search error",
-          description: message,
-        })
-      }
+      toast({
+        variant:"destructive",
+        title: "Search error",
+        description: message,
+      })
     }
     setIsLoading(false);
   }
 
-  const handleChangeClass =async (data:GetClassesResType|undefined|null):Promise<void> => {
-    setData(data)
-    await reload(data)
+  const handleChangeClass =async (payload:GetClassesResType|undefined):Promise<void> => {
+    // console.log(payload)
+    setData(payload)
+    setUsers([])
+    setAvailableModules(payload?.available_modules??[])
+    if(!payload) return
+    await reload(payload)
   }
   
 
@@ -353,30 +462,31 @@ const ManageClass: FC = () => {
     setAvailableModules(prev=>prev.filter(module=>module!==toRemove).sort())
   }
   const handleSaveModules = async ()=>{
+    if(!data) return
     setIsLoading(true)
-    // try {
-    //     //ftech server
-    //     const payload = {
-    //         classId,
-    //         available_modules:availableModules
-    //     }
-    //     console.log(payload)
-    //     toast({
-    //       title:"Updated"
-    //     })
-    // } catch (error:any) {
-    //   console.log(error?.response?.data?.message ?? error?.message ?? error);
-    //   const message = error?.response?.data?.message
-    //     if(message){
-    //       toast({
-    //         variant:"destructive",
-    //         title: "Update error",
-    //         description: message,
-    //       })
-    //     }
-    // }
+    try {
+        //ftech server
+        const payload:PutClassesReqType = {
+            class_id:data.class_id,
+            available_modules:availableModules
+        }
+        // console.log(payload)
+        const response = await axios.put("/api/classes",payload)
+        toast({
+          title:"Updated"
+        })
+        const updated = GetClassResSchema.parse(response.data)
+        await handleChangeClass(updated)
+    } catch (error:any) {
+      console.log(error?.response?.data?.message ?? error?.message ?? error);
+      const message = error?.response?.data?.message
+      toast({
+        variant:"destructive",
+        title: "Update error",
+        description: message,
+      })
+    }
     setIsLoading(false)
-    await reload()
   }
   
 
@@ -399,15 +509,21 @@ const ManageClass: FC = () => {
         </TabsContent>
       </Tabs>
       {data&&!isLoading?<>
+      {/* <pre>{JSON.stringify(data,null,2)}</pre> */}
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-3 col-span-2">
+          <p>Class ID:</p>
+          <p>{data.class_id}</p>
           <p>Teachers in class:</p>
           <p className="space-x-3">{teachers.map((teacher,index)=>{
             return <span key={`${teacher.email}-${index}`}>{`${teacher.name} (${teacher.email})`}</span>
           })}</p>
         </div>
         <div className=" space-y-3">
-            <p>Students ({students.length}/{data.capacity})</p>
+            <div className="flex space-x-4 items-center">
+              <p>Students ({students.length}/{data.capacity})</p>
+              <UpdateCapacity {...{isLoading,setIsLoading,handleChangeClass,data}}/>
+            </div>
             <div className="h-2/3 overflow-auto w-full rounded-md border border-input bg-transparent px-3 py-2 ">
                 <ul>
                     {students.map((student,index)=>{
@@ -454,12 +570,12 @@ const ManageClass: FC = () => {
             </div>
         </div>
       </>:null}
-      {/* {
-      classId?
+      {
+      data?.class_id?
       <div className="flex justify-end w-full my-8">
-        <DeleteClass {...{students,teachers,reload,isLoading,setIsLoading,classId}}/>
+        <DeleteClass {...{students,teachers,handleChangeClass,isLoading,setIsLoading,classId:data.class_id}}/>
       </div>:null
-      } */}
+      }
     </div>
     </>
   );

@@ -122,11 +122,23 @@ export const GetClassResSchema = z.object({
 
 export type GetClassesResType = z.infer<typeof GetClassResSchema>
 
-export const PutClassesReqSchema=z.object({
+export const PostClassesReqSchema=z.object({
   class_id:z.string().nonempty({message:"Required"}),
   teacherIds:z.array(z.string().email().trim().nonempty()),
   capacity:z.number().nonnegative(),
   available_modules:z.array(z.string())
 })
+
+export type  PostClassesReqType = z.infer<typeof  PostClassesReqSchema>
+
+export const PutClassesReqSchema=z.object({
+  class_id:z.string().nonempty({message:"Required"}),
+  teacherIds:z.array(z.string().email().trim().nonempty()).optional(),
+  studentIds:z.array(z.string().email().trim().nonempty()).optional(),
+  capacity:z.number().nonnegative().optional(),
+  available_modules:z.array(z.string()).optional(),
+}).refine(input=>{
+  return input.available_modules||input.capacity||input.studentIds||input.teacherIds
+},{message:"At least one update to be made"})
 
 export type  PutClassesReqType = z.infer<typeof  PutClassesReqSchema>

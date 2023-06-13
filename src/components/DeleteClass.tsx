@@ -18,7 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { RoledUserArrayType } from "@/models/auth0_schemas";
-import { PutUsersReqType } from "@/models/api_schemas";
+import { PutUsersReqType,GetClassesResType } from "@/models/api_schemas";
 
 import { delay} from "@/lib/utils";
 
@@ -26,19 +26,19 @@ interface Props{
     teachers:RoledUserArrayType;
     students:RoledUserArrayType;
     classId:string;
-    reload:()=>Promise<void>;
+    handleChangeClass :(data:GetClassesResType|undefined)=>Promise<void>
     isLoading:boolean;
     setIsLoading:Dispatch<SetStateAction<boolean>>;
 }
 
 
-const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading,reload})=>{
+const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading,handleChangeClass})=>{
     const [confirm,setConfirm] = useState<boolean>(false)
     const {toast} = useToast()
     const handleDelete =async () => {
         setIsLoading(true)
         try {
-            //sequence: update studens -> update teachers -> dlete class data(todo)
+            //sequence: update studens -> update teachers -> delete class data(todo)
             for(const student of students){
                 const payload:PutUsersReqType ={
                     userId:student.user_id,
@@ -59,21 +59,19 @@ const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading
                 const {data} = await  axios.put("/api/users",payload)
                 await delay(500)
             }
-            //todo: delete the class data in db
+            const delRes = await  axios.delete("/api/classes?class_id="+classId)
             toast({
                 title:"Deleted"
             })
-            await reload()
+            await handleChangeClass(undefined)
         } catch (error:any) {
           console.log(error?.response?.data?.message ?? error?.message ?? error);
           const message = error?.response?.data?.message
-          if(message){
-            toast({
-              variant:"destructive",
-              title: "Delete error",
-              description: message,
-            })
-          }
+          toast({
+            variant:"destructive",
+            title: "Delete error",
+            description: message,
+          })
         }
         setIsLoading(false)
     }
