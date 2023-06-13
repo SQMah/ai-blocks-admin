@@ -68,13 +68,6 @@ export const UserCreateDataSchema = z.object({
 
 export type UserCreateDataType = z.infer<typeof UserCreateDataSchema>
 
-export const CreateClassDataSchema=z.object({
-    teacherId:z.array(z.string().email().trim().nonempty()),
-    capacity:z.number().nonnegative(),
-    available_modules:z.array(z.string())
-})
-
-export type CreateClassDataType = z.infer<typeof CreateClassDataSchema>
 
 
 
@@ -118,3 +111,22 @@ export const PutUsersReqSchema = z.object({
 })
 
 export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
+
+export const GetClassResSchema = z.object({
+  class_id:z.string(),
+  teacherIds:z.array(z.string()),
+  studentIds:z.array(z.string()),
+  capacity:z.number().nonnegative(),
+  available_modules:z.array(z.string())
+})
+
+export type GetClassesResType = z.infer<typeof GetClassResSchema>
+
+export const PutClassesReqSchema=z.object({
+  class_id:z.string().nonempty({message:"Required"}),
+  teacherIds:z.array(z.string().email().trim().nonempty()),
+  capacity:z.number().nonnegative(),
+  available_modules:z.array(z.string())
+})
+
+export type  PutClassesReqType = z.infer<typeof  PutClassesReqSchema>

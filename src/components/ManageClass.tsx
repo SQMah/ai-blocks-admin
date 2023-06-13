@@ -37,6 +37,7 @@ import ShowExpiration from "./ShowExpiration";
 import { UpdateAllExpiration } from "./UpdateExpiration";
 import RemoveStudentFromClass from "./removeStudentFromClass";
 import DeleteClass from "./DeleteClass";
+import { GetClassResSchema, GetClassesResType } from "@/models/api_schemas";
 
 
 
@@ -47,13 +48,14 @@ const formSchema = z.object({
 interface Props {
   isLoading: boolean;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
-  classId:string
-  handleChangeClassId :(id:string)=>Promise<void>
+  handleChangeClass :(data:GetClassesResType|null|undefined)=>Promise<void>
 }
 
-const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeClassId}) => {
+const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) => {
+    const [classId,setClassId] = useState("")
     const [teacher,setTeacher] = useState<RoledUserType | undefined>();
     const [open, setOpen] = useState<boolean>(false)
+    const [message,setMessage] = useState("")
     const teaching =teacher?.user_metadata?.teaching_class_ids??[]
     const {toast} = useToast()
 
@@ -65,7 +67,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeC
   });
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setTeacher(undefined);
-    await handleChangeClassId("")
+    await handleChangeClass(undefined)
     setIsLoading(true);
     try {
       // console.log(values);
@@ -92,6 +94,30 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeC
     }
     setIsLoading(false);
   };
+
+  const handleSelect = async (class_id:string) => {
+    if(isLoading) return
+    if(!class_id.length){
+      await handleChangeClass(null)
+      setIsLoading(false)
+      return
+    }
+    setIsLoading(true)
+    try {
+      // console.log("/api/classes?class_id="+class_id)
+      const {data} = await axios.get("/api/classes?class_id="+class_id)
+      // console.log(data)
+      await handleChangeClass(GetClassResSchema.parse(data))
+    } catch (error:any) {
+      if(error?.response?.status===404){
+        setMessage("Invalid class ID")
+      }
+      await handleChangeClass(null)
+      // console.log(error)
+
+    }
+    setIsLoading(false)
+  }
 
   return (
     <>
@@ -154,7 +180,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeC
                     disabled={isLoading}
                     >
                     {classId
-                        ? classId
+                        ? <span className=" truncate">{classId}</span>
                         : "Select class ID..."}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -169,7 +195,11 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeC
                             key={id+index}
                             onSelect={async(currentValue) => {
                                 setOpen(false)
-                                await handleChangeClassId(currentValue === classId ? "" : currentValue)
+                                setMessage("")
+                                const id = currentValue === classId ? "" : currentValue
+                                setClassId(id)
+                                // console.log(id)
+                                await handleSelect(id)
                             }}
                         >
                             <Check
@@ -185,6 +215,9 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeC
                     </Command>
                 </PopoverContent>
             </Popover>
+            <p className=" text-destructive text-sm">
+              {message}
+            </p>
         </div>
         </>:null
       }
@@ -193,7 +226,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeC
 };
 
 
-const InputClassID:FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeClassId})=>{
+const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
     const [value,setValue] = useState<string>("")
     const [message,setMessage] = useState<string>("")
     const inputId = useId()
@@ -205,7 +238,21 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeCla
             setMessage("Please fill in class ID.")
             return
         }
-        await handleChangeClassId(input)
+        if(isLoading) return
+        setIsLoading(true)
+        try {
+          // console.log("/api/classes?class_id="+class_id)
+          const {data} = await axios.get("/api/classes?class_id="+input)
+          // console.log(data)
+          await handleChangeClass(GetClassResSchema.parse(data))
+        } catch (error:any) {
+          if(error?.response?.status===404){
+            setMessage("Invalid class ID")
+          }
+          await handleChangeClass(null)
+          // console.log(error)
+        }
+        setIsLoading(false)
     }
 
     return<>
@@ -244,37 +291,44 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,classId,handleChangeCla
 
 
 const ManageClass: FC = () => {
-  const [classId,setClassId] = useState<string>("")
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [data, setData] = useState<GetClassesResType|null>()
+
 
   const [users,setUsers] = useState<RoledUserArrayType>([])
   const teachers= users.filter(user=>user.roles.includes("teacher"))
   const students = users.filter(user=>user.roles.includes("managedStudent"))
 
-  const [currentModules,setCurrentModules] = useState<string[]>([])
   const [availableModules,setAvailableModules] = useState<string[]>([])
   const modulesToAdd:string[] = modulesReady.filter(module=>!availableModules.includes(module))
-  const disableSave:boolean = currentModules.toString()===availableModules.toString()
+  const disableSave:boolean = data?.available_modules.toString()===availableModules.toString()
 
   const {toast} = useToast()
 
-  const reload = async(id:string=classId)=>{
+  const reload = async(currentClass:GetClassesResType|null|undefined = data)=>{
+    // console.log(currentClass)
     setUsers([])
-    setCurrentModules([])
-    setAvailableModules(currentModules)
-    if(!id.length||isLoading) return
+    setAvailableModules(currentClass?.available_modules??[])
+    if(!currentClass) return
     setIsLoading(true);
     try {
-      // console.log(values);
-      const response = await axios.get(
-        `/api/users?enrolled_class_id=${id}&teaching_class_ids=${id}&type=OR`
-      );
+      const emails = currentClass.studentIds.concat(currentClass.teacherIds)
+      if(!emails.length){
+        setIsLoading(false);
+        return
+      }
+      let url = `/api/users?type=OR`
+      for(const email of emails){
+        url+=`?email=${email}`
+      }
+      // console.log(emails)
+      const response = await axios.get(url);
       const data = RoledUserArraySchema.parse(response.data);
       // console.log(data)
       setUsers(data)
     } catch (error: any) {
       console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message
+      const message = error?.response?.data?.message??error.message
       if(message){
         toast({
           variant:"destructive",
@@ -286,9 +340,9 @@ const ManageClass: FC = () => {
     setIsLoading(false);
   }
 
-  const handleChangeClassId =async (id:string):Promise<void> => {
-    setClassId(id)
-    await reload(id)
+  const handleChangeClass =async (data:GetClassesResType|undefined|null):Promise<void> => {
+    setData(data)
+    await reload(data)
   }
   
 
@@ -300,27 +354,27 @@ const ManageClass: FC = () => {
   }
   const handleSaveModules = async ()=>{
     setIsLoading(true)
-    try {
-        //ftech server
-        const payload = {
-            classId,
-            available_modules:availableModules
-        }
-        console.log(payload)
-        toast({
-          title:"Updated"
-        })
-    } catch (error:any) {
-      console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message
-        if(message){
-          toast({
-            variant:"destructive",
-            title: "Update error",
-            description: message,
-          })
-        }
-    }
+    // try {
+    //     //ftech server
+    //     const payload = {
+    //         classId,
+    //         available_modules:availableModules
+    //     }
+    //     console.log(payload)
+    //     toast({
+    //       title:"Updated"
+    //     })
+    // } catch (error:any) {
+    //   console.log(error?.response?.data?.message ?? error?.message ?? error);
+    //   const message = error?.response?.data?.message
+    //     if(message){
+    //       toast({
+    //         variant:"destructive",
+    //         title: "Update error",
+    //         description: message,
+    //       })
+    //     }
+    // }
     setIsLoading(false)
     await reload()
   }
@@ -338,13 +392,13 @@ const ManageClass: FC = () => {
       </TabsList>
     </div>
       <TabsContent value="teacher">
-        <SearchTeacher {...{isLoading,setIsLoading,handleChangeClassId,classId} }/>
+        <SearchTeacher {...{isLoading,setIsLoading,handleChangeClass} }/>
         </TabsContent>
         <TabsContent value="classId">
-        <InputClassID {...{isLoading,setIsLoading,handleChangeClassId,classId} }/>
+        <InputClassID {...{isLoading,setIsLoading,handleChangeClass} }/>
         </TabsContent>
       </Tabs>
-      {classId&&!isLoading?<>
+      {data&&!isLoading?<>
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-3 col-span-2">
           <p>Teachers in class:</p>
@@ -353,7 +407,7 @@ const ManageClass: FC = () => {
           })}</p>
         </div>
         <div className=" space-y-3">
-            <p>Students</p>
+            <p>Students ({students.length}/{data.capacity})</p>
             <div className="h-2/3 overflow-auto w-full rounded-md border border-input bg-transparent px-3 py-2 ">
                 <ul>
                     {students.map((student,index)=>{
@@ -400,12 +454,12 @@ const ManageClass: FC = () => {
             </div>
         </div>
       </>:null}
-      {
+      {/* {
       classId?
       <div className="flex justify-end w-full my-8">
         <DeleteClass {...{students,teachers,reload,isLoading,setIsLoading,classId}}/>
       </div>:null
-      }
+      } */}
     </div>
     </>
   );

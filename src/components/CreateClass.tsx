@@ -4,6 +4,7 @@ import {z} from "zod"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
+import { v1 as uuidv1 } from 'uuid';
 
 import { Input } from "./ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,11 +21,11 @@ import { useToast } from "@/components/ui/use-toast"
 
 
 import { RoledUserArraySchema, defaultModels,modulesReady } from "@/models/auth0_schemas"
-import { CreateClassDataType,PutUsersReqType} from "@/models/api_schemas";
+import { PutClassesReqType,PutUsersReqType} from "@/models/api_schemas";
 import { delay } from "@/lib/utils";
 
+
 //IMPORTANT: for testing only
-const testClassId = "fake class id"
 
 const FormSchema = z.object({
     teacherIds: z.string().trim().nonempty({message:"Required"})
@@ -73,18 +74,21 @@ const CreateClass:FC= ()=>{
                 `})
               throw new Error("Invlaid teacher ID")
             }
-            const payload:CreateClassDataType={
-                teacherId:teachersEmails,
+            //generate class id using timestamp based uuid
+            const classId = uuidv1()
+            // console.log(classId)
+            const payload:PutClassesReqType={
+                class_id:classId,
+                teacherIds:teachersEmails,
                 capacity:Number(values.capacity),
                 available_modules:availableModules||[]
             }
             // console.log(payload)
-            // fetch class and get class ID
-            const classID = testClassId
-            //IMPORTANT: testing only
+            const response = await axios.post("/api/classes",payload)
+            // console.log(response.data)
             for (const teacher of teachers){
               const teaching_class_ids = teacher.user_metadata?.teaching_class_ids??[]
-              teaching_class_ids.push(classID)
+              teaching_class_ids.push(classId)
               const updateBody:PutUsersReqType={
                 userId:teacher.user_id,
                 content:{
@@ -96,17 +100,15 @@ const CreateClass:FC= ()=>{
             }
             toast({
               title: "Creation status",
-              description: `Created class, class ID: ${classID}, no. of teachers: ${teachers.length}, capacity: ${capacity}, no. of moudles: ${availableModules.length}`
+              description: `Created class, class ID: ${classId}, no. of teachers: ${teachers.length}, capacity: ${capacity}, no. of moudles: ${availableModules.length}`
             })
         } catch (error: any) {
             console.log(error?.response?.data?.message??error?.message??error)
-            if(error.response?.data?.message){
-              toast({
-                variant:"destructive",
-                title: "Creation error",
-                description: error.response.data.message,
-              })
-            }
+            toast({
+              variant:"destructive",
+              title: "Creation error",
+              description: error.response?.data?.message??"",
+            })
           }
         setIsLoading(false)
     }

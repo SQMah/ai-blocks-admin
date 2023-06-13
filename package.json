@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^2.6.0",
+    "@aws-sdk/client-dynamodb": "^3.351.0",
+    "@aws-sdk/lib-dynamodb": "^3.351.0",
     "@hookform/resolvers": "^3.1.0",
     "@radix-ui/react-alert-dialog": "^1.0.4",
     "@radix-ui/react-checkbox": "^1.0.4",
@@ -45,10 +47,12 @@
     "tailwindcss": "3.3.2",
     "tailwindcss-animate": "^1.0.5",
     "typescript": "5.0.4",
+    "uuid": "^9.0.0",
     "zod": "^3.21.4"
   },
   "devDependencies": {
     "@types/nodemailer": "^6.4.8",
-    "@types/papaparse": "^5.3.7"
+    "@types/papaparse": "^5.3.7",
+    "@types/uuid": "^9.0.2"
   }
 }
