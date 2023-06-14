@@ -426,9 +426,8 @@ const ManageClass: FC = () => {
       }
       let url = `/api/users?type=OR`
       for(const email of emails){
-        url+=`?email=${email}`
+        url+=`&email=${email}`
       }
-      // console.log(emails)
       const response = await axios.get(url);
       const data = RoledUserArraySchema.parse(response.data);
       // console.log(data)

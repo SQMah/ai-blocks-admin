@@ -112,6 +112,7 @@ export const PutUsersReqSchema = z.object({
 
 export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
 
+
 export const GetClassResSchema = z.object({
   class_id:z.string(),
   teacherIds:z.array(z.string()),
@@ -137,8 +138,19 @@ export const PutClassesReqSchema=z.object({
   studentIds:z.array(z.string().email().trim().nonempty()).optional(),
   capacity:z.number().nonnegative().optional(),
   available_modules:z.array(z.string()).optional(),
-}).refine(input=>{
-  return input.available_modules||input.capacity||input.studentIds||input.teacherIds
+  addTeachers:z.array(z.string().email().trim().nonempty()).optional(),
+  addStudents:z.array(z.string().email().trim().nonempty()).optional(),
+  removeTeachers:z.array(z.string().email().trim().nonempty()).optional(),
+  removeStudents:z.array(z.string().email().trim().nonempty()).optional(),
+})
+.refine(input=>{
+  return Object.values(input).length>1
 },{message:"At least one update to be made"})
+.refine(input=>{
+  const {studentIds,teacherIds,addStudents,addTeachers,removeStudents,removeTeachers} = input
+  const studentOverlap = studentIds&&(addStudents||removeStudents)
+  const teacherOverlap = teacherIds&&(addTeachers||removeTeachers)
+  return !(teacherOverlap&&studentOverlap)
+},{message:"Cannot set and modify students/teachers at the same time."})
 
 export type  PutClassesReqType = z.infer<typeof  PutClassesReqSchema>

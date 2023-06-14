@@ -21,10 +21,10 @@ This is an admin panel for managing user and class information using Auth0 authe
 - RESTful api for above features
 
 ## Todo
-- [ ] Read data from class database
-- [ ] Able to create, update and delete classes in DB
-- Related file(s): `src/components/CreateClass.tsx`, `src/components/ManageClass.tsx`
-
+- [ ] front: manange users: teachers(done), (unmanged) students
+- [ ] front: craete users
+- [x] back: add/remove teacher or student
+- [ ] oaith email
 
 ## Getting started
 ### Auth 0 

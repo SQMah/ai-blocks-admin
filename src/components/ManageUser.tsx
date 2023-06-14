@@ -30,12 +30,13 @@ import { Input } from "./ui/input";
 import { useToast } from "./ui/use-toast";
 
 import { RoledUserArraySchema, RoledUserType ,roleMapping} from "@/models/auth0_schemas";
-import { PutUsersReqType } from "@/models/api_schemas";
+import { PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
 
 import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOptions";
 import {UpdateExpiration} from "./UpdateExpiration";
 import DeleteUser from "./DeleteUser";
 import ShowExpiration from "./ShowExpiration";
+import { delay } from "@/lib/utils";
 
 
 const formSchema = z.object({
@@ -175,10 +176,23 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
       setDisplayClaesses(prev=>prev.filter(classId=>classId!==toRemove).sort())
     }
     const handleAddNew= async (values:ClassForm)=>{
-      const classIds = values.teaching_class_ids_str.split(",").filter(id=>id.length)
+      const classIds = values.teaching_class_ids_str.split(",").map(id=>id.trim()).filter(id=>id.length)
       if(!classIds.length){
         form.setError("teaching_class_ids_str",{message:"Required"})
         return
+      }
+      for (const id of classIds){
+        try {
+          if(storedClaess.includes(id)){
+            form.setError("teaching_class_ids_str",{message:`${id} already exists.`})
+            return
+          }
+          const {data} = await axios.get("/api/classes?class_id="+id)
+        } catch (error:any) {
+          form.setError("teaching_class_ids_str",{message:`${id} is not a valid class id`})
+          return
+        }
+        await delay(200)
       }
       form.reset()
       setDisplayClaesses(prev=>prev.concat(classIds).sort())
@@ -196,20 +210,36 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
           }
         }
         const response =await  axios.put("/api/users",payload)
+        const newClassIds = displayClasses.filter(id=>!storedClaess.includes(id))
+        for(const id of newClassIds){
+          const updateClassPayload:PutClassesReqType={
+            class_id:id,
+            addTeachers:[teacher.email]
+          }
+          await axios.put("/api/classes",updateClassPayload)
+          await delay(200)
+        }
+        for(const id of classesToBeRemoved){
+          const updateClassPayload:PutClassesReqType={
+            class_id:id,
+            removeTeachers:[teacher.email]
+          }
+          await axios.put("/api/classes",updateClassPayload)
+          await delay(200)
+        }
         toast({
           title:"Updated",
         })
+        SetRemoved([])
         await  reload()
       } catch (error:any) {
         console.log(error?.response?.data?.message ?? error?.message ?? error);
         const message = error?.response?.data?.message
-        if (message){
-          toast({
-            variant:"destructive",
-            title:"Update error",
-            description:message
-          })
-        }
+        toast({
+          variant:"destructive",
+          title:"Update error",
+          description:message
+        })
       }
       setIsLoading(false)
     }

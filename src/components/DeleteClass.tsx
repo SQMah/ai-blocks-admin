@@ -38,7 +38,7 @@ const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading
     const handleDelete =async () => {
         setIsLoading(true)
         try {
-            //sequence: update studens -> update teachers -> delete class data(todo)
+            //sequence: update studens -> update teachers -> delete class data
             for(const student of students){
                 const payload:PutUsersReqType ={
                     userId:student.user_id,
