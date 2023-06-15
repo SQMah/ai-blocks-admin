@@ -80,8 +80,8 @@ export const updateClass = async (payload:PutClassesReqType) => {
     if((capacity??cur.capacity)<studentSet.size) throw new Error("Students number and cpacity mismatch")
 
     const modifyTeacher = Boolean(teacherIds||addTeachers||removeTeachers)
-    const modifyStudent = Boolean(studentIds||addStudents||removeTeachers)
-
+    const modifyStudent = Boolean(studentIds||addStudents||removeStudents)
+    // console.log(modifyStudent,modifyTeacher)
     const expressionNames = {
       ...(modifyTeacher && { "#T": "teacherIds" }),
       ...(modifyStudent && { "#S": "studentIds" }),
@@ -100,6 +100,7 @@ export const updateClass = async (payload:PutClassesReqType) => {
       ...(capacity && { ":c": capacity }),
       ...(available_modules && { ":m": new Set(available_modules) }),
     }
+    // console.log(expressions,expressionNames,values)
     if(expressions.length===0||Object.values(values).length===0||Object.values(expressionNames).length===0) throw new Error("Invalid update data")
     if(expressions.length!==Object.values(expressionNames).length) throw new Error("Name and expression mismatch")
     const params = {

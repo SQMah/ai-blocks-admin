@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { PutUsersReqType } from "@/models/api_schemas";
+import { PutUsersReqType,PutClassesReqType } from "@/models/api_schemas";
 import { useToast } from "./ui/use-toast";
 
 interface props{
@@ -32,6 +32,8 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
     const {toast} = useToast()
     
     const handleRemove =async () => {
+        const class_id = student.user_metadata?.enrolled_class_id
+        if(!class_id) return 
         setIsLoading(true)
         try {
             const paylaod:PutUsersReqType={
@@ -42,17 +44,20 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
             }
             // console.log(paylaod)
             const response =await  axios.put("/api/users",paylaod)
+            const classPayload:PutClassesReqType ={
+              class_id,
+              removeStudents:[student.email]
+            }
+            const res = await axios.put('/api/classes',classPayload)
             await reload()
         } catch (error:any) {
           console.log(error?.response?.data?.message ?? error?.message ?? error);
           const message = error?.response?.data?.message
-          if(message){
-            toast({
-              variant:"destructive",
-              title: "Remove error",
-              description: message,
-            })
-          }
+          toast({
+            variant:"destructive",
+            title: "Remove error",
+            description: message,
+          })
         }
         setIsLoading(false)
     }

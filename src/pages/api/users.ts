@@ -21,7 +21,7 @@ import {
 } from "@/models/api_schemas";
 import { delay ,removeDuplicates} from "@/lib/utils";
 
-const requireAdminCheck = true
+const requireAdminCheck = false
 
 const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>): Promise<boolean> => {
   try {

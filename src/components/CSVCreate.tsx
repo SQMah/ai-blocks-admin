@@ -29,9 +29,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios"; 
 
-import { getOrdinal } from "@/lib/utils"
+import { getOrdinal,delay } from "@/lib/utils"
 import { UserRoleSchema} from "@/models/auth0_schemas"
-import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema,SetExpriationSchema } from "@/models/api_schemas"
+import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema,SetExpriationSchema,PutClassesReqType } from "@/models/api_schemas"
 
 type CSVData = {
     data: any[];
@@ -188,15 +188,62 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
       setIsLoading(true)
       try {
         const {role,enrolled_class_id,teaching_class_ids_str,available_modules,account_expiration_date} = values
+        const teaching = teaching_class_ids_str?.split(",").map(id=>id.trim()).filter(id=>id.length)??[]
+        for(const id of role==="teacher"?teaching:[]){
+          try {
+            await axios.get('/api/classes?class_id='+id)
+          } catch (error:any) {
+            if(error.response?.status === 404){
+              form.setError("teaching_class_ids_str",{message:`${id} is not a valid class ID`})
+            }
+            else{
+              console.log(error)
+            }
+            setIsLoading(false)
+            return
+          }
+          await  delay(200)
+        }
+        const enrolled  = enrolled_class_id?.trim()
+        if(enrolled&&role==="managedStudent"){
+          try {
+            await axios.get('/api/classes?class_id='+enrolled)
+          } catch (error:any) {
+            if(error.response?.status === 404){
+              form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
+            }
+            else{
+              console.log(error)
+            }
+            setIsLoading(false)
+            return
+          }
+        }
         const payload: PostUsersReqType = { 
           users,role,
           ...(role === "managedStudent" && { enrolled_class_id }),
           ...(role==="unmanagedStudent"&&{available_modules}),
-          ...(role==="teacher"&&{teaching_class_ids:teaching_class_ids_str?.split(",").filter(id=>id.length)??[]}),
+          ...(role==="teacher"&&{teaching_class_ids:teaching}),
           ...(role !== "admin" && { account_expiration_date }),
         };      
         // console.log(payload)
         const response = await axios.post("/api/users", payload);
+        const emails = users.map(user=>user.email)
+        for(const id of role==="teacher"?teaching:[]){
+          const body:PutClassesReqType={
+            class_id:id,
+            addTeachers:emails
+          }
+          await axios.put('/api/classes',body)
+          await delay(200)
+        }
+        if(enrolled&&role==="managedStudent"){
+          const body:PutClassesReqType={
+            class_id:enrolled,
+            addStudents:emails
+          }
+          await axios.put('/api/classes',body)
+        }
         const data = PostUsersResSchema.parse(response.data)
         console.log(data.message);
         toast({

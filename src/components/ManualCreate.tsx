@@ -23,7 +23,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 
 import {  roleMapping} from "@/models/auth0_schemas";
-import { PostUsersResSchema, UserCreateFormSchema,UserCreateFormType,UserCreateDataType, PostUsersReqType } from "@/models/api_schemas";
+import { PostUsersResSchema, UserCreateFormSchema,UserCreateFormType,UserCreateDataType, PostUsersReqType, PutClassesReqType } from "@/models/api_schemas";
+import { delay } from "@/lib/utils";
 
 interface ManualCreateProps{
   isLoading:boolean,
@@ -50,19 +51,66 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
     setIsLoading(true)
     try {
       const {role,email,first_name,last_name,enrolled_class_id,teaching_class_ids_str,available_modules,account_expiration_date} = values
+      const teaching = teaching_class_ids_str?.split(",").map(id=>id.trim()).filter(id=>id.length)??[]
+
+      for(const id of role==="teacher"?teaching:[]){
+        try {
+          await axios.get('/api/classes?class_id='+id)
+        } catch (error:any) {
+          if(error.response?.status === 404){
+            form.setError("teaching_class_ids_str",{message:`${id} is not a valid class ID`})
+          }
+          else{
+            console.log(error)
+          }
+          setIsLoading(false)
+          return
+        }
+        await  delay(200)
+      }
+      const enrolled  = enrolled_class_id?.trim()
+      if(enrolled&&role==="managedStudent"){
+        try {
+          await axios.get('/api/classes?class_id='+enrolled)
+        } catch (error:any) {
+          if(error.response?.status === 404){
+            form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
+          }
+          else{
+            console.log(error)
+          }
+          setIsLoading(false)
+          return
+        }
+      }
       const userData: UserCreateDataType = {
         role,
         email,
         first_name,
         last_name,
-        ...(role === "managedStudent" && { enrolled_class_id }),
+        ...(role === "managedStudent" && { enrolled_class_id:enrolled }),
         ...(role==="unmanagedStudent"&&{available_modules}),
-        ...(role==="teacher"&&{teaching_class_ids:teaching_class_ids_str?.split(",").filter(id=>id.length)??[]}),
+        ...(role==="teacher"&&{teaching_class_ids:teaching}),
         ...(role !== "admin" && { account_expiration_date }),
       };      
       // console.log(userData)
       const payload:PostUsersReqType=  { user: userData };
       const response = await axios.post("/api/users", payload);
+      for(const id of role==="teacher"?teaching:[]){
+        const body:PutClassesReqType={
+          class_id:id,
+          addTeachers:[email]
+        }
+        await axios.put('/api/classes',body)
+        await delay(200)
+      }
+      if(enrolled&&role==="managedStudent"){
+        const body:PutClassesReqType={
+          class_id:enrolled,
+          addStudents:[email]
+        }
+        await axios.put('/api/classes',body)
+      }
       const data = PostUsersResSchema.parse(response.data)
       toast({
         title: "Creation status",
@@ -71,13 +119,12 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       // console.log(data.messages);
     } catch (error: any) {
       console.log(error?.response?.data?.messages??error?.message??error)
-      if(error.response?.data){
-        toast({
-          variant:"destructive",
-          title: "Creation error",
-          description: error.response.data.message,
-        })
-      }
+      const message = error.response.data.message
+      toast({
+        variant:"destructive",
+        title: "Creation error",
+        description: message
+      })
     }
     setIsLoading(false)
   };

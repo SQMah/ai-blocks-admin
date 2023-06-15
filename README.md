@@ -21,10 +21,7 @@ This is an admin panel for managing user and class information using Auth0 authe
 - RESTful api for above features
 
 ## Todo
-- [ ] front: manange users: teachers(done), (unmanged) students
-- [ ] front: craete users
-- [x] back: add/remove teacher or student
-- [ ] oaith email
+- [ ] oauth email
 
 ## Getting started
 ### Auth 0 

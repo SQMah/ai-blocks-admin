@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { X,Check} from "lucide-react";
 
-import { PutUsersReqType } from "@/models/api_schemas";
+import { PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
 import { RoledUserType,modulesReady } from "@/models/auth0_schemas";
 
 import RemoveStudentFromClass from "./removeStudentFromClass";
@@ -44,17 +44,30 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
         e.preventDefault()
         setMessage("")
         setIsLoading(true)
-        if(classId.trim().length===0){
+        const id = classId.trim()
+        if(id.length===0){
             setMessage("Please provide the new class ID.")
             setClassId('')
-        }else if(classId===currentClass){
+        }else if(id===currentClass){
             setMessage("The new class ID is not same as the old ID.")
         }else{
+            try {
+              await axios.get('/api/classes?class_id='+id)
+            } catch (error:any) {
+              if(error.response?.status === 404){
+                setMessage("Invalid class ID.")
+              }
+              else{
+                console.log(error)
+              }
+              setIsLoading(false)
+              return
+            }
             try {
                 const payload:PutUsersReqType={
                   userId :student.user_id,
                   content:{
-                    enrolled_class_id:classId
+                    enrolled_class_id:id
                   }
                 }
                 setClassId('')
@@ -66,13 +79,11 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             } catch (error:any) {
               console.log(error?.response?.data?.message ?? error?.message ?? error);
               const message = error?.response?.data?.message
-              if(message){
-                toast({
-                  variant:"destructive",
-                  title: "Update error",
-                  description: message,
-                })
-              }
+              toast({
+                variant:"destructive",
+                title: "Update error",
+                description: message,
+              })
             }
         }
         setIsLoading(false)
@@ -185,36 +196,53 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
       e.preventDefault()
         setErrorMessage("")
         setIsLoading(true)
-        if(newClassId.trim().length===0){
+        const id = newClassId.trim()
+        if(id.length===0){
             setErrorMessage("Please provide the new class ID.")
             setNewClassId('')
-        }else{
-            try {
-                const payload:PutUsersReqType={
-                  userId :student.user_id,
-                  content:{
-                    enrolled_class_id:newClassId
-                  }
-                }
-                setNewClassId('')
-                const response =await  axios.put("/api/users",payload)
-                toast({
-                  title:"Updated"
-                })
-                await  reload()
-            } catch (error:any) {
-              console.log(error?.response?.data?.message ?? error?.message ?? error);
-              const message = error?.response?.data?.message
-              if(message){
-                toast({
-                  variant:"destructive",
-                  title: "Update error",
-                  description: message,
-                })
+            setIsLoading(false)
+            return
+        }
+        try {
+          await axios.get('/api/classes?class_id='+id)
+        } catch (error:any) {
+          if(error.response?.status === 404){
+            setErrorMessage("Invalid class ID.")
+          }
+          else{
+            console.log(error)
+          }
+          setIsLoading(false)
+          return
+        }
+        try {
+            const payload:PutUsersReqType={
+              userId :student.user_id,
+              content:{
+                enrolled_class_id:newClassId
               }
             }
-        }
-        setIsLoading(false)
+            setNewClassId('')
+            const response =await  axios.put("/api/users",payload)
+            const classPayload:PutClassesReqType = {
+              class_id:id,
+              addStudents:[student.email]
+            }
+            const classRes = await axios.put('/api/classes',classPayload)
+            toast({
+              title:"Updated"
+            })
+            await  reload()
+        } catch (error:any) {
+          console.log(error?.response?.data?.message ?? error?.message ?? error);
+          const message = error?.response?.data?.message
+          toast({
+            variant:"destructive",
+            title: "Update error",
+            description: message,
+          })
+      }
+      setIsLoading(false)
     }
 
     return <>
