@@ -1,8 +1,9 @@
-import { PutCommand,GetCommand ,UpdateCommand,DeleteCommand} from "@aws-sdk/lib-dynamodb";
+import { PutCommand,GetCommand ,UpdateCommand,DeleteCommand,ScanCommand} from "@aws-sdk/lib-dynamodb";
 import { ddbDocClient } from "@/lib/ddbDocClient";
 
 import {  PostClassesReqType, PutClassesReqSchema, PutClassesReqType } from "@/models/api_schemas";
 import { classSchema } from "@/models/dynamoDB_schemas";
+import { z } from "zod";
 
 const table_name = process.env.CLASS_TABLE_NAME
 if(!table_name) throw new Error("Class table undefined")
@@ -138,6 +139,34 @@ export const deleteClass = async (class_id:string) =>{
     console.log("Error", err);
     throw new Error("Dynamo DB Error")
   }
-  
+}
 
+export const scanClass = async (classIds: string[])=>{
+  if(classIds.length>100) throw new Error("Requesting too many items")
+  try {
+    classIds = classIds.filter(id=>id.length)
+    const expressions:string[] = []
+    const values = new Map()
+    classIds.forEach((id,index)=>{
+      const key = `:classId${index}`
+      expressions.push(key)
+      values.set(key,id)
+    })
+    // console.log(keys)
+    const input = {
+      TableName:table_name,
+      FilterExpression: `class_id IN (${expressions.join(", ")})`,
+      ExpressionAttributeValues: values
+    }
+    // console.log(input)
+    const data = await ddbDocClient.send(new ScanCommand(input));
+    // console.log("Success - item added or updated", data);
+    return z.array(classSchema).parse(data.Items)
+  } catch (error:any) {
+    if(error.name === "ResourceNotFoundException" ){
+      throw new Error("Invalid class IDs")
+    }
+    console.log("Error", error);
+    throw new Error("Dynamo DB Error")
+  }
 }

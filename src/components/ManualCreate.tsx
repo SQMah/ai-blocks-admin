@@ -23,7 +23,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 
 import {  roleMapping} from "@/models/auth0_schemas";
-import { PostUsersResSchema, UserCreateFormSchema,UserCreateFormType,UserCreateDataType, PostUsersReqType, PutClassesReqType } from "@/models/api_schemas";
+import {GetClassResSchema, PostUsersResSchema, UserCreateFormSchema,UserCreateFormType,UserCreateDataType, PostUsersReqType, PutClassesReqType } from "@/models/api_schemas";
 import { delay, errorMessage } from "@/lib/utils";
 
 interface ManualCreateProps{
@@ -55,7 +55,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
 
       for(const id of role==="teacher"?teaching:[]){
         try {
-          const {data:classData} = await axios.get('/api/classes?class_id/'+id)
+          const {data:classData} = await axios.get('/api/classes/'+id)
           if(!classData){
             form.setError("teaching_class_ids_str",{message:`${id} is not a valid class ID`})
             setIsLoading(false)
@@ -71,9 +71,15 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       const enrolled  = enrolled_class_id?.trim()
       if(enrolled&&role==="managedStudent"){
         try {
-          const {data:classData}=await axios.get('/api/classes?class_id/'+enrolled)
+          const {data:classData}=await axios.get('/api/classes/'+enrolled)
           if(!classData){
             form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
+            setIsLoading(false)
+            return
+          }
+          const target = GetClassResSchema.parse(classData)
+          if(target.studentIds.length>=target.capacity){
+            form.setError("enrolled_class_id",{message:"Class is full."})
             setIsLoading(false)
             return
           }
@@ -81,19 +87,6 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
           errorMessage(error)
         }
       }
-      const userData: UserCreateDataType = {
-        role,
-        email,
-        first_name,
-        last_name,
-        ...(role === "managedStudent" && { enrolled_class_id:enrolled }),
-        ...(role==="unmanagedStudent"&&{available_modules}),
-        ...(role==="teacher"&&{teaching_class_ids:teaching}),
-        ...(role !== "admin" && { account_expiration_date }),
-      };      
-      // console.log(userData)
-      const payload:PostUsersReqType=  { user: userData };
-      const response = await axios.post("/api/users", payload);
       for(const id of role==="teacher"?teaching:[]){
         const body:PutClassesReqType={
           class_id:id,
@@ -109,7 +102,21 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
         }
         await axios.put('/api/classes',body)
       }
+      const userData: UserCreateDataType = {
+        role,
+        email,
+        first_name,
+        last_name,
+        ...(role === "managedStudent" && { enrolled_class_id:enrolled }),
+        ...(role==="unmanagedStudent"&&{available_modules}),
+        ...(role==="teacher"&&{teaching_class_ids:teaching}),
+        ...(role !== "admin" && { account_expiration_date }),
+      };      
+      // console.log(userData)
+      const payload:PostUsersReqType=  { user: userData };
+      const response = await axios.post("/api/users", payload);
       const data = PostUsersResSchema.parse(response.data)
+      form.reset()
       toast({
         title: "Creation status",
         description: data.message,

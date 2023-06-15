@@ -127,9 +127,12 @@ export type GetClassesResType = z.infer<typeof GetClassResSchema>
 export const PostClassesReqSchema=z.object({
   class_name:z.string().nonempty({message:"Required"}),
   teacherIds:z.array(z.string().email().trim().nonempty()),
-  capacity:z.number().nonnegative(),
+  capacity:z.number().min(1,{message:"Capacity must greater than 0"}),
   available_modules:z.array(z.string())
 })
+
+export const BatchGetClassResSchema = z.array(GetClassResSchema)
+export type BatchGetClassType = z.infer<typeof BatchGetClassResSchema>
 
 export type  PostClassesReqType = z.infer<typeof  PostClassesReqSchema>
 
@@ -141,7 +144,7 @@ export const PutClassesReqSchema=z.object({
   class_name:z.string().nonempty().optional(),
   teacherIds:z.array(z.string().email().trim().nonempty()).optional(),
   studentIds:z.array(z.string().email().trim().nonempty()).optional(),
-  capacity:z.number().nonnegative().optional(),
+  capacity:z.number().min(1,{message:"Capacity must greater than 0"}).optional(),
   available_modules:z.array(z.string()).optional(),
   addTeachers:z.array(z.string().email().trim().nonempty()).optional(),
   addStudents:z.array(z.string().email().trim().nonempty()).optional(),

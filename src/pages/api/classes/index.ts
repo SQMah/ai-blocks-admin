@@ -7,7 +7,7 @@ import { getSession } from "@auth0/nextjs-auth0";
 import { v1 as uuidv1 } from 'uuid';
 
 
-import { createClass ,deleteClass,getClass, updateClass} from "@/lib/class_management";
+import { scanClass, createClass ,deleteClass,getClass, updateClass} from "@/lib/class_management";
 
 import {  PostClassesReqSchema,PutClassesReqSchema } from "@/models/api_schemas";
 import { dbToJSON,errorMessage ,stringToBoolean} from "@/lib/utils";
@@ -42,18 +42,14 @@ const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>): Promis
 const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
   try {
       const {class_id} = req.query
-      if(!class_id) throw new Error("Class ID is required")
-      if(Array.isArray(class_id)) throw new Error("Only one class ID")
-      const data = await getClass(class_id)
-      if(!data){ 
-          res.status(200).json(undefined)
-          return 
-      }
+      if(!class_id) throw new Error("Class IDs is required")
+      const classIDs = Array.isArray(class_id)?class_id:[class_id]
+      const data = await scanClass(classIDs)
       // console.log(data)
-      res.status(200).json(dbToJSON(data))
+      res.status(200).json(data.map(entry=>dbToJSON(entry)))
   } catch (error:any) {
       res.status(500).end(errorMessage(error,false))
-}
+  }
 }
 
 const handlePost = async (req: NextApiRequest,res: NextApiResponse) => {

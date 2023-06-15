@@ -17,18 +17,16 @@ import {
 } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "./ui/input";
+
 import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-} from "@/components/ui/command"
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -47,7 +45,7 @@ import ShowExpiration from "./ShowExpiration";
 import { UpdateAllExpiration } from "./UpdateExpiration";
 import RemoveStudentFromClass from "./removeStudentFromClass";
 import DeleteClass from "./DeleteClass";
-import { GetClassResSchema, GetClassesResType, PutClassesReqType } from "@/models/api_schemas";
+import { BatchGetClassResSchema, BatchGetClassType,GetClassResSchema, GetClassesResType, PutClassesReqType } from "@/models/api_schemas";
 
 
 
@@ -62,11 +60,9 @@ interface Props {
 }
 
 const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) => {
-    const [classId,setClassId] = useState("")
     const [teacher,setTeacher] = useState<RoledUserType | undefined>();
-    const [open, setOpen] = useState<boolean>(false)
     const [message,setMessage] = useState("")
-    const teaching =teacher?.user_metadata?.teaching_class_ids??[]
+    const [teaching,setTeaching] = useState<BatchGetClassType>([])
     const {toast} = useToast()
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -77,6 +73,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
   });
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setTeacher(undefined);
+    setTeaching([])
     await handleChangeClass(undefined)
     setIsLoading(true);
     try {
@@ -90,7 +87,13 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
         setIsLoading(false);
         return
       }
-      setTeacher(data[0]);
+      const teacher = data[0]
+      setTeacher(teacher);
+      const teachingIds = teacher.user_metadata?.teaching_class_ids?.filter(id=>id.length)
+      if(teachingIds?.length){
+        const {data:classes} = await axios.get('/api/classes?'+teachingIds.map(id=>`class_id=${id}`).join("&"))
+        setTeaching(BatchGetClassResSchema.parse(classes))
+      }
     } catch (error: any) {
       const str = errorMessage(error)
       toast({
@@ -102,29 +105,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
     setIsLoading(false);
   };
 
-  const handleSelect = async (class_id:string) => {
-    if(isLoading) return
-    if(!class_id.length){
-      await handleChangeClass(undefined)
-      setIsLoading(false)
-      return
-    }
-    setIsLoading(true)
-    try {
-      // console.log("/api/classes?class_id="+class_id)
-      const {data} = await axios.get("/api/classes?class_id/"+class_id)
-      if(!data){
-        setMessage("Invalid class ID")
-        await handleChangeClass(undefined)
-      }
-      // console.log(data)
-      await handleChangeClass(GetClassResSchema.parse(data))
-    } catch (error:any) {
-      errorMessage(error)
-      await handleChangeClass(undefined)
-    }
-    setIsLoading(false)
-  }
+  
 
   return (
     <>
@@ -177,51 +158,22 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
                 <span>Name: </span>
                 <span>{teacher.name}</span>
             </p>
-            <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                    <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={open}
-                    className="w-[200px] justify-between"
-                    disabled={isLoading}
-                    >
-                    {classId
-                        ? <span className=" truncate">{classId}</span>
-                        : "Select class ID..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0">
-                    <Command>
-                    <CommandInput placeholder="Search class ID..." />
-                    <CommandEmpty>No class ID found.</CommandEmpty>
-                    <CommandGroup>
-                        {teaching.map((id,index) => (
-                        <CommandItem
-                            key={id+index}
-                            onSelect={async(currentValue) => {
-                                setOpen(false)
-                                setMessage("")
-                                const id = currentValue === classId ? "" : currentValue
-                                setClassId(id)
-                                // console.log(id)
-                                await handleSelect(id)
-                            }}
-                        >
-                            <Check
-                            className={cn(
-                                "mr-2 h-4 w-4",
-                                classId === id ? "opacity-100" : "opacity-0"
-                            )}
-                            />
-                            {id}
-                        </CommandItem>
-                        ))}
-                    </CommandGroup>
-                    </Command>
-                </PopoverContent>
-            </Popover>
+            <Select onValueChange={async(id)=>{
+                const target = teaching.find(entry=>entry.class_id===id)
+                await handleChangeClass(target)
+            }} disabled={isLoading}>
+              <SelectTrigger className="w-1/6">
+                <SelectValue placeholder="Current teaching classes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                <SelectLabel>Class</SelectLabel>
+                {teaching.map(entry=>{
+                  return <SelectItem  key={`select-${entry.class_id}`} value={entry.class_id}>{entry.class_name}</SelectItem>
+                })}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <p className=" text-destructive text-sm">
               {message}
             </p>
@@ -249,7 +201,7 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
         setIsLoading(true)
         try {
           // console.log("/api/classes?class_id="+class_id)
-          const {data} = await axios.get("/api/classes?class_id/"+input)
+          const {data} = await axios.get("/api/classes/"+input)
           if(!data){
             setMessage("Invalid class ID")
             await handleChangeClass(undefined)
@@ -304,11 +256,15 @@ interface CapacProps extends Props{
 const UpdateCapacity:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,data})=>{
   const {toast} = useToast()
   const updateScehma = z.object({
-    capacity:z.string().nonempty({message:"Required"}).refine(cap=>!isNaN(Number(cap)),{message:"Invalid input"})
-  }).refine(input=>{
-    const cap = Number(input.capacity)
-    return cap !==data.capacity
-  },{message:"Updated capacity must not be same as the old value."})
+    
+    capacity:z.string().nonempty({message:"Required"}).refine(cap=>{
+      return Number(cap) > 0
+    },{message:"Capacity must greater than 0."}).refine(input=>{
+      const cap = Number(input)
+      return cap !==data.capacity
+    },{message:"Updated capacity must not be same as the old value."})
+    .refine(cap=>!isNaN(Number(cap)),{message:"Invalid input"})
+  })
 
   const form = useForm<z.infer<typeof updateScehma>>({
     resolver: zodResolver(updateScehma),
@@ -393,6 +349,102 @@ const UpdateCapacity:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,
       
   </>
 }
+
+interface NameProps extends Props{
+  data:GetClassesResType
+}
+
+const UpdateName:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,data})=>{
+  const {toast} = useToast()
+  const updateScehma = z.object({
+   class_name:z.string().trim().nonempty({message:"Required"})
+   .refine(input=>input!==data.class_name
+    ,{message:"Updated class name must not be same as the old name."})
+  })
+
+  const form = useForm<z.infer<typeof updateScehma>>({
+    resolver: zodResolver(updateScehma),
+    defaultValues: {
+      class_name:data.class_name
+    },
+  });
+
+  const onSubmit = async(values:z.infer<typeof updateScehma>)=>{
+    if(isLoading) return 
+    setIsLoading(true)
+    try {
+      const payload:PutClassesReqType = {
+        class_id:data.class_id,
+        class_name:values.class_name.trim()
+      }
+      const response = await axios.put('/api/classes',payload)
+      toast({
+        title:"Updated"
+      })
+      await handleChangeClass(GetClassResSchema.parse(response.data))
+    } catch (error:any) {
+      const message = errorMessage(error)
+      toast({
+        variant:"destructive",
+        title: "Update error",
+        description: message,
+      })
+    }
+  }
+
+  const disableSave = form.watch("class_name") === data.class_name
+
+  return<>
+    <Dialog>
+        <DialogTrigger asChild>
+          <Button disabled={isLoading} variant={"secondary"} className="">
+            {isLoading ? "loading..." : "Update class name"}
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Update class name</DialogTitle>
+              <DialogDescription>
+               Update the name of {data.class_id}. Click save when you are done.
+              </DialogDescription>
+            </DialogHeader>
+        <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <FormField
+            control={form.control}
+            name="class_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel htmlFor="update name">
+                  Update Class Name
+                </FormLabel>
+                <Input
+                    id = "update name"
+                    {...field}
+                      />
+                <FormDescription>
+                <span>Current class name: {data.class_name}.</span>
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+            <DialogFooter>
+              <FormControl>
+              <Button type="submit" disabled={isLoading||disableSave} className="mt-4"> 
+                {isLoading ? "Loading..." : "Save changes"}
+              </Button>
+              </FormControl>
+            </DialogFooter>
+        </form>
+      </Form>
+        </DialogContent>
+      </Dialog>
+      
+  </>
+}
+
+
 
 
 const ManageClass: FC = () => {
@@ -508,6 +560,8 @@ const ManageClass: FC = () => {
         <div className="space-y-3 col-span-2">
           <p>Class ID:</p>
           <p>{data.class_id}</p>
+          <p>Class Name:</p>
+          <div className=" space-x-24"><span>{data.class_name}</span> <UpdateName {...{isLoading,setIsLoading,handleChangeClass,data}}/></div>
           <p>Teachers in class:</p>
           <p className="space-x-3">{teachers.map((teacher,index)=>{
             return <span key={`${teacher.email}-${index}`}>{`${teacher.name} (${teacher.email})`}</span>

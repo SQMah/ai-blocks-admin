@@ -38,6 +38,9 @@ const FormSchema = z.object({
       return true
     },{message:`Invalid email, please provide a list of email seperated by ","`}),
     capacity:z.string().nonempty({message:"Required"})
+    .refine(cap=>{
+      return Number(cap) > 0
+    },{message:"Capacity must greater than 0."})
     .refine(input=>!isNaN(Number(input)),{message:"Invalid number"})
 })
 

@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { X,Check} from "lucide-react";
 
-import { PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
+import { GetClassResSchema, PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
 import { RoledUserType,modulesReady } from "@/models/auth0_schemas";
 
 import RemoveStudentFromClass from "./removeStudentFromClass";
@@ -43,6 +43,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
 
     const handleChange = async (e:FormEvent<HTMLFormElement>)=>{
         e.preventDefault()
+        if(!currentClass) return
         setMessage("")
         setIsLoading(true)
         const id = classId.trim()
@@ -53,9 +54,15 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             setMessage("The new class ID is not same as the old ID.")
         }else{
             try {
-              const {data} = await axios.get('/api/classes?class_id/'+id)
+              const {data} = await axios.get('/api/classes/'+id)
               if(!data){
                 setMessage("Invalid class ID.")
+                setIsLoading(false)
+                return
+              }
+              const target = GetClassResSchema.parse(data)
+              if(target.studentIds.length>=target.capacity){
+                setMessage("Class is full.")
                 setIsLoading(false)
                 return
               }
@@ -65,6 +72,16 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
               return
             }
             try {
+                const addPayload:PutClassesReqType ={
+                  class_id:id,
+                  addStudents:[student.email]
+                } 
+                await axios.put('/api/classes',addPayload)
+                const removePayload:PutClassesReqType={
+                  class_id:currentClass,
+                  removeStudents:[student.email]
+                }
+                await axios.put('/api/classes',removePayload)
                 const payload:PutUsersReqType={
                   userId :student.user_id,
                   content:{
@@ -207,20 +224,18 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             setIsLoading(false)
             return
           }
+          const target = GetClassResSchema.parse(data)
+              if(target.studentIds.length>=target.capacity){
+                setMessage("Class is full.")
+                setIsLoading(false)
+                return
+              }
         } catch (error:any) {
           errorMessage(error)
           setIsLoading(false)
           return
         }
         try {
-            const payload:PutUsersReqType={
-              userId :student.user_id,
-              content:{
-                enrolled_class_id:newClassId
-              }
-            }
-            setNewClassId('')
-            const response =await  axios.put("/api/users",payload)
             const classPayload:PutClassesReqType = {
               class_id:id,
               addStudents:[student.email]
@@ -229,6 +244,14 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             toast({
               title:"Updated"
             })
+            const payload:PutUsersReqType={
+              userId :student.user_id,
+              content:{
+                enrolled_class_id:newClassId
+              }
+            }
+            setNewClassId('')
+            const response =await  axios.put("/api/users",payload)
             await  reload()
         } catch (error:any) {
           const str = errorMessage(error)

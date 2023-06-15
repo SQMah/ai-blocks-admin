@@ -37,7 +37,6 @@ const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>): Promis
 
 const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
     try {
-        console.log("herssse")
         const {class_id} = req.query
         if(!class_id) throw new Error("Class ID is required")
         if(Array.isArray(class_id)) throw new Error("Only one class ID")

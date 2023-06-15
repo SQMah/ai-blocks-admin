@@ -23,19 +23,19 @@ type RoleRecord =z.infer<typeof RoleRecordSchema>
 export const roleMapping: RoleRecord = {
   admin: {
     name: "admin",
-    id: "rol_YHRhJdPKTdNaTEPp",
+    id: "rol_dhBIdUmGdNR52dha",
   },
   managedStudent: {
     name: "student",
-    id: "rol_FLZfpiWTljn9jiOd",
+    id: "rol_sscS5jlEm9eNoQhh",
   },
   teacher: {
     name: "teacher",
-    id: "rol_tEgERFGnK2D82MFC",
+    id: "rol_2TX6jO3b0TbA1z7y",
   },
   unmanagedStudent: {
     name: "unmanaged student",
-    id: "rol_IBB3Y72SjYuP3tNP",
+    id: "rol_JHWVsaPKEqqHno00",
   },
 };
 

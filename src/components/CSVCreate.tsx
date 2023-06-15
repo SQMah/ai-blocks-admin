@@ -29,9 +29,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios"; 
 
-import { getOrdinal,delay, errorMessage } from "@/lib/utils"
+import { getOrdinal,delay, errorMessage,removeDuplicates } from "@/lib/utils"
 import { UserRoleSchema} from "@/models/auth0_schemas"
-import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema,SetExpriationSchema,PutClassesReqType } from "@/models/api_schemas"
+import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema,SetExpriationSchema,PutClassesReqType, GetClassResSchema } from "@/models/api_schemas"
 
 type CSVData = {
     data: any[];
@@ -213,22 +213,20 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
               setIsLoading(false)
               return
             }
+            const target = GetClassResSchema.parse(obj)
+            const remain = Math.max(target.capacity - target.studentIds.length,0)
+            if(remain < users.length){
+              form.setError('enrolled_class_id',{message:`Class is full, only ${remain} seat(s) remain.`})
+              setIsLoading(false)
+              return
+            }
           } catch (error:any) {
             errorMessage(error)
             setIsLoading(false)
             return
           }
         }
-        const payload: PostUsersReqType = { 
-          users,role,
-          ...(role === "managedStudent" && { enrolled_class_id }),
-          ...(role==="unmanagedStudent"&&{available_modules}),
-          ...(role==="teacher"&&{teaching_class_ids:teaching}),
-          ...(role !== "admin" && { account_expiration_date }),
-        };      
-        // console.log(payload)
-        const response = await axios.post("/api/users", payload);
-        const emails = users.map(user=>user.email)
+        const emails = removeDuplicates(users.map(user=>user.email))
         for(const id of role==="teacher"?teaching:[]){
           const body:PutClassesReqType={
             class_id:id,
@@ -244,8 +242,18 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
           }
           await axios.put('/api/classes',body)
         }
+        const payload: PostUsersReqType = { 
+          users,role,
+          ...(role === "managedStudent" && { enrolled_class_id }),
+          ...(role==="unmanagedStudent"&&{available_modules}),
+          ...(role==="teacher"&&{teaching_class_ids:teaching}),
+          ...(role !== "admin" && { account_expiration_date }),
+        };      
+        // console.log(payload)
+        const response = await axios.post("/api/users", payload);
         const data = PostUsersResSchema.parse(response.data)
-        console.log(data.message);
+        // console.log(data.message);
+        form.reset()
         toast({
           title: "Creation status",
           description: data.message,
