@@ -1,5 +1,10 @@
 import { ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { GetClassesResType } from "@/models/api_schemas";
+import { ClassType } from "@/models/dynamoDB_schemas";
+import  { AxiosError } from 'axios';
+import {z} from "zod"
+
  
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -57,4 +62,37 @@ export function findEarliestDate(dates: (string | undefined|null)[]): string | u
 export function removeDuplicates<T>(arr:T[]){
   const set = new Set(arr)
   return Array.from(set)
+}
+
+
+export const dbToJSON = (data:ClassType)=>{
+  const {class_id,class_name,teacherIds,studentIds,capacity,available_modules} = data
+  const obj:GetClassesResType ={
+    class_id,class_name,capacity,
+    teacherIds:teacherIds&&teacherIds.size?Array.from(teacherIds):[],
+    studentIds:studentIds&&studentIds.size?Array.from(studentIds):[],
+    available_modules:available_modules&&available_modules.size?Array.from(available_modules):[]
+  }
+  return obj
+}
+
+export const errorMessage = (error:any,logging:boolean = true)=>{
+  let message = error.message as string?? "Unknown error"
+  if(error instanceof z.ZodError){
+    message = "Data schema error"
+    logging&&console.error(error.message)
+  }
+  else if(error instanceof AxiosError){
+    message = error.response?.data.message
+    logging&&console.error(message)
+  }else{
+    logging&&console.error(error)
+  }
+  return message
+}
+
+export const stringToBoolean =(str:string|undefined)=>{
+  if (str?.toLowerCase() === "true") return true
+  else if (str?.toLowerCase() === "false") return false
+  return undefined
 }

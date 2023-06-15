@@ -9,11 +9,11 @@ import { v1 as uuidv1 } from 'uuid';
 
 import { createClass ,deleteClass,getClass, updateClass} from "@/lib/class_management";
 
-import { GetClassesResType, PostClassesReqSchema,PutClassesReqSchema } from "@/models/api_schemas";
-import { ClassType } from "@/models/dynamoDB_schemas";
+import {  PostClassesReqSchema,PutClassesReqSchema } from "@/models/api_schemas";
+import { dbToJSON,errorMessage ,stringToBoolean} from "@/lib/utils";
 
 
-const requireAdminCheck = false
+const requireAdminCheck = stringToBoolean(process.env.REQUIRE_ADMIN)??true
 
 const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>): Promise<boolean> => {
   try {
@@ -38,16 +38,6 @@ const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>): Promis
   }
 };
 
-const dbToJSON = (data:ClassType)=>{
-  const {class_id,teacherIds,studentIds,capacity,available_modules} = data
-  const obj:GetClassesResType ={
-    class_id,capacity,
-    teacherIds:teacherIds&&teacherIds.size?Array.from(teacherIds):[],
-    studentIds:studentIds&&studentIds.size?Array.from(studentIds):[],
-    available_modules:available_modules&&available_modules.size?Array.from(available_modules):[]
-  }
-  return obj
-}
 
 const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
     try {
@@ -62,20 +52,19 @@ const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
         // console.log(data)
         res.status(200).json(dbToJSON(data))
     } catch (error:any) {
-        console.log(error.message??error);
-        res.status(500).send(error.message);
+        res.status(500).end(errorMessage(error))
   }
 }
 
 const handlePost = async (req: NextApiRequest,res: NextApiResponse) => {
     try {
         const payload = PostClassesReqSchema.parse(req.body)
-        const data = await createClass(payload)
-        res.status(200).send("success")
+        const id = uuidv1()
+        const data = await createClass(payload,id)
+        res.status(201).json(dbToJSON(data))
 
     } catch (error:any) {
-        console.log(error.message??error);
-        res.status(500).send(error.message);
+        res.status(500).end(errorMessage(error))
     }
   };
 
@@ -87,8 +76,7 @@ const handlePut = async (req: NextApiRequest,res: NextApiResponse) => {
       res.status(200).json(dbToJSON(data))
 
   } catch (error:any) {
-      console.log(error.message??error);
-      res.status(500).send(error.message);
+    res.status(500).end(errorMessage(error))
   }
 };
 
@@ -101,8 +89,7 @@ const handleDelete =async (req: NextApiRequest,res: NextApiResponse) => {
       // console.log(data)
       res.status(204).end()
   } catch (error:any) {
-      console.log(error.message??error);
-      res.status(500).send(error.message);
+    res.status(500).end(errorMessage(error))
   }
 }
 

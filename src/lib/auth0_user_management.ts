@@ -1,7 +1,7 @@
 import axios from 'axios';
 import generatePassword from './generate_password';
 import { sendMail } from './mail_sender';
-import * as z from "zod"
+import {z} from "zod"
 
 import { roleMapping,UserMetadataType,UserCreationBodyType,
   AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArrayType,  RoleArrayType, UserCreateResponseSchema, 
@@ -9,19 +9,19 @@ import { roleMapping,UserMetadataType,UserCreationBodyType,
    UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType} from '@/models/auth0_schemas';
 import { PutUsersReqType, UserCreateDataType} from '@/models/api_schemas';
 
-import { removeDuplicates } from './utils';
+import { removeDuplicates,errorMessage } from './utils';
 
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
 
 
 
 export async function createUser(access_token:string,payload:UserCreateDataType): Promise<UserCreateResponseType> {
+  const {role,first_name,last_name,email,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
+  const roleId:string|undefined = roleMapping[role]?.id
+  if(!roleId){
+    throw new Error("Invalid role.")
+  }
   try {
-    const {role,first_name,last_name,email,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
-    const roleId:string|undefined = roleMapping[role]?.id
-    if(!roleId){
-      throw new Error("Invalid role.")
-    }
     const user_meatadata:UserMetadataType ={
       ...(role === "managedStudent" && { enrolled_class_id }),
       ...(role==="teacher"&&{teaching_class_ids:teaching_class_ids?removeDuplicates(teaching_class_ids):teaching_class_ids}),
@@ -52,14 +52,17 @@ export async function createUser(access_token:string,payload:UserCreateDataType)
     console.log(`${payload.role} account for ${data.email} is creacted`)
     return data;
   } catch (error:any) {
-    if(error.response){
+    let message = "Unknown error"
+    if(error instanceof z.ZodError){
+      message = "Data schema error"
+    }
+    else if(error.response){
       const statusCode = error.response.status;
       const errorMessage = error.response.data.message;
       console.log(`Error occcurs with status code ${statusCode} for email: ${payload.email}, message: ${errorMessage}`)
-      throw new Error(`${errorMessage}  Email: ${payload.email}`)
+      message = `${errorMessage}  Email: ${payload.email}`
     }
-    console.log(error)
-    throw error
+    throw new Error(message)
   }
 }
 
@@ -99,8 +102,7 @@ export const assignRole = async (access_token:string,userId:string,role:UserRole
         },
       });
     } catch (error:any) {
-      console.log(error?.response?.data?.message??error?.message??error)
-      throw new Error(error?.response?.data?.message??error?.message??error)
+      throw new Error(errorMessage(error,false))
     }
 }
 
@@ -121,8 +123,7 @@ export const deleteRole = async (access_token:string,userId:string,role:UserRole
       data:body
     });
   } catch (error:any) {
-    console.log(error?.response?.data?.message??error?.message??error)
-    throw new Error(error?.response?.data?.message??error?.message??error)
+    throw new Error(errorMessage(error,false))
   }
 }
 
@@ -138,8 +139,7 @@ export const checkRole = async(access_token:string,userId:string):Promise<RoleAr
     let res = data.map((role)=>role.name)
     return res
   } catch (error:any) {
-    console.log(error?.response?.data?.message??error?.message??error)
-    throw new Error(error?.response?.data?.message??error?.message??error)
+    throw new Error(errorMessage(error,false))
   }
 }
 
@@ -169,8 +169,7 @@ export const sendInvitation = async(access_token:string,receiver_name:string
       await sendMail(subject,formated_addr,sender_email,receiver_name,reciever_mail,url,signing_name)
       console.log(`Invitation mail sent to ${reciever_mail}`)  
   } catch (error:any) {
-    console.log(error?.response?.data?.message??error?.message??error)
-    throw new Error(error?.response?.data?.message??error?.message??error)
+    throw new Error(errorMessage(error,false))
   }
   
 }
@@ -210,8 +209,7 @@ export const searchUser = async (access_token:string,query:SerachQuery,type:"AND
     // console.log(res.map(user=>user.name))
     return res
   } catch (error:any) {
-    console.log(error?.response?.data?.message??error?.message??error)
-    throw new Error(error?.response?.data?.message??error?.message??error)
+    throw new Error(errorMessage(error))
   }
 }
 
@@ -263,8 +261,7 @@ export const updateUser = async (access_token:string,payload:PutUsersReqType,rol
     }
     return UserCreateResponseSchema.parse(data)    
   } catch (error:any) {
-    console.log(error?.response?.data?.message??error?.message??error)
-    throw new Error(error?.response?.data?.message??error?.message??error)
+    throw new Error(errorMessage(error))
   }
 }
 
@@ -278,7 +275,6 @@ export const deleteUser = async (access_token:string,userId:string) =>{
     });
     return response.data
   } catch (error:any) {
-    console.log(error?.response?.data?.message??error?.message??error)
-    throw new Error(error?.response?.data?.message??error?.message??error)
+    throw new Error(errorMessage(error,false))
   }
 }

@@ -372,7 +372,7 @@ const UpdateCapacity:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,
                 <Input
                     id = "update cap"
                     type="number"
-                    min="0"
+                    min="1"
                     {...field}
                       />
                 <FormDescription>

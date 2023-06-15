@@ -4,7 +4,6 @@ import {z} from "zod"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
-import { v1 as uuidv1 } from 'uuid';
 
 import { Input } from "./ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,13 +20,14 @@ import { useToast } from "@/components/ui/use-toast"
 
 
 import { RoledUserArraySchema, defaultModels,modulesReady } from "@/models/auth0_schemas"
-import { PostClassesReqType,PutUsersReqType} from "@/models/api_schemas";
+import { PostClassesReqType,PostClassesResSchema,PutUsersReqType} from "@/models/api_schemas";
 import { delay } from "@/lib/utils";
 
 
 //IMPORTANT: for testing only
 
 const FormSchema = z.object({
+    class_name:z.string().nonempty({message:"Required"}),
     teacherIds: z.string().trim().nonempty({message:"Required"})
     .refine(input=>{
       const idList = input.split(",").filter(id=>id.length).map(id=>id.trim())
@@ -52,6 +52,7 @@ const CreateClass:FC= ()=>{
     const form = useForm<z.infer<typeof FormSchema>>({
         resolver: zodResolver(FormSchema),
         defaultValues: {
+          class_name:"",
           teacherIds:"",
           capacity:"10"
         },
@@ -61,8 +62,8 @@ const CreateClass:FC= ()=>{
         setIsLoading(true)
         try { 
             // console.log(values,availableModules)
-            let {teacherIds,capacity} = values
-            const emails = values.teacherIds.split(",").filter(id=>id.length).map(id=>id.trim())
+            let {class_name,teacherIds,capacity} = values
+            const emails = teacherIds.split(",").filter(id=>id.length).map(id=>id.trim())
             const {data:users} = await axios.get("/api/users?"+[...emails.map(email=>`email=${email}`),"type=OR"].join("&"))
             const teachers = RoledUserArraySchema.parse(users).filter(user=>user.roles.includes("teacher"))
             const teachersEmails = teachers.map(teacher=>teacher.email)
@@ -74,11 +75,9 @@ const CreateClass:FC= ()=>{
                 `})
               throw new Error("Invlaid teacher ID")
             }
-            //generate class id using timestamp based uuid
-            const classId = uuidv1()
             // console.log(classId)
             const payload:PostClassesReqType={
-                class_id:classId,
+                class_name,
                 teacherIds:teachersEmails,
                 capacity:Number(values.capacity),
                 available_modules:availableModules||[]
@@ -86,6 +85,7 @@ const CreateClass:FC= ()=>{
             // console.log(payload)
             const response = await axios.post("/api/classes",payload)
             // console.log(response.data)
+            const classId = PostClassesResSchema.parse(response.data).class_id
             for (const teacher of teachers){
               const teaching_class_ids = teacher.user_metadata?.teaching_class_ids??[]
               teaching_class_ids.push(classId)
@@ -100,7 +100,7 @@ const CreateClass:FC= ()=>{
             }
             toast({
               title: "Creation status",
-              description: `Created class, class ID: ${classId}, no. of teachers: ${teachers.length}, capacity: ${capacity}, no. of moudles: ${availableModules.length}`
+              description: `Created class,class name: ${class_name} class ID: ${classId}, no. of teachers: ${teachers.length}, capacity: ${capacity}, no. of moudles: ${availableModules.length}`
             })
         } catch (error: any) {
             console.log(error?.response?.data?.message??error?.message??error)
@@ -130,6 +130,22 @@ const CreateClass:FC= ()=>{
           className=" grid grid-cols-2  items-center gap-12"
         >
         <div className=" space-y-5 col-span-2">
+        <FormField
+                control={form.control}
+                name="class_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Class name</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="class name ..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
           <FormField
                 control={form.control}
                 name="teacherIds"
@@ -156,7 +172,7 @@ const CreateClass:FC= ()=>{
                     <FormControl>
                       <Input
                         type="number"
-                        min="0"
+                        min="1"
                         {...field}
                       />
                     </FormControl>

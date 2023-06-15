@@ -19,9 +19,9 @@ import {
   PostUsersResType,
   UserCreateDataType,
 } from "@/models/api_schemas";
-import { delay ,removeDuplicates} from "@/lib/utils";
+import { delay ,removeDuplicates,errorMessage,stringToBoolean} from "@/lib/utils";
 
-const requireAdminCheck = false
+const requireAdminCheck = stringToBoolean(process.env.REQUIRE_ADMIN)??true
 
 const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>): Promise<boolean> => {
   try {
@@ -71,8 +71,7 @@ const handleGet = async (
     res.status(200).json(users);
     return;
   } catch (error: any) {
-    console.log(error.message || error);
-    res.status(500).send(error.message || error);
+    res.status(500).end(errorMessage(error,true))
     return;
   }
 };
@@ -110,19 +109,8 @@ const handlePost = async (
           details.push(message)
           console.log(message);
         } catch (error: any) {
-          const message = String(
-            error?.response?.data?.message ?? error?.message
-          );
-          if (message) {
-            details.push(message)
-            console.log(message);
-          } else {
-            const waring = `Fail to process data at index ${index}, email:${
-              user?.email ?? "error"
-            }`;
-            console.log(waring, error);
-            details.push(waring)
-          }
+          const message = errorMessage(error,true)
+          details.push(message)
           fail+=1
         }
         await delay(500);
@@ -137,9 +125,7 @@ const handlePost = async (
         console.log(message);
         details.push(message)
       } catch (error: any) {
-        const message = String(
-          error?.response?.data?.message ?? error?.message
-        );
+        const message = errorMessage(error,true)
         details.push(message)
         if (!message) {
           const waring = `Fail to process data at email:${
@@ -156,8 +142,7 @@ const handlePost = async (
     `,details});
     return;
   } catch (error: any) {
-    console.log(error);
-    res.status(500).send(error.message);
+    res.status(500).end(errorMessage(error))
     return;
   }
 };
@@ -176,8 +161,7 @@ const handlePut = async (
     res.status(200).json(data);
     return;
   } catch (error: any) {
-    console.log(error);
-    res.status(500).send(error.message);
+    res.status(500).end(errorMessage(error))
     return;
   }
 };
@@ -200,8 +184,7 @@ const handleDelete = async (
     res.status(204).end();
     return;
   } catch (error: any) {
-    console.log(error);
-    res.status(500).send(error.message);
+    res.status(500).end(errorMessage(error))
     return;
   }
 };

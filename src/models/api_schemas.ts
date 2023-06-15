@@ -115,6 +115,7 @@ export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
 
 export const GetClassResSchema = z.object({
   class_id:z.string(),
+  class_name:z.string(),
   teacherIds:z.array(z.string()),
   studentIds:z.array(z.string()),
   capacity:z.number().nonnegative(),
@@ -124,7 +125,7 @@ export const GetClassResSchema = z.object({
 export type GetClassesResType = z.infer<typeof GetClassResSchema>
 
 export const PostClassesReqSchema=z.object({
-  class_id:z.string().nonempty({message:"Required"}),
+  class_name:z.string().nonempty({message:"Required"}),
   teacherIds:z.array(z.string().email().trim().nonempty()),
   capacity:z.number().nonnegative(),
   available_modules:z.array(z.string())
@@ -132,8 +133,12 @@ export const PostClassesReqSchema=z.object({
 
 export type  PostClassesReqType = z.infer<typeof  PostClassesReqSchema>
 
+export const PostClassesResSchema = GetClassResSchema
+export type PostClassesResType = z.infer<typeof PostClassesResSchema>
+
 export const PutClassesReqSchema=z.object({
   class_id:z.string().nonempty({message:"Required"}),
+  class_name:z.string().nonempty().optional(),
   teacherIds:z.array(z.string().email().trim().nonempty()).optional(),
   studentIds:z.array(z.string().email().trim().nonempty()).optional(),
   capacity:z.number().nonnegative().optional(),
