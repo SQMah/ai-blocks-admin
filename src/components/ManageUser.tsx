@@ -36,7 +36,7 @@ import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOption
 import {UpdateExpiration} from "./UpdateExpiration";
 import DeleteUser from "./DeleteUser";
 import ShowExpiration from "./ShowExpiration";
-import { delay } from "@/lib/utils";
+import { delay, errorMessage } from "@/lib/utils";
 
 
 const formSchema = z.object({
@@ -74,15 +74,12 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
       const user = data[0]
       setUser(data[0]);
     } catch (error: any) {
-      console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message
-      if(message){
-        toast({
-          variant:"destructive",
-          title: "Search error",
-          description: message,
-        })
-      }
+      const message = errorMessage(error)
+      toast({
+        variant:"destructive",
+        title: "Search error",
+        description: message,
+      })
     }
     setIsLoading(false);
   };
@@ -233,8 +230,7 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
         SetRemoved([])
         await  reload()
       } catch (error:any) {
-        console.log(error?.response?.data?.message ?? error?.message ?? error);
-        const message = error?.response?.data?.message
+        const message = errorMessage(error)
         toast({
           variant:"destructive",
           title:"Update error",
@@ -358,15 +354,12 @@ const ManageUser: FC = () => {
       //  console.log(data[0])
       }
     } catch (error: any) {
-      console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message
-      if(message){
-        toast({
-          variant:"destructive",
-          title: "Search error",
-          description: message,
-        })
-      }
+      const message = errorMessage(error)
+      toast({
+        variant:"destructive",
+        title: "Search error",
+        description: message,
+      })
     }
     setIsLoading(false);
   }

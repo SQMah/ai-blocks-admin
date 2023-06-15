@@ -21,6 +21,7 @@ import { PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
 import { RoledUserType,modulesReady } from "@/models/auth0_schemas";
 
 import RemoveStudentFromClass from "./removeStudentFromClass";
+import { errorMessage } from "@/lib/utils";
 
 
 interface ManagedStudentOptionProps{
@@ -52,14 +53,14 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             setMessage("The new class ID is not same as the old ID.")
         }else{
             try {
-              await axios.get('/api/classes?class_id='+id)
-            } catch (error:any) {
-              if(error.response?.status === 404){
+              const {data} = await axios.get('/api/classes?class_id/'+id)
+              if(!data){
                 setMessage("Invalid class ID.")
+                setIsLoading(false)
+                return
               }
-              else{
-                console.log(error)
-              }
+            } catch (error:any) {
+              errorMessage(error)
               setIsLoading(false)
               return
             }
@@ -77,12 +78,11 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
                 })
                 await reload()
             } catch (error:any) {
-              console.log(error?.response?.data?.message ?? error?.message ?? error);
-              const message = error?.response?.data?.message
+              const str= errorMessage(error)
               toast({
                 variant:"destructive",
                 title: "Update error",
-                description: message,
+                description: str,
               })
             }
         }
@@ -153,7 +153,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
     const disableSave:boolean = storedModules.toString()===availableModules.toString()
 
     const [newClassId,setNewClassId] = useState<string>("")
-    const [errorMessage,setErrorMessage] = useState<string>("")
+    const [message,setMessage] = useState<string>("")
     const newClass = useId()
 
     const {toast} = useToast()
@@ -179,39 +179,36 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
         })
         await reload()
       } catch (error:any) {
-      console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message
-      if(message){
-        toast({
-          variant:"destructive",
-          title: "Update error",
-          description: message,
-        })
-      }
+          const str = errorMessage(error)
+          toast({
+            variant:"destructive",
+            title: "Update error",
+            description: str,
+          })
       }
       setIsLoading(false)
     }
     
     const handleAssignClass = async (e:FormEvent<HTMLFormElement>)=>{
       e.preventDefault()
-        setErrorMessage("")
+        setMessage("")
         setIsLoading(true)
         const id = newClassId.trim()
         if(id.length===0){
-            setErrorMessage("Please provide the new class ID.")
+            setMessage("Please provide the new class ID.")
             setNewClassId('')
             setIsLoading(false)
             return
         }
         try {
-          await axios.get('/api/classes?class_id='+id)
+          const {data} = await axios.get('/api/classes/'+id)
+          if(!data){
+            setMessage("Invalid class ID.")
+            setIsLoading(false)
+            return
+          }
         } catch (error:any) {
-          if(error.response?.status === 404){
-            setErrorMessage("Invalid class ID.")
-          }
-          else{
-            console.log(error)
-          }
+          errorMessage(error)
           setIsLoading(false)
           return
         }
@@ -234,12 +231,11 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             })
             await  reload()
         } catch (error:any) {
-          console.log(error?.response?.data?.message ?? error?.message ?? error);
-          const message = error?.response?.data?.message
+          const str = errorMessage(error)
           toast({
             variant:"destructive",
             title: "Update error",
-            description: message,
+            description: str,
           })
       }
       setIsLoading(false)
@@ -279,8 +275,8 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
              Change to managed student with Class ID
             </Label>
             <Input id={newClass} value={newClassId} placeholder="new class ID ..."
-              onChange={(e)=>{setErrorMessage("");setNewClassId(e.target.value)}} className="col-span-4"/>
-            <div className=" col-span-6 text-right text-sm text-red-500">{errorMessage}</div>
+              onChange={(e)=>{setMessage("");setNewClassId(e.target.value)}} className="col-span-4"/>
+            <div className=" col-span-6 text-right text-sm text-red-500">{message}</div>
             </div>
             <Button type="submit"  disabled={isLoading} className=" my-4">{isLoading?"Loading..." :"Save changes"}</Button>
           </form>

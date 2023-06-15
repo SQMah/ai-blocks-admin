@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { PutUsersReqType,PutClassesReqType } from "@/models/api_schemas";
 import { useToast } from "./ui/use-toast";
+import { errorMessage } from "@/lib/utils";
 
 interface props{
   student:RoledUserType,
@@ -51,8 +52,7 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
             const res = await axios.put('/api/classes',classPayload)
             await reload()
         } catch (error:any) {
-          console.log(error?.response?.data?.message ?? error?.message ?? error);
-          const message = error?.response?.data?.message
+          const message = errorMessage(error)
           toast({
             variant:"destructive",
             title: "Remove error",

@@ -24,7 +24,7 @@ import axios from "axios";
 
 import {  roleMapping} from "@/models/auth0_schemas";
 import { PostUsersResSchema, UserCreateFormSchema,UserCreateFormType,UserCreateDataType, PostUsersReqType, PutClassesReqType } from "@/models/api_schemas";
-import { delay } from "@/lib/utils";
+import { delay, errorMessage } from "@/lib/utils";
 
 interface ManualCreateProps{
   isLoading:boolean,
@@ -55,14 +55,14 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
 
       for(const id of role==="teacher"?teaching:[]){
         try {
-          await axios.get('/api/classes?class_id='+id)
-        } catch (error:any) {
-          if(error.response?.status === 404){
+          const {data:classData} = await axios.get('/api/classes?class_id/'+id)
+          if(!classData){
             form.setError("teaching_class_ids_str",{message:`${id} is not a valid class ID`})
+            setIsLoading(false)
+            return
           }
-          else{
-            console.log(error)
-          }
+        } catch (error:any) {
+          errorMessage(error)
           setIsLoading(false)
           return
         }
@@ -71,16 +71,14 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       const enrolled  = enrolled_class_id?.trim()
       if(enrolled&&role==="managedStudent"){
         try {
-          await axios.get('/api/classes?class_id='+enrolled)
-        } catch (error:any) {
-          if(error.response?.status === 404){
+          const {data:classData}=await axios.get('/api/classes?class_id/'+enrolled)
+          if(!classData){
             form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
+            setIsLoading(false)
+            return
           }
-          else{
-            console.log(error)
-          }
-          setIsLoading(false)
-          return
+        } catch (error:any) {
+          errorMessage(error)
         }
       }
       const userData: UserCreateDataType = {
@@ -118,8 +116,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       })
       // console.log(data.messages);
     } catch (error: any) {
-      console.log(error?.response?.data?.messages??error?.message??error)
-      const message = error.response.data.message
+      const message = errorMessage(error)
       toast({
         variant:"destructive",
         title: "Creation error",

@@ -29,7 +29,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios"; 
 
-import { getOrdinal,delay } from "@/lib/utils"
+import { getOrdinal,delay, errorMessage } from "@/lib/utils"
 import { UserRoleSchema} from "@/models/auth0_schemas"
 import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema,SetExpriationSchema,PutClassesReqType } from "@/models/api_schemas"
 
@@ -191,14 +191,14 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
         const teaching = teaching_class_ids_str?.split(",").map(id=>id.trim()).filter(id=>id.length)??[]
         for(const id of role==="teacher"?teaching:[]){
           try {
-            await axios.get('/api/classes?class_id='+id)
-          } catch (error:any) {
-            if(error.response?.status === 404){
+            const {data:obj} = await axios.get('/api/classes/'+id)
+            if(!obj){
               form.setError("teaching_class_ids_str",{message:`${id} is not a valid class ID`})
+              setIsLoading(false)
+              return
             }
-            else{
-              console.log(error)
-            }
+          } catch (error:any) {
+            errorMessage(error)
             setIsLoading(false)
             return
           }
@@ -207,14 +207,14 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
         const enrolled  = enrolled_class_id?.trim()
         if(enrolled&&role==="managedStudent"){
           try {
-            await axios.get('/api/classes?class_id='+enrolled)
-          } catch (error:any) {
-            if(error.response?.status === 404){
+            const {data:obj} = await axios.get('/api/classes/'+enrolled)
+            if(!obj){
               form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
+              setIsLoading(false)
+              return
             }
-            else{
-              console.log(error)
-            }
+          } catch (error:any) {
+            errorMessage(error)
             setIsLoading(false)
             return
           }
@@ -251,14 +251,12 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
           description: data.message,
         })
       } catch (error: any) {
-        console.log(error?.response?.data?.messages??error?.message??error)
-        if(error.response?.data){
-          toast({
-            variant:"destructive",
-            title: "Creation error",
-            description: error.response.data.message,
-          })
-        }
+        const message = errorMessage(error)
+        toast({
+          variant:"destructive",
+          title: "Creation error",
+          description:message
+        })
       }
       setIsLoading(false)
     };

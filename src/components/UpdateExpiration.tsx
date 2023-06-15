@@ -29,7 +29,7 @@ import { useToast } from "./ui/use-toast";
 
 import { PutUsersReqType, SetExpriationSchema } from "@/models/api_schemas";
 import { RoledUserType,RoledUserArrayType } from "@/models/auth0_schemas";
-import {findEarliestDate,delay} from "@/lib/utils"
+import {findEarliestDate,delay, errorMessage} from "@/lib/utils"
 import ShowExpiration from "./ShowExpiration";
 
 
@@ -69,15 +69,13 @@ export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,
       })
       await reload();
     } catch (error: any) {
-      console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message
-      if(message){
-        toast({
-          variant:"destructive",
-          title: "Update error",
-          description: message,
-        })
-      }
+      const message = errorMessage(error)
+      toast({
+        variant:"destructive",
+        title: "Update error",
+        description: message,
+      })
+
     }
     setIsLoading(false);
   };
@@ -170,15 +168,12 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
         await delay(500)
         success+=1
       } catch (error: any) {
-        console.log(error?.response?.data?.message ?? error?.message ?? error);
-        const message = error?.response?.data?.message
-        if(message){
-          toast({
-            variant:"destructive",
-            title: "Update error for "+user.email,
-            description: message ,
-          })
-        }
+        const message = errorMessage(error)
+        toast({
+          variant:"destructive",
+          title: "Update error for "+user.email,
+          description: message ,
+        })
         continue
       }
     }

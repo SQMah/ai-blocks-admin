@@ -142,7 +142,7 @@ const handlePost = async (
     `,details});
     return;
   } catch (error: any) {
-    res.status(500).end(errorMessage(error))
+    res.status(500).end(errorMessage(error,true))
     return;
   }
 };
@@ -161,7 +161,7 @@ const handlePut = async (
     res.status(200).json(data);
     return;
   } catch (error: any) {
-    res.status(500).end(errorMessage(error))
+    res.status(500).end(errorMessage(error,true))
     return;
   }
 };
@@ -184,7 +184,7 @@ const handleDelete = async (
     res.status(204).end();
     return;
   } catch (error: any) {
-    res.status(500).end(errorMessage(error))
+    res.status(500).end(errorMessage(error,true))
     return;
   }
 };

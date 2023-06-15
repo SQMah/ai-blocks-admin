@@ -83,7 +83,7 @@ export const errorMessage = (error:any,logging:boolean = true)=>{
     logging&&console.error(error.message)
   }
   else if(error instanceof AxiosError){
-    message = error.response?.data.message
+    message = error.response?.data?.message as string??"Axios error"
     logging&&console.error(message)
   }else{
     logging&&console.error(error)

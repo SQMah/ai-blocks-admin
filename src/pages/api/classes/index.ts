@@ -40,20 +40,20 @@ const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>): Promis
 
 
 const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
-    try {
-        const {class_id} = req.query
-        if(!class_id) throw new Error("Class ID is required")
-        if(Array.isArray(class_id)) throw new Error("Only one class ID")
-        const data = await getClass(class_id)
-        if(!data){ 
-            res.status(404).send("Class not found");
-            return 
-        }
-        // console.log(data)
-        res.status(200).json(dbToJSON(data))
-    } catch (error:any) {
-        res.status(500).end(errorMessage(error))
-  }
+  try {
+      const {class_id} = req.query
+      if(!class_id) throw new Error("Class ID is required")
+      if(Array.isArray(class_id)) throw new Error("Only one class ID")
+      const data = await getClass(class_id)
+      if(!data){ 
+          res.status(200).json(undefined)
+          return 
+      }
+      // console.log(data)
+      res.status(200).json(dbToJSON(data))
+  } catch (error:any) {
+      res.status(500).end(errorMessage(error,false))
+}
 }
 
 const handlePost = async (req: NextApiRequest,res: NextApiResponse) => {
@@ -64,7 +64,7 @@ const handlePost = async (req: NextApiRequest,res: NextApiResponse) => {
         res.status(201).json(dbToJSON(data))
 
     } catch (error:any) {
-        res.status(500).end(errorMessage(error))
+        res.status(500).end(errorMessage(error,true))
     }
   };
 
@@ -76,7 +76,7 @@ const handlePut = async (req: NextApiRequest,res: NextApiResponse) => {
       res.status(200).json(dbToJSON(data))
 
   } catch (error:any) {
-    res.status(500).end(errorMessage(error))
+    res.status(500).end(errorMessage(error,true))
   }
 };
 
@@ -89,7 +89,7 @@ const handleDelete =async (req: NextApiRequest,res: NextApiResponse) => {
       // console.log(data)
       res.status(204).end()
   } catch (error:any) {
-    res.status(500).end(errorMessage(error))
+    res.status(500).end(errorMessage(error,true))
   }
 }
 

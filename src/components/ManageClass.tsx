@@ -41,7 +41,7 @@ import {
 import { useToast } from "./ui/use-toast";
 import { Label } from "./ui/label";
 
-import { cn } from "@/lib/utils"
+import { cn, errorMessage } from "@/lib/utils"
 import { RoledUserArraySchema, RoledUserArrayType, RoledUserType ,modulesReady} from "@/models/auth0_schemas";
 import ShowExpiration from "./ShowExpiration";
 import { UpdateAllExpiration } from "./UpdateExpiration";
@@ -92,15 +92,12 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
       }
       setTeacher(data[0]);
     } catch (error: any) {
-      console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message
-      if(message){
-        toast({
-          variant:"destructive",
-          title: "Search error",
-          description: message,
-        })
-      }
+      const str = errorMessage(error)
+      toast({
+        variant:"destructive",
+        title: "Search error",
+        description: str,
+      })
     }
     setIsLoading(false);
   };
@@ -115,16 +112,16 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
     setIsLoading(true)
     try {
       // console.log("/api/classes?class_id="+class_id)
-      const {data} = await axios.get("/api/classes?class_id="+class_id)
+      const {data} = await axios.get("/api/classes?class_id/"+class_id)
+      if(!data){
+        setMessage("Invalid class ID")
+        await handleChangeClass(undefined)
+      }
       // console.log(data)
       await handleChangeClass(GetClassResSchema.parse(data))
     } catch (error:any) {
-      if(error?.response?.status===404){
-        setMessage("Invalid class ID")
-      }
-      else console.log(error)
+      errorMessage(error)
       await handleChangeClass(undefined)
-
     }
     setIsLoading(false)
   }
@@ -252,14 +249,15 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
         setIsLoading(true)
         try {
           // console.log("/api/classes?class_id="+class_id)
-          const {data} = await axios.get("/api/classes?class_id="+input)
-          console.log(data)
+          const {data} = await axios.get("/api/classes?class_id/"+input)
+          if(!data){
+            setMessage("Invalid class ID")
+            await handleChangeClass(undefined)
+          }
+          // console.log(data)
           await handleChangeClass(GetClassResSchema.parse(data))
         } catch (error:any) {
-          if(error?.response?.status===404){
-            setMessage("Invalid class ID")
-          }
-          else console.log(error)
+          errorMessage(error)
           await handleChangeClass(undefined)
         }
         setIsLoading(false)
@@ -333,8 +331,7 @@ const UpdateCapacity:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,
       })
       await handleChangeClass(GetClassResSchema.parse(response.data))
     } catch (error:any) {
-      console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message
+      const message = errorMessage(error)
       toast({
         variant:"destructive",
         title: "Update error",
@@ -433,8 +430,7 @@ const ManageClass: FC = () => {
       // console.log(data)
       setUsers(data)
     } catch (error: any) {
-      console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message??error.message
+      const message = errorMessage(error)
       toast({
         variant:"destructive",
         title: "Search error",
@@ -477,8 +473,7 @@ const ManageClass: FC = () => {
         const updated = GetClassResSchema.parse(response.data)
         await handleChangeClass(updated)
     } catch (error:any) {
-      console.log(error?.response?.data?.message ?? error?.message ?? error);
-      const message = error?.response?.data?.message
+      const message = errorMessage(error)
       toast({
         variant:"destructive",
         title: "Update error",

@@ -19,7 +19,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { PutClassesReqType } from "@/models/api_schemas";
-import { delay } from "@/lib/utils";
+import { delay, errorMessage } from "@/lib/utils";
 
 interface props{
   user:RoledUserType,
@@ -46,7 +46,7 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
                 await axios.put('/api/classes',payload)
                 await delay(200)
               } catch (error:any) {
-                console.log(error)
+                errorMessage(error)
               }
             }
             if(user.user_metadata?.enrolled_class_id){
@@ -57,7 +57,7 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
                 }
                 await axios.put('/api/classes',payload)
               } catch (error:any) {
-                console.log(error)
+                errorMessage(error)
               }
             }
             toast({
@@ -65,8 +65,7 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
             })
             await reload()
         } catch (error:any) {
-          console.log(error?.response?.data?.message ?? error?.message ?? error);
-          const message = error?.response?.data?.message
+          const message = errorMessage(error)
           toast({
             variant:"destructive",
             title: "Delete error",

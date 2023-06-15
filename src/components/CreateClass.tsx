@@ -21,10 +21,9 @@ import { useToast } from "@/components/ui/use-toast"
 
 import { RoledUserArraySchema, defaultModels,modulesReady } from "@/models/auth0_schemas"
 import { PostClassesReqType,PostClassesResSchema,PutUsersReqType} from "@/models/api_schemas";
-import { delay } from "@/lib/utils";
+import { delay,errorMessage } from "@/lib/utils";
 
 
-//IMPORTANT: for testing only
 
 const FormSchema = z.object({
     class_name:z.string().nonempty({message:"Required"}),
@@ -103,11 +102,11 @@ const CreateClass:FC= ()=>{
               description: `Created class,class name: ${class_name} class ID: ${classId}, no. of teachers: ${teachers.length}, capacity: ${capacity}, no. of moudles: ${availableModules.length}`
             })
         } catch (error: any) {
-            console.log(error?.response?.data?.message??error?.message??error)
+            const message = errorMessage(error)
             toast({
               variant:"destructive",
               title: "Creation error",
-              description: error.response?.data?.message??"",
+              description: message,
             })
           }
         setIsLoading(false)
