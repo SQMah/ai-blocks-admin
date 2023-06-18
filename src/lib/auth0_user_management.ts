@@ -4,8 +4,8 @@ import { sendMail } from './mail_sender';
 import {z} from "zod"
 
 import { roleMapping,UserMetadataType,UserCreationBodyType,
-  AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArrayType,  RoleArrayType, UserCreateResponseSchema, 
-  UserCreateResponseType, UserSearchResponseArraySchema,
+  AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArrayType,  RoleArrayType, UserSchema, 
+  UserType, UserSearchResponseArraySchema,
    UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType} from '@/models/auth0_schemas';
 import { PutUsersReqType, UserCreateDataType} from '@/models/api_schemas';
 
@@ -13,9 +13,11 @@ import { removeDuplicates,errorMessage } from './utils';
 
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
 
+if(!auth0BaseUrl) throw new Error("AUTH 0 ISSUER IS NOT DEFINDED")
 
 
-export async function createUser(access_token:string,payload:UserCreateDataType): Promise<UserCreateResponseType> {
+
+export async function createUser(access_token:string,payload:UserCreateDataType){
   const {role,first_name,last_name,email,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
   const roleId:string|undefined = roleMapping[role]?.id
   if(!roleId){
@@ -46,7 +48,7 @@ export async function createUser(access_token:string,payload:UserCreateDataType)
         },
       });
 
-    const data = UserCreateResponseSchema.parse(response.data)
+    const data = UserSchema.parse(response.data)
     const userId:string = data.user_id
     await assignRole(access_token,userId,role)
     console.log(`${payload.role} account for ${data.email} is creacted`)
@@ -213,6 +215,25 @@ export const searchUser = async (access_token:string,query:SerachQuery,type:"AND
   }
 }
 
+export const getUserByEmail = async (access_token:string,email:string)=>{
+  try {
+    const response = await axios.get(`${auth0BaseUrl}/api/v2/users-by-email?email=${email}`,{
+      headers: {
+        Authorization: `Bearer ${access_token}`,
+      },
+    });
+    // console.log(response.data)
+    const data = z.array(UserSchema).parse(response.data)
+    // console.log(data)
+    if(data.length===0) return undefined
+    const user = data[0]
+    const roles = await checkRole(access_token,user.user_id)
+    return {...user,roles}
+  } catch (error:any) {
+    throw new Error(errorMessage(error))
+  }
+}
+
 const PutUserBodySchema = z.object({
   user_metadata:UserMetadataSchema.optional()
 })
@@ -259,7 +280,7 @@ export const updateUser = async (access_token:string,payload:PutUsersReqType,rol
       await deleteRole(access_token,userId,changeRole.remove);
       await assignRole(access_token,userId,changeRole.add);
     }
-    return UserCreateResponseSchema.parse(data)    
+    return UserSchema.parse(data)    
   } catch (error:any) {
     throw new Error(errorMessage(error))
   }
@@ -267,7 +288,7 @@ export const updateUser = async (access_token:string,payload:PutUsersReqType,rol
 
 export const deleteUser = async (access_token:string,userId:string) =>{
   try {
-    // console.log('enetered delteuser')
+    console.log('enetered delteuser')
     const response = await axios.delete(`${auth0BaseUrl}/api/v2/users/${userId}`,{
       headers: {
         Authorization: `Bearer ${access_token}`,

@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import {z} from "zod"
 import {
   createUser,
   getAccessToken,
@@ -8,51 +9,27 @@ import {
   updateUser,
   deleteUser,
 } from "@/lib/auth0_user_management";
-import { getSession } from "@auth0/nextjs-auth0";
-import {
-  RoledUserArrayType,
-  UserCreateResponseType,
-} from "@/models/auth0_schemas";
+
 import {
   PutUsersReqSchema,
   PostUsersReqSchema,
   PostUsersResType,
   UserCreateDataType,
 } from "@/models/api_schemas";
-import { delay ,removeDuplicates,errorMessage,stringToBoolean} from "@/lib/utils";
+import { delay ,removeDuplicates,errorMessage} from "@/lib/utils";
+import { adminCheck } from "@/lib/api_utils";
 
-const requireAdminCheck = stringToBoolean(process.env.REQUIRE_ADMIN)??true
-
-const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>): Promise<boolean> => {
-  try {
-    const session = await getSession(req, res);
-    // console.log(session)
-    if (!session?.user?.sub) {
-      res.status(401).json({message:"Unauthorized"});
-      return false
-    }
-    const token = await getAccessToken();
-    const userId = session.user.sub;
-    const roles = await checkRole(token, userId);
-    if (!roles.includes("admin")) {
-      res.status(403).send({message:"Forbidden"});
-      return false
-    }
-    return true
-  } catch (error:any) {
-    console.log(error);
-    res.status(500).send(error.message);
-    return false
-  }
-};
 
 const handleGet = async (
   req: NextApiRequest,
-  res: NextApiResponse<RoledUserArrayType | string>
+  res: NextApiResponse
 ) => {
   try {
     // console.log(req.query)
     let  { email,enrolled_class_id,teaching_class_ids,type} = req.query;
+    if([email,enrolled_class_id,teaching_class_ids].every(query=>!query)){
+      res.status(400).json({message:"Please provide at least one search query."})
+    }
     const inputs = [email,enrolled_class_id,teaching_class_ids]
     .map(input=>{
       if(input===undefined) return undefined
@@ -71,16 +48,17 @@ const handleGet = async (
     res.status(200).json(users);
     return;
   } catch (error: any) {
-    res.status(500).end(errorMessage(error,true))
+    res.status(500).json({message:errorMessage(error,true)})
     return;
   }
 };
 
 const handlePost = async (
   req: NextApiRequest,
-  res: NextApiResponse<PostUsersResType | string>
+  res: NextApiResponse
 ) => {
   try {
+    console.log(req.body)
     const token = await getAccessToken();
     const {user,users,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date,}
      = PostUsersReqSchema.parse(req.body);
@@ -142,14 +120,18 @@ const handlePost = async (
     `,details});
     return;
   } catch (error: any) {
-    res.status(500).end(errorMessage(error,true))
+    if(error instanceof z.ZodError){
+      res.status(400).json({message:"Invalid body content type"})
+      return
+    }
+    res.status(500).json({message:errorMessage(error,true)})
     return;
   }
 };
 
 const handlePut = async (
   req: NextApiRequest,
-  res: NextApiResponse<UserCreateResponseType | string>
+  res: NextApiResponse
 ) => {
   try {
     const token = await getAccessToken();
@@ -161,37 +143,43 @@ const handlePut = async (
     res.status(200).json(data);
     return;
   } catch (error: any) {
-    res.status(500).end(errorMessage(error,true))
+    if(error instanceof z.ZodError){
+      res.status(400).json({message:"Invalid body content type"})
+      return
+    }
+    res.status(500).json({message:errorMessage(error,true)})
     return;
   }
 };
 
 const handleDelete = async (
   req: NextApiRequest,
-  res: NextApiResponse<string>
+  res: NextApiResponse
 ) => {
   try {
     const token = await getAccessToken();
     let { userId } = req.query;
-    if (userId == undefined) {
-      res.status(500).send("Student ID is required");
+    if (userId == undefined||Array.isArray(userId)) {
+      res.status(400).json({message:"Please provide one and only one non-empty userId"});
       return;
-    } else if (Array.isArray(userId)) {
-      userId = userId[userId.length - 1];
-    }
-    const data = await deleteUser(token, userId);
+    } 
+    const data = await deleteUser(token, userId.trim());
     console.log(`deleted user, user_id: ${userId}`);
     res.status(204).end();
     return;
   } catch (error: any) {
-    res.status(500).end(errorMessage(error,true))
+    if(error instanceof z.ZodError){
+      res.status(400).json({message:"Invalid body content type"})
+      return
+    }
+    res.status(500).json({message:errorMessage(error,true)})
     return;
   }
 };
 
-const handler = async (req: NextApiRequest,res: NextApiResponse<RoledUserArrayType | PostUsersResType | UserCreateResponseType | string>) => {
+const handler = async (req: NextApiRequest,res: NextApiResponse) => {
   //configurate for authentication
-  if(requireAdminCheck && !await adminCheck(req,res)){
+  if(!await adminCheck(req,res)){
     return
   }
   const method: string | undefined = req.method;
@@ -209,7 +197,7 @@ const handler = async (req: NextApiRequest,res: NextApiResponse<RoledUserArrayTy
       await handleDelete(req, res);
       break;
     default:
-      res.status(500).send(`${method} is not supported`);
+      res.status(405).json({message:`${method} is not supported`});
       break;
   }
 };

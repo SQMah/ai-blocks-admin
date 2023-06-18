@@ -31,7 +31,8 @@ import axios from "axios";
 
 import { getOrdinal,delay, errorMessage,removeDuplicates } from "@/lib/utils"
 import { UserRoleSchema} from "@/models/auth0_schemas"
-import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema,SetExpriationSchema,PutClassesReqType, GetClassResSchema } from "@/models/api_schemas"
+import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema,
+  SetExpriationSchema,PutClassesReqType, GetClassResSchema,BatchGetClassResSchema } from "@/models/api_schemas"
 
 type CSVData = {
     data: any[];
@@ -189,20 +190,26 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
       try {
         const {role,enrolled_class_id,teaching_class_ids_str,available_modules,account_expiration_date} = values
         const teaching = teaching_class_ids_str?.split(",").map(id=>id.trim()).filter(id=>id.length)??[]
-        for(const id of role==="teacher"?teaching:[]){
+        if(role==="teacher"&&teaching.length){
           try {
-            const {data:obj} = await axios.get('/api/classes/'+id)
-            if(!obj){
-              form.setError("teaching_class_ids_str",{message:`${id} is not a valid class ID`})
+            const {data} = await axios.get('/api/classes?'+teaching.map(id=>`class_id=${id}`).join('&'))
+            const present = BatchGetClassResSchema.parse(data).map(entry=>entry.class_id)
+            const missing = teaching.filter(id=>!present.includes(id))
+            if(missing.length){
+              const message = `${missing.join(", ")} are not valid class IDs.`
+              form.setError("teaching_class_ids_str",{message})
               setIsLoading(false)
               return
             }
           } catch (error:any) {
-            errorMessage(error)
+            const message = errorMessage(error)
+            toast({
+              title:"Search error",
+              description:message
+            })
             setIsLoading(false)
             return
           }
-          await  delay(200)
         }
         const enrolled  = enrolled_class_id?.trim()
         if(enrolled&&role==="managedStudent"){

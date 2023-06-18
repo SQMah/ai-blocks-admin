@@ -60,7 +60,7 @@ export type UserMetadataType = z.infer<typeof UserMetadataSchema>
 
 const AppmetadataSchema = z.object({}).passthrough();
 
-export const UserCreateResponseSchema = z.object({
+export const UserSchema = z.object({
   created_at: z.string(),
   email: z.string(),
   email_verified: z.boolean(),
@@ -76,10 +76,10 @@ export const UserCreateResponseSchema = z.object({
   app_metadata: AppmetadataSchema.optional(),
 }).passthrough();
 
-export type UserCreateResponseType = z.infer<typeof UserCreateResponseSchema>
+export type UserType = z.infer<typeof UserSchema>
 
-export const UserCreateResponseArrayScehma = z.array(UserCreateResponseSchema.nullable().optional())
-export type UserCreateResponseArrayType = z.infer<typeof UserCreateResponseArrayScehma>
+export const UserArrayScehma = z.array(UserSchema.nullable().optional())
+export type UserArrayType = z.infer<typeof UserArrayScehma>
 
 export const UserSearchResponseSchema = z.object({
   email:z.string(),

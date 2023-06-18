@@ -45,7 +45,7 @@ import ShowExpiration from "./ShowExpiration";
 import { UpdateAllExpiration } from "./UpdateExpiration";
 import RemoveStudentFromClass from "./removeStudentFromClass";
 import DeleteClass from "./DeleteClass";
-import { BatchGetClassResSchema, BatchGetClassType,GetClassResSchema, GetClassesResType, PutClassesReqType } from "@/models/api_schemas";
+import { BatchGetClassResSchema, BatchGetClassType,GetClassResSchema, GetClassesResType, GetUserSchema, PutClassesReqType } from "@/models/api_schemas";
 
 
 
@@ -61,7 +61,6 @@ interface Props {
 
 const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) => {
     const [teacher,setTeacher] = useState<RoledUserType | undefined>();
-    const [message,setMessage] = useState("")
     const [teaching,setTeaching] = useState<BatchGetClassType>([])
     const {toast} = useToast()
 
@@ -79,17 +78,16 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
     try {
       // console.log(values);
       const response = await axios.get(
-        `/api/users?email=${values.userId}`
+        `/api/users/${values.userId}`
       );
-      const data = RoledUserArraySchema.parse(response.data);
-      if (!data.length||!data[0].roles.includes("teacher")) {
+      const data = GetUserSchema.parse(response.data);
+      if (!data||!data.roles.includes("teacher")) {
         form.setError("userId",{message:"Invalid teacher ID!"})
         setIsLoading(false);
         return
       }
-      const teacher = data[0]
-      setTeacher(teacher);
-      const teachingIds = teacher.user_metadata?.teaching_class_ids?.filter(id=>id.length)
+      setTeacher(data);
+      const teachingIds = data.user_metadata?.teaching_class_ids?.filter(id=>id.length)
       if(teachingIds?.length){
         const {data:classes} = await axios.get('/api/classes?'+teachingIds.map(id=>`class_id=${id}`).join("&"))
         setTeaching(BatchGetClassResSchema.parse(classes))
@@ -174,9 +172,6 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <p className=" text-destructive text-sm">
-              {message}
-            </p>
         </div>
         </>:null
       }
@@ -205,8 +200,9 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
           if(!data){
             setMessage("Invalid class ID")
             await handleChangeClass(undefined)
+            setIsLoading(false)
+            return
           }
-          // console.log(data)
           await handleChangeClass(GetClassResSchema.parse(data))
         } catch (error:any) {
           errorMessage(error)
@@ -354,7 +350,7 @@ interface NameProps extends Props{
   data:GetClassesResType
 }
 
-const UpdateName:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,data})=>{
+const UpdateName:FC<NameProps> =({isLoading,setIsLoading,handleChangeClass,data})=>{
   const {toast} = useToast()
   const updateScehma = z.object({
    class_name:z.string().trim().nonempty({message:"Required"})
@@ -449,7 +445,7 @@ const UpdateName:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,data
 
 const ManageClass: FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [data, setData] = useState<GetClassesResType>()
+  const [data, setData] = useState<GetClassesResType|undefined>()
 
 
   const [users,setUsers] = useState<RoledUserArrayType>([])
@@ -493,7 +489,6 @@ const ManageClass: FC = () => {
   }
 
   const handleChangeClass =async (payload:GetClassesResType|undefined):Promise<void> => {
-    // console.log(payload)
     setData(payload)
     setUsers([])
     setAvailableModules(payload?.available_modules??[])

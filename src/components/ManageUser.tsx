@@ -29,8 +29,8 @@ import {
 import { Input } from "./ui/input";
 import { useToast } from "./ui/use-toast";
 
-import { RoledUserArraySchema, RoledUserType ,roleMapping} from "@/models/auth0_schemas";
-import { PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
+import { RoledUserArraySchema,  RoledUserType ,roleMapping} from "@/models/auth0_schemas";
+import { BatchGetClassResSchema, GetUserSchema, PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
 
 import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOptions";
 import {UpdateExpiration} from "./UpdateExpiration";
@@ -63,16 +63,15 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
     try {
       // console.log(values);
       const response = await axios.get(
-        `/api/users?email=${values.userId}`
+        `/api/users/${values.userId}`
       );
-      const data = RoledUserArraySchema.parse(response.data);
-      if (!data.length) {
+      const data = GetUserSchema.parse(response.data)
+      if (!data) {
         form.setError("userId",{message:"Invalid user ID!"})
         setIsLoading(false);
         return
       }
-      const user = data[0]
-      setUser(data[0]);
+      setUser(data);
     } catch (error: any) {
       const message = errorMessage(error)
       toast({
@@ -178,19 +177,33 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
         form.setError("teaching_class_ids_str",{message:"Required"})
         return
       }
-      for (const id of classIds){
-        try {
-          if(storedClaess.includes(id)){
-            form.setError("teaching_class_ids_str",{message:`${id} already exists.`})
-            return
-          }
-          const {data} = await axios.get("/api/classes?class_id="+id)
-        } catch (error:any) {
-          form.setError("teaching_class_ids_str",{message:`${id} is not a valid class id`})
+      const overlap = classIds.filter(id=>storedClaess.includes(id))
+      if(overlap.length){
+        const message = `${overlap.join(", ")} are already included.`
+        form.setError("teaching_class_ids_str",{message})
+        return
+      }
+      setIsLoading(true)
+      try {
+        const {data} = await axios.get('/api/classes?'+classIds.map(id=>`class_id=${id}`).join('&'))
+        const present = BatchGetClassResSchema.parse(data).map(entry=>entry.class_id)
+        const missing = classIds.filter(id=>!present.includes(id))
+        if(missing.length){
+          const message = `${missing.join(", ")} are not valid class IDs.`
+          form.setError("teaching_class_ids_str",{message})
+          setIsLoading(false)
           return
         }
-        await delay(200)
+      } catch (error:any) {
+        const message = errorMessage(error)
+        toast({
+          title:"Search error",
+          description:message
+        })
+        setIsLoading(false)
+        return
       }
+      setIsLoading(false)
       form.reset()
       setDisplayClaesses(prev=>prev.concat(classIds).sort())
     }

@@ -1,5 +1,5 @@
 import {z}from "zod"
-import { UserMetadataSchema, UserRoleSchema } from "./auth0_schemas"
+import { RoledUserArraySchema, RoledUserArrayType, RoledUserSchema, UserMetadataSchema, UserRoleSchema } from "./auth0_schemas"
 import { validDateString,afterToday} from "@/lib/utils"
 
 export const SetExpriationSchema = z.string().nonempty({message:"Required"}).refine(str=>{
@@ -69,6 +69,11 @@ export const UserCreateDataSchema = z.object({
 export type UserCreateDataType = z.infer<typeof UserCreateDataSchema>
 
 
+export const SeachUsersSchema = RoledUserArraySchema
+export type SearchUsersType = z.infer<typeof SeachUsersSchema>
+
+export const GetUserSchema = RoledUserSchema.optional()
+export type GetUserType = z.infer<typeof GetUserSchema>
 
 
 export const PostUsersReqSchema = z.object({

@@ -59,7 +59,7 @@ const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading
                 const {data} = await  axios.put("/api/users",payload)
                 await delay(500)
             }
-            const delRes = await  axios.delete("/api/classes?class_id="+classId)
+            const delRes = await  axios.delete("/api/classes/"+classId)
             toast({
                 title:"Deleted"
             })

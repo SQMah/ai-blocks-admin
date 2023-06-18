@@ -23,7 +23,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 
 import {  roleMapping} from "@/models/auth0_schemas";
-import {GetClassResSchema, PostUsersResSchema, UserCreateFormSchema,UserCreateFormType,UserCreateDataType, PostUsersReqType, PutClassesReqType } from "@/models/api_schemas";
+import {GetClassResSchema, PostUsersResSchema, UserCreateFormSchema,UserCreateFormType
+  ,UserCreateDataType, PostUsersReqType, PutClassesReqType,BatchGetClassResSchema } from "@/models/api_schemas";
 import { delay, errorMessage } from "@/lib/utils";
 
 interface ManualCreateProps{
@@ -52,21 +53,26 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
     try {
       const {role,email,first_name,last_name,enrolled_class_id,teaching_class_ids_str,available_modules,account_expiration_date} = values
       const teaching = teaching_class_ids_str?.split(",").map(id=>id.trim()).filter(id=>id.length)??[]
-
-      for(const id of role==="teacher"?teaching:[]){
+      if(role==="teacher"&&teaching.length){
         try {
-          const {data:classData} = await axios.get('/api/classes/'+id)
-          if(!classData){
-            form.setError("teaching_class_ids_str",{message:`${id} is not a valid class ID`})
+          const {data} = await axios.get('/api/classes?'+teaching.map(id=>`class_id=${id}`).join('&'))
+          const present = BatchGetClassResSchema.parse(data).map(entry=>entry.class_id)
+          const missing = teaching.filter(id=>!present.includes(id))
+          if(missing.length){
+            const message = `${missing.join(", ")} are not valid class IDs.`
+            form.setError("teaching_class_ids_str",{message})
             setIsLoading(false)
             return
           }
         } catch (error:any) {
-          errorMessage(error)
+          const message = errorMessage(error)
+          toast({
+            title:"Search error",
+            description:message
+          })
           setIsLoading(false)
           return
         }
-        await  delay(200)
       }
       const enrolled  = enrolled_class_id?.trim()
       if(enrolled&&role==="managedStudent"){

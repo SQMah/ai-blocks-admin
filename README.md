@@ -21,6 +21,7 @@ This is an admin panel for managing user and class information using Auth0 authe
 - RESTful api for above features
 
 ## Todo
+- [ ] migrate to scaen (manage teacher, create teacher)
 - [ ] oauth email
 
 ## Getting started
