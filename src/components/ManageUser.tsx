@@ -65,12 +65,12 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
       const response = await axios.get(
         `/api/users/${values.userId}`
       );
-      const data = GetUserSchema.parse(response.data)
-      if (!data) {
+      if (!response.data) {
         form.setError("userId",{message:"Invalid user ID!"})
         setIsLoading(false);
         return
       }
+      const data = GetUserSchema.parse(response.data)
       setUser(data);
     } catch (error: any) {
       const message = errorMessage(error)

@@ -58,7 +58,7 @@ const handlePost = async (
   res: NextApiResponse
 ) => {
   try {
-    console.log(req.body)
+    // console.log(req.body)
     const token = await getAccessToken();
     const {user,users,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date,}
      = PostUsersReqSchema.parse(req.body);
@@ -97,21 +97,14 @@ const handlePost = async (
     if (user) {
       try {
         const data = await createUser(token, user);
-        success +=1
         await sendInvitation(token, data.name, data.email);
         const message = `account creation for ${data.email} is done`;
+        success +=1
         console.log(message);
         details.push(message)
       } catch (error: any) {
         const message = errorMessage(error,true)
         details.push(message)
-        if (!message) {
-          const waring = `Fail to process data at email:${
-            user?.email ?? "error"
-          }`;
-          console.log(waring, error);
-          details.push(waring)
-        }
         fail+=1
       }
     }

@@ -148,7 +148,7 @@ export const checkRole = async(access_token:string,userId:string):Promise<RoleAr
 export const sendInvitation = async(access_token:string,receiver_name:string
   ,reciever_mail:string)=>{
   try {
-      const sender_email =   process.env.SMTP_USER//can be changed
+      const sender_email =   process.env.SENDER_MAIL
       if(!sender_email){
         throw new Error("Email not found")
       }
@@ -288,7 +288,7 @@ export const updateUser = async (access_token:string,payload:PutUsersReqType,rol
 
 export const deleteUser = async (access_token:string,userId:string) =>{
   try {
-    console.log('enetered delteuser')
+    // console.log('enetered delteuser')
     const response = await axios.delete(`${auth0BaseUrl}/api/v2/users/${userId}`,{
       headers: {
         Authorization: `Bearer ${access_token}`,

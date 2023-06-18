@@ -72,7 +72,7 @@ export type UserCreateDataType = z.infer<typeof UserCreateDataSchema>
 export const SeachUsersSchema = RoledUserArraySchema
 export type SearchUsersType = z.infer<typeof SeachUsersSchema>
 
-export const GetUserSchema = RoledUserSchema.optional()
+export const GetUserSchema = RoledUserSchema
 export type GetUserType = z.infer<typeof GetUserSchema>
 
 

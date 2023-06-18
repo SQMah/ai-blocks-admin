@@ -80,8 +80,13 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
       const response = await axios.get(
         `/api/users/${values.userId}`
       );
+      if (!response.data) {
+        form.setError("userId",{message:"Invalid teacher ID!"})
+        setIsLoading(false);
+        return
+      }
       const data = GetUserSchema.parse(response.data);
-      if (!data||!data.roles.includes("teacher")) {
+      if (!data.roles.includes("teacher")) {
         form.setError("userId",{message:"Invalid teacher ID!"})
         setIsLoading(false);
         return
