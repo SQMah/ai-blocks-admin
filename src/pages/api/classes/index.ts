@@ -1,12 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 import { v1 as uuidv1 } from 'uuid';
-import {z} from "zod"
 
 import { scanClass, createClass , updateClass} from "@/lib/class_management";
 
 import {  PostClassesReqSchema,PutClassesReqSchema } from "@/models/api_schemas";
-import { errorMessage, removeDuplicates ,delay, zodErrorMessage} from "@/lib/utils";
+import {  removeDuplicates ,delay, zodErrorMessage} from "@/lib/utils";
 
 import { adminCheck ,APIError,serverHandleError,dbToJSON} from "@/lib/api_utils";
 import { getAccessToken, searchUser, updateUser } from "@/lib/auth0_user_management";

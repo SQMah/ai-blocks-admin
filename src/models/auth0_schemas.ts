@@ -54,7 +54,7 @@ export const UserMetadataSchema = z.object({
   enrolled_class_id: z.string().trim().nonempty().nullish(),
   teaching_class_ids:z.array(z.string().trim().nonempty()).nullish(),
   available_modules:z.array(z.string().trim().nonempty()).nullish(),
-});
+}).passthrough();
 
 export type UserMetadataType = z.infer<typeof UserMetadataSchema>
 

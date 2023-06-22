@@ -98,11 +98,6 @@ export const  BatchCreateUsersReqSchema = z.object({
   }else return true
 },{path:["account_expiration_date"],message:`Expiration date is required`})
 
-export const PutUsersReqSchema = z.object({
-  userId: z.string().trim().nonempty(),
-  content:UserMetadataSchema.extend({
-  })
-})
 
 export type BatchCreateUserReqType = z.infer<typeof BatchCreateUsersReqSchema>
 
@@ -116,6 +111,11 @@ export const BathCraeteUserResSchema = z.object({
 
 export type BatchCreateUsersResType = z.infer<typeof BathCraeteUserResSchema>
 
+export const PutUsersReqSchema = z.object({
+  userId: z.string().trim().nonempty(),
+  content:UserMetadataSchema.extend({
+  })
+})
 export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
 
 
