@@ -21,8 +21,10 @@ This is an admin panel for managing user and class information using Auth0 authe
 - RESTful api for above features
 
 ## Todo
-- [ ] migrate to scaen (manage teacher, create teacher)
-- [ ] oauth email
+- [ ] crud user
+- [ ] crud class
+- [ ] batch create
+- [ ] get user/class by id
 
 ## Getting started
 ### Auth 0 

@@ -1,128 +1,187 @@
 import { PutCommand,GetCommand ,UpdateCommand,DeleteCommand,ScanCommand} from "@aws-sdk/lib-dynamodb";
 import { ddbDocClient } from "@/lib/ddbDocClient";
 
-import {  PostClassesReqType, PutClassesReqSchema, PutClassesReqType } from "@/models/api_schemas";
+import {  PostClassesReqType,} from "@/models/api_schemas";
 import { classSchema } from "@/models/dynamoDB_schemas";
 import { z } from "zod";
+import { APIError } from "./api_utils";
+import { zodErrorMessage } from "./utils";
 
 const table_name = process.env.CLASS_TABLE_NAME
 if(!table_name) throw new Error("Class table undefined")
 
 
 export const getClass = async(class_id:string)=>{
-  const  params = {
+  try {
+    const  params = {
       TableName: table_name,
       Key: {
         class_id
       },
       };
-  const data = await ddbDocClient.send(new GetCommand(params));
-  // console.log("Success :", data);
-  // console.log("Success :", data.Item);
-  if(!data.Item) return undefined
-  return classSchema.parse(data.Item);
+    const data = await ddbDocClient.send(new GetCommand(params));
+    // console.log("Success :", data);
+    // console.log("Success :", data.Item);
+    if(!data.Item) throw new APIError("Resource Not Found","Required class not found")
+    return classSchema.parse(data.Item);
+  } catch (error:any) {
+    if(error instanceof APIError){
+      throw error
+    }else if(error instanceof z.ZodError){
+      throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
+    }else{
+      throw new APIError("Dynamo DB Error",`Connection Error In Getting Class, message:${error.message}`)
+    }
+  }
+  
 
 }
 
 export const createClass = async (payload:PostClassesReqType,class_id:string) => {
-  const {teacherIds,capacity,available_modules,class_name} = payload
-  const params = {
+  try {
+    const {teacher_ids,capacity,available_modules,class_name} = payload
+    const obj = {
+      class_name,
+      class_id,
+      ...(teacher_ids.length&& {teacher_ids:new Set(teacher_ids)}),
+      capacity,
+     ...(available_modules.length&& {available_modules:new Set(available_modules)})
+    }
+    const params = {
       TableName: table_name,
-      Item: {
-        class_name,
-        class_id,
-        teacherIds:new Set(teacherIds),
-        capacity,
-        available_modules:new Set(available_modules),
-      },
+      Item: obj,
       ReturnValues:  "ALL_OLD",
     };
-  const data = await ddbDocClient.send(new PutCommand(params));
-  // console.log("Success - item added or updated", data);
-  const obj = {
-    class_name,
-    class_id,
-    teacherIds:new Set(teacherIds),
-    capacity,
-    available_modules:new Set(available_modules)
+    const data = await ddbDocClient.send(new PutCommand(params));
+    // console.log("Success - item added or updated", data);
+    return classSchema.parse(obj);
+  } catch (error:any) {
+    if(error instanceof APIError){
+      throw error
+    }else if(error instanceof z.ZodError){
+      throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
+    }else{
+      throw new APIError("Dynamo DB Error",`Connection Error In Craeting Class, message:${error.message}`)
+    }
   }
-  return classSchema.parse(obj);
 
 };
 
 
+type updatePaylod={
+  class_id:string
+  class_name?:string
+  capacity?:number
+  available_modules?:string[]
+  addStudents?:string[]
+  addTeachers?:string[]
+  removeStudents?:string[]
+  removeTeachers?:string[]
+}
 
-export const updateClass = async (payload:PutClassesReqType) => {
-  const {class_id,class_name,teacherIds,studentIds,capacity,available_modules,addStudents,addTeachers,removeStudents,removeTeachers} = PutClassesReqSchema.parse(payload)
-  const cur = await getClass(class_id)
-  if(!cur) throw new Error("Invalid class ID")
 
-  const studentSet = studentIds?new Set(studentIds):(cur.studentIds??new Set())
-  const teacherSet = teacherIds?new Set(teacherIds):(cur.teacherIds??new Set())
+//remove has higher priority than add
+//adding and removing a student at the same time will perform no op
+export const updateClass = async (payload:updatePaylod) => {
+  try {
+    const {class_id,class_name,capacity,available_modules,addStudents,addTeachers,removeStudents,removeTeachers} = payload
+    if(!(class_name||capacity||addStudents||addTeachers||removeStudents||removeTeachers||available_modules)) throw new APIError("Invalid Request Body","At least one update to be made.")
+    //invalid class id will throw an API error
+    const currentClass = await getClass(class_id)
+    if(capacity||addStudents){
+      const currentCapacity = capacity??currentClass.capacity
+      const modifiedStudents = currentClass.student_ids??new Set()
+      for(const id of addStudents??[]){
+        modifiedStudents.add(id)
+      }
+      for(const id of removeStudents??[]){
+        modifiedStudents.delete(id)
+      }
+      if(modifiedStudents.size > currentCapacity) throw new APIError("Conflict","Resulting number of students exceeds capacity.")
+    }
 
-  addStudents?.forEach(id=>{
-    studentSet.add(id)
-  })
-  
-  removeStudents?.forEach(id=>{
-    studentSet.delete(id)
-  })
-  
-  addTeachers?.forEach(id=>{
-    teacherSet.add(id)
-  })
-  
-  removeTeachers?.forEach(id=>{
-    teacherSet.delete(id)
-  })
-  
-  // console.log(studentSet,teacherSet)
-  if((capacity??cur.capacity)<studentSet.size) throw new Error("Capacity error")
-
-  const modifyTeacher = Boolean(teacherIds||addTeachers||removeTeachers)
-  const modifyStudent = Boolean(studentIds||addStudents||removeStudents)
-  // console.log(modifyStudent,modifyTeacher)
-  const expressionNames = {
-    ...(class_name&&{"#N":"class_name"}),
-    ...(modifyTeacher && { "#T": "teacherIds" }),
-    ...(modifyStudent && { "#S": "studentIds" }),
-    ...(capacity && { "#C": "capacity" }),
-    ...(available_modules && { "#M": "available_modules" }),
-  }
-  const expressions = [
-    class_name&&"#N = :n",
-    modifyTeacher&&"#T = :t",
-    modifyStudent&&"#S = :s",
-    capacity&&"#C = :c",
-    available_modules&&"#M = :m"
-  ].filter(Boolean)
-  const values = {
-    ...(class_name&&{":n":class_name}),
-    ...(modifyTeacher && { ":t": teacherSet }),
-    ...(modifyStudent && { ":s": studentSet }),
-    ...(capacity && { ":c": capacity }),
-    ...(available_modules && { ":m": new Set(available_modules) }),
-  }
-  // console.log(expressions,expressionNames,values)
-  if(expressions.length===0||Object.values(values).length===0||Object.values(expressionNames).length===0) throw new Error("Invalid update data")
-  if(expressions.length!==Object.values(expressionNames).length) throw new Error("Name and expression mismatch")
-  const params = {
-    TableName: table_name,
-    Key: {
-      class_id,
-    },
-    // Define expressions for the new or updated attributes
-    ExpressionAttributeNames:expressionNames,
-    UpdateExpression: "set "+expressions.join(", "),
-    ExpressionAttributeValues: values,
-    ReturnValues: "ALL_NEW"
+    const names = new Map<string,string>()
+    const values = new Map<string,string|number|Set<string>>([[":id",class_id]])
+    const set = []
+    const add = []
+    const remove = []
+    if(class_name){
+      names.set("#N","class_name")
+      values.set(":n",class_name)
+      set.push("#N = :n")
+    }
+    if(capacity){
+      names.set("#C","capacity")
+      values.set(":c",capacity)
+      set.push("#C = :c")
+    }
+    if(available_modules){
+      names.set("#M","available_modules")
+      values.set(":m",new Set(available_modules))
+      set.push("#M = :m")
+    }
+    if(addStudents||removeStudents){
+      names.set("#S","student_ids")
+      if(addStudents){
+        values.set(":as",new Set(addStudents))
+        add.push("#S :as")
+      }
+      if(removeStudents){
+        values.set(":rs",new Set(removeStudents))
+        remove.push("#S :rs")
+      }
+    }
+    if(addTeachers || removeTeachers){
+      names.set("#T", "teacher_ids");
+      if(addTeachers){
+        values.set(":at", new Set(addTeachers));
+        add.push("#T :at");
+      }
+      if(removeTeachers){
+        values.set(":rt", new Set(removeTeachers));
+        remove.push("#T :rt");
+      }
+    }
+    const expressions:string[] = []
+    if (set.length) {
+      expressions.push(`SET ${set.join(", ")}`);
+    }
+    
+    if (add.length) {
+      expressions.push(`ADD ${add.join(", ")}`);
+    }
+    if (remove.length) {
+      expressions.push(`DELETE ${remove.join(", ")}`);
+    }
+    // console.log(names,expressions.join(" "),values)
+    const params = {
+      TableName: table_name,
+      Key: {
+        class_id,
+      },
+      ExpressionAttributeNames:Object.fromEntries(names),
+      UpdateExpression: expressions.join(" "),
+      ExpressionAttributeValues: values,
+      ConditionExpression: `class_id = :id`,
+      ReturnValues: "ALL_NEW"
+    };
+    const data = await ddbDocClient.send(new UpdateCommand(params));
+    // console.log("Success - item added or updated", data);
+    return classSchema.parse( data.Attributes);
+  } catch (error:any) {
+    // console.log(error)
+    if(error instanceof APIError){
+      throw error
+    }if(error.name == "ConditionalCheckFailedException"){
+      //class id not exist
+      throw new APIError("Resource Not Found","Invalid class ID")
+    }else if(error instanceof z.ZodError){
+      throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
+    }else{
+      throw new APIError("Dynamo DB Error",`Connection Error In Craeting Class, message:${error.message}`)
+    }
   };
-  const data = await ddbDocClient.send(new UpdateCommand(params));
-  // console.log("Success - item added or updated", data);
-  return classSchema.parse( data.Attributes);
-
-};
-
+}
 
 export const deleteClass = async (class_id:string) =>{
   const params = {
@@ -130,19 +189,27 @@ export const deleteClass = async (class_id:string) =>{
     Key: {
       class_id,
     },
+    ExpressionAttributeValues:{
+      ":id":class_id
+    },
+    ConditionExpression: `class_id = :id`,
   };
   try {
     const data = await ddbDocClient.send(new DeleteCommand(params));
     // console.log("Success - item deleted");
     return data;
-  } catch (err) {
-    console.log("Error", err);
-    throw new Error("Dynamo DB Error")
+  } catch (error:any) {
+    if(error.name == "ConditionalCheckFailedException"){
+      //class id not exist
+      throw new APIError("Resource Not Found","Invalid class ID")
+    }else{
+      throw new APIError("Dynamo DB Error",`Connection Error In Deleting Class, message:${error.message}`)
+    }
   }
 }
 
 export const scanClass = async (classIds: string[])=>{
-  if(classIds.length>100) throw new Error("Requesting too many items")
+  if(classIds.length>100) throw new APIError("Invalid Request Params","Requesting too many items")
   try {
     classIds = classIds.filter(id=>id.length)
     const expressions:string[] = []
@@ -164,9 +231,11 @@ export const scanClass = async (classIds: string[])=>{
     return z.array(classSchema).parse(data.Items)
   } catch (error:any) {
     if(error.name === "ResourceNotFoundException" ){
-      throw new Error("Invalid class IDs")
+      throw new APIError("Resource Not Found","Invalid class IDs")
+    } else if(error instanceof z.ZodError){
+      throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
+    }else{
+      throw new APIError("Dynamo DB Error",`Connection Error In Scanning Class, message:${error.message}`)
     }
-    console.log("Error", error);
-    throw new Error("Dynamo DB Error")
   }
 }

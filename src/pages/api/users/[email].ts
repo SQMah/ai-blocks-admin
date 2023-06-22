@@ -5,7 +5,7 @@ import {
 } from "@/lib/auth0_user_management";
 
 import {errorMessage} from "@/lib/utils";
-import { adminCheck } from "@/lib/api_utils";
+import { APIError, adminCheck, serverHandleError } from "@/lib/api_utils";
 import { z } from "zod";
 
 
@@ -16,17 +16,16 @@ const handleGet = async (
   try {
     // console.log(req.query)
     const  { email} = req.query;
-    if(Array.isArray(email)||!email||email.trim().length === 0||!z.string().email().safeParse(email).success){
-        res.status(400).json({message:"Please provide one and only one non-empty email."})
-        return
+    const parsing = z.string().email().safeParse(email)
+    if(!parsing.success){
+        throw new APIError("Invalid Request Params","Please provide one and only one email.")
     }
     const token = await getAccessToken()
-    const user =  await getUserByEmail(token,email.trim())
+    const user =  await getUserByEmail(token,parsing.data)
     res.status(200).json(user);
     return;
   } catch (error: any) {
-    res.status(500).json({message:errorMessage(error,true)})
-    return;
+    serverHandleError(error,req,res)
   }
 };
 

@@ -1,6 +1,10 @@
 import nodemailer from 'nodemailer';
 import {google} from "googleapis"
 import { htmlContent,textContent } from './email_template';
+import { APIError } from './api_utils';
+
+const sender_mail = process.env.SENDER_MAIL
+if(!sender_mail) throw new Error("Mail address of sender is not set")
 
 const client_id = process.env.OAUTH_CLIENT_ID;
 const client_secret = process.env.OAUTH_CLIENT_SECRET;
@@ -13,11 +17,12 @@ const oAuth2Client = new google.auth.OAuth2(client_id,client_secret,redirect_url
 oAuth2Client.setCredentials({refresh_token:refresh_token})
 
 
-export const sendMail = async (subject:string,sender_name:string,sender_mail:string,
+export const sendMail = async (subject:string,sender_name:string,
     receiver_name:string,reciever_mail:string,url:string,signig_name:string) =>{
-    // console.log("creating connection")
+    console.log("creating connection")
     try {
         const accessToken = await oAuth2Client.getAccessToken();
+        console.log(accessToken)
         const transporter = nodemailer.createTransport({
             // @ts-expect-error nodemailer
             service: 'gmail',
@@ -30,7 +35,7 @@ export const sendMail = async (subject:string,sender_name:string,sender_mail:str
                 accessToken: accessToken.token,
             },
         });
-        // console.log("connected")
+        console.log("connected")
         await transporter.sendMail({
             from: `${sender_name} <${sender_mail}>`,
             to: `${receiver_name} <${reciever_mail}>`, // list of receivers
@@ -49,7 +54,7 @@ export const sendMail = async (subject:string,sender_name:string,sender_mail:str
           });
         
     } catch (error) {
-        throw new Error("Mailing error")
+        throw new Error("Mailing Service Connection Failure")
     }
 }
 

@@ -1,5 +1,5 @@
 import {z}from "zod"
-import { RoledUserArraySchema, RoledUserArrayType, RoledUserSchema, UserMetadataSchema, UserRoleSchema } from "./auth0_schemas"
+import { RoledUserArraySchema, RoledUserArrayType, RoledUserSchema, UserMetadataSchema, UserRoleSchema, UserSchema } from "./auth0_schemas"
 import { validDateString,afterToday} from "@/lib/utils"
 
 export const SetExpriationSchema = z.string().nonempty({message:"Required"}).refine(str=>{
@@ -45,7 +45,14 @@ export const UserCreateCSVSchema = z.object({
 export type UserCreateCSVType = z.infer<typeof UserCreateCSVSchema>
 
 
-export const UserCreateDataSchema = z.object({
+export const SeachUsersSchema = RoledUserArraySchema
+export type SearchUsersType = z.infer<typeof SeachUsersSchema>
+
+export const GetUserResSchema = RoledUserSchema
+export type GetUserResType = z.infer<typeof GetUserResSchema>
+
+
+export const PostUsersReqSchema = z.object({
   role: UserRoleSchema ,
   email: z.string().trim().email({message:"Please provide a valid email"}),
   first_name: z.string().trim().nonempty({message:"Required"}),
@@ -66,29 +73,21 @@ export const UserCreateDataSchema = z.object({
   }else return true
 },{path:["account_expiration_date"],message:`Expiration date is required`})
 
-export type UserCreateDataType = z.infer<typeof UserCreateDataSchema>
 
+export type PostUsersReqType = z.infer<typeof PostUsersReqSchema>;
 
-export const SeachUsersSchema = RoledUserArraySchema
-export type SearchUsersType = z.infer<typeof SeachUsersSchema>
+export const PostUsersResSchema = UserSchema
 
-export const GetUserSchema = RoledUserSchema
-export type GetUserType = z.infer<typeof GetUserSchema>
+export type PostUsersResType = z.infer<typeof PostUsersResSchema>;
 
-
-export const PostUsersReqSchema = z.object({
-  user:UserCreateDataSchema.optional(),
-  users: z.array(UserCreateCSVSchema).optional(),
-  role: UserRoleSchema.optional() ,
+export const  BatchCreateUsersReqSchema = z.object({
+  users: z.array(UserCreateCSVSchema),
+  role: UserRoleSchema,
   enrolled_class_id: z.string().optional(),
   teaching_class_ids:z.array(z.string().trim().nonempty()).optional(),
   available_modules:z.array(z.string()).optional(),
   account_expiration_date:  SetExpriationSchema.or(z.literal("")).optional(),
-}).refine(input=>{
-  if(input.users?.length) return input.role
-  else return true
-},{path:["role"],message:"Role is required for batch create."}
-).refine((input)=>{
+}).refine((input)=>{
   if(input.role==="managedStudent"){
     return input.enrolled_class_id?.length
   }else return true
@@ -99,21 +98,23 @@ export const PostUsersReqSchema = z.object({
   }else return true
 },{path:["account_expiration_date"],message:`Expiration date is required`})
 
-
-export type PostUsersReqType = z.infer<typeof PostUsersReqSchema>;
-
-export const PostUsersResSchema = z.object({
-  message:z.string(),
-  details:z.array(z.string())
-});
-
-export type PostUsersResType = z.infer<typeof PostUsersResSchema>;
-
 export const PutUsersReqSchema = z.object({
   userId: z.string().trim().nonempty(),
   content:UserMetadataSchema.extend({
   })
 })
+
+export type BatchCreateUserReqType = z.infer<typeof BatchCreateUsersReqSchema>
+
+export const BathCraeteUserResSchema = z.object({
+  created: z.array(UserSchema),
+  failed: z.array(UserCreateCSVSchema.extend({
+    reason:z.string()
+  })),
+  message:z.string()
+})
+
+export type BatchCreateUsersResType = z.infer<typeof BathCraeteUserResSchema>
 
 export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
 
@@ -121,8 +122,8 @@ export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
 export const GetClassResSchema = z.object({
   class_id:z.string(),
   class_name:z.string(),
-  teacherIds:z.array(z.string()),
-  studentIds:z.array(z.string()),
+  teacher_ids:z.array(z.string()),
+  student_ids:z.array(z.string()),
   capacity:z.number().nonnegative(),
   available_modules:z.array(z.string())
 })
@@ -131,7 +132,7 @@ export type GetClassesResType = z.infer<typeof GetClassResSchema>
 
 export const PostClassesReqSchema=z.object({
   class_name:z.string().nonempty({message:"Required"}),
-  teacherIds:z.array(z.string().email().trim().nonempty()),
+  teacher_ids:z.array(z.string().email().trim().nonempty()),
   capacity:z.number().min(1,{message:"Capacity must greater than 0"}),
   available_modules:z.array(z.string())
 })
@@ -147,23 +148,10 @@ export type PostClassesResType = z.infer<typeof PostClassesResSchema>
 export const PutClassesReqSchema=z.object({
   class_id:z.string().nonempty({message:"Required"}),
   class_name:z.string().nonempty().optional(),
-  teacherIds:z.array(z.string().email().trim().nonempty()).optional(),
-  studentIds:z.array(z.string().email().trim().nonempty()).optional(),
   capacity:z.number().min(1,{message:"Capacity must greater than 0"}).optional(),
   available_modules:z.array(z.string()).optional(),
-  addTeachers:z.array(z.string().email().trim().nonempty()).optional(),
-  addStudents:z.array(z.string().email().trim().nonempty()).optional(),
-  removeTeachers:z.array(z.string().email().trim().nonempty()).optional(),
-  removeStudents:z.array(z.string().email().trim().nonempty()).optional(),
-})
-.refine(input=>{
-  return Object.values(input).length>1
-},{message:"At least one update to be made"})
-.refine(input=>{
-  const {studentIds,teacherIds,addStudents,addTeachers,removeStudents,removeTeachers} = input
-  const studentOverlap = studentIds&&(addStudents||removeStudents)
-  const teacherOverlap = teacherIds&&(addTeachers||removeTeachers)
-  return !(teacherOverlap&&studentOverlap)
-},{message:"Cannot set and modify students/teachers at the same time."})
+}).refine(e=>false,{message:"test"})
+
+
 
 export type  PutClassesReqType = z.infer<typeof  PutClassesReqSchema>
