@@ -2,8 +2,8 @@ import { FC, FormEvent,useState, Dispatch, SetStateAction, useId, useEffect} fro
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {z}from "zod";
-import { X, Search,ChevronsUpDown,Check} from "lucide-react";
-import axios from "axios";
+import { X, Search,Check} from "lucide-react";
+import axios, { AxiosError } from "axios";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -39,13 +39,13 @@ import {
 import { useToast } from "./ui/use-toast";
 import { Label } from "./ui/label";
 
-import { cn, errorMessage } from "@/lib/utils"
-import { RoledUserArraySchema, RoledUserArrayType, RoledUserType ,modulesReady} from "@/models/auth0_schemas";
+import { cn, clientErrorHandler } from "@/lib/utils"
+import { RoledUserArrayType, RoledUserType ,modulesReady} from "@/models/auth0_schemas";
 import ShowExpiration from "./ShowExpiration";
 import { UpdateAllExpiration } from "./UpdateExpiration";
 import RemoveStudentFromClass from "./removeStudentFromClass";
 import DeleteClass from "./DeleteClass";
-import { BatchGetClassResSchema, BatchGetClassType,GetClassResSchema, GetClassesResType, GetUserSchema, PutClassesReqType } from "@/models/api_schemas";
+import { BatchGetClassesResSchema, BatchGetClassesType,GetClassesResSchema, GetClassesResType, GetUserResSchema, PutClassesReqType, PutClassesResSchema, SearchUsersResSchema, SearchUsersResType } from "@/models/api_schemas";
 
 
 
@@ -59,9 +59,12 @@ interface Props {
   handleChangeClass :(data:GetClassesResType|undefined)=>Promise<void>
 }
 
+
 const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) => {
     const [teacher,setTeacher] = useState<RoledUserType | undefined>();
-    const [teaching,setTeaching] = useState<BatchGetClassType>([])
+    const [teaching,setTeaching] = useState<BatchGetClassesType>([])
+    //error message when select class
+    const [classErrorMessage,setClassErrorMessage] = useState<string>("")
     const {toast} = useToast()
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -70,6 +73,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
       userId: "",
     },
   });
+  //handle search serach teacher
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setTeacher(undefined);
     setTeaching([])
@@ -80,12 +84,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
       const response = await axios.get(
         `/api/users/${values.userId}`
       );
-      if (!response.data) {
-        form.setError("userId",{message:"Invalid teacher ID!"})
-        setIsLoading(false);
-        return
-      }
-      const data = GetUserSchema.parse(response.data);
+      const data = GetUserResSchema.parse(response.data);
       if (!data.roles.includes("teacher")) {
         form.setError("userId",{message:"Invalid teacher ID!"})
         setIsLoading(false);
@@ -95,20 +94,51 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
       const teachingIds = data.user_metadata?.teaching_class_ids?.filter(id=>id.length)
       if(teachingIds?.length){
         const {data:classes} = await axios.get('/api/classes?'+teachingIds.map(id=>`class_id=${id}`).join("&"))
-        setTeaching(BatchGetClassResSchema.parse(classes))
+        setTeaching(BatchGetClassesResSchema.parse(classes))
       }
     } catch (error: any) {
-      const str = errorMessage(error)
-      toast({
-        variant:"destructive",
-        title: "Search error",
-        description: str,
-      })
+      if(error instanceof AxiosError && error.response?.status===404){
+        form.setError("userId",{message:"Invalid teacher ID!"})
+      }else{
+        const handler = new clientErrorHandler(error)
+        handler.log()
+        toast({
+          variant:"destructive",
+          title: "Search error",
+          description: handler.message,
+        })
+      }
     }
     setIsLoading(false);
   };
 
-  
+  //handle select class
+  const handleSelect =async (selectedId:string) => {
+    // console.log("selected",selectedIds)
+    setClassErrorMessage("")
+    if(isLoading) return
+    setIsLoading(true)
+    try {
+      const response = await axios.get(`/api/classes/${selectedId}`)
+      const data = GetClassesResSchema.parse(response.data)
+      await handleChangeClass(data)
+    } catch (error:any) {
+      if(error instanceof AxiosError && error.response?.status===404){
+        setClassErrorMessage("Inaccessible class")
+        setTeaching(prev=>prev.filter(entry=>entry.class_id!==selectedId))
+        await handleChangeClass(undefined)
+      }else{
+        const handler = new clientErrorHandler(error)
+        handler.log()
+        toast({
+          variant:"destructive",
+          title:"Search lass Error",
+          description:handler.message
+        })
+      }
+    }
+    setIsLoading(false)
+  }
 
   return (
     <>
@@ -161,12 +191,9 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
                 <span>Name: </span>
                 <span>{teacher.name}</span>
             </p>
-            <Select onValueChange={async(id)=>{
-                const target = teaching.find(entry=>entry.class_id===id)
-                await handleChangeClass(target)
-            }} disabled={isLoading}>
+            <Select onValueChange={handleSelect} disabled={isLoading}>
               <SelectTrigger className="w-1/6">
-                <SelectValue placeholder="Current teaching classes" />
+                <SelectValue placeholder="Select class" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
@@ -177,6 +204,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
                 </SelectGroup>
               </SelectContent>
             </Select>
+            <p className=" text-destructive text-sm">{classErrorMessage}</p>
         </div>
         </>:null
       }
@@ -188,6 +216,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
 const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
     const [value,setValue] = useState<string>("")
     const [message,setMessage] = useState<string>("")
+    const {toast} = useToast()
     const inputId = useId()
 
     const handleSubmit = async(e:FormEvent<HTMLFormElement>)=>{
@@ -208,9 +237,19 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
             setIsLoading(false)
             return
           }
-          await handleChangeClass(GetClassResSchema.parse(data))
+          await handleChangeClass(GetClassesResSchema.parse(data))
         } catch (error:any) {
-          errorMessage(error)
+          if(error instanceof AxiosError&&error.response?.status===404){
+            setMessage("Invalid class ID")
+          }else{
+            const handler = new clientErrorHandler(error)
+            handler.log()
+            toast({
+              title:"Search Error",
+              description:handler.message,
+              variant:"destructive"
+            })
+          }
           await handleChangeClass(undefined)
         }
         setIsLoading(false)
@@ -286,14 +325,16 @@ const UpdateCapacity:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,
       toast({
         title:"Updated"
       })
-      await handleChangeClass(GetClassResSchema.parse(response.data))
+      await handleChangeClass(PutClassesResSchema.parse(response.data))
     } catch (error:any) {
-      const message = errorMessage(error)
+      const handler = new clientErrorHandler(error)
+      handler.log()
       toast({
         variant:"destructive",
         title: "Update error",
-        description: message,
+        description: handler.message,
       })
+      setIsLoading(false)
     }
   }
 
@@ -330,7 +371,7 @@ const UpdateCapacity:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,
                     {...field}
                       />
                 <FormDescription>
-                <span>Current number of students: {data.studentIds.length}. Current capacity: {data.capacity}</span>
+                <span>Current number of students: {data.student_ids.length}. Current capacity: {data.capacity}</span>
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -382,14 +423,16 @@ const UpdateName:FC<NameProps> =({isLoading,setIsLoading,handleChangeClass,data}
       toast({
         title:"Updated"
       })
-      await handleChangeClass(GetClassResSchema.parse(response.data))
+      await handleChangeClass(PutClassesResSchema.parse(response.data))
     } catch (error:any) {
-      const message = errorMessage(error)
+      const handler = new clientErrorHandler(error)
+      handler.log()
       toast({
         variant:"destructive",
         title: "Update error",
-        description: message,
+        description: handler.message,
       })
+      setIsLoading(false)
     }
   }
 
@@ -452,8 +495,7 @@ const ManageClass: FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [data, setData] = useState<GetClassesResType|undefined>()
 
-
-  const [users,setUsers] = useState<RoledUserArrayType>([])
+  const [users,setUsers] = useState<SearchUsersResType>([])
   const teachers= users.filter(user=>user.roles.includes("teacher"))
   const students = users.filter(user=>user.roles.includes("managedStudent"))
 
@@ -468,8 +510,9 @@ const ManageClass: FC = () => {
     if(!currentClass) return
     setAvailableModules(currentClass.available_modules)
     setIsLoading(true);
+    //get the users
     try {
-      const emails = currentClass.studentIds.concat(currentClass.teacherIds)
+      const emails = currentClass.student_ids.concat(currentClass.teacher_ids)
       if(!emails.length){
         setIsLoading(false);
         return
@@ -479,21 +522,23 @@ const ManageClass: FC = () => {
         url+=`&email=${email}`
       }
       const response = await axios.get(url);
-      const data = RoledUserArraySchema.parse(response.data);
+      const data = SearchUsersResSchema.parse(response.data);
       // console.log(data)
       setUsers(data)
     } catch (error: any) {
-      const message = errorMessage(error)
+      const handler = new clientErrorHandler(error)
+      handler.log()
       toast({
         variant:"destructive",
         title: "Search error",
-        description: message,
+        description: handler.message,
       })
     }
     setIsLoading(false);
   }
 
   const handleChangeClass =async (payload:GetClassesResType|undefined):Promise<void> => {
+    // console.log(payload)
     setData(payload)
     setUsers([])
     setAvailableModules(payload?.available_modules??[])
@@ -512,7 +557,7 @@ const ManageClass: FC = () => {
     if(!data) return
     setIsLoading(true)
     try {
-        //ftech server
+        //fetch server
         const payload:PutClassesReqType = {
             class_id:data.class_id,
             available_modules:availableModules
@@ -522,14 +567,15 @@ const ManageClass: FC = () => {
         toast({
           title:"Updated"
         })
-        const updated = GetClassResSchema.parse(response.data)
+        const updated = PutClassesResSchema.parse(response.data)
         await handleChangeClass(updated)
     } catch (error:any) {
-      const message = errorMessage(error)
+      const handler = new clientErrorHandler(error)
+      handler.log()
       toast({
         variant:"destructive",
         title: "Update error",
-        description: message,
+        description: handler.message,
       })
     }
     setIsLoading(false)

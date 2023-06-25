@@ -19,10 +19,10 @@ oAuth2Client.setCredentials({refresh_token:refresh_token})
 
 export const sendMail = async (subject:string,sender_name:string,
     receiver_name:string,reciever_mail:string,url:string,signig_name:string) =>{
-    console.log("creating connection")
+    // console.log("creating connection")
     try {
         const accessToken = await oAuth2Client.getAccessToken();
-        console.log(accessToken)
+        // console.log(accessToken)
         const transporter = nodemailer.createTransport({
             // @ts-expect-error nodemailer
             service: 'gmail',
@@ -35,7 +35,7 @@ export const sendMail = async (subject:string,sender_name:string,
                 accessToken: accessToken.token,
             },
         });
-        console.log("connected")
+        // console.log("connected")
         await transporter.sendMail({
             from: `${sender_name} <${sender_mail}>`,
             to: `${receiver_name} <${reciever_mail}>`, // list of receivers

@@ -3,7 +3,6 @@ import {z} from "zod"
 import {
   createUser,
   getAccessToken,
-  checkRole,
   searchUser,
   sendInvitation,
   updateUser,
@@ -15,9 +14,9 @@ import {
 
 import { PostUsersReqSchema, PutUsersReqSchema } from "@/models/api_schemas";
 import { delay ,removeDuplicates, zodErrorMessage} from "@/lib/utils";
-import { APIError, adminCheck, serverHandleError } from "@/lib/api_utils";
-import { updateClass } from "@/lib/class_management";
-import { RoleArrayType, RoledUserType } from "@/models/auth0_schemas";
+import { APIError, adminCheck, serverErrorHandler } from "@/lib/api_utils";
+import { classUpdatable,  updateClass } from "@/lib/class_management";
+import {  RoledUserType } from "@/models/auth0_schemas";
 
 
 const handleGet = async (
@@ -49,10 +48,13 @@ const handleGet = async (
     // console.log(query,searchType)
     const token = await getAccessToken();
     const users = await searchUser(token, query,searchType);
+    // console.log(users)
     res.status(200).json(users);
     return;
   } catch (error: any) {
-    serverHandleError(error,req,res)
+    const handler = new serverErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
   }
 };
 
@@ -66,6 +68,25 @@ const handlePost = async (
       throw new APIError("Invalid Request Body",zodErrorMessage(parsing.error.issues))
     }
     const payload = parsing.data
+    //check for class updatable, thow error if invalid
+    if(payload.role==="managedStudent"){
+      if(!payload.enrolled_class_id) throw new APIError("Invalid Request Body","Class ID is required for managed student.")
+      await classUpdatable({
+        class_id:payload.enrolled_class_id,
+        addStudents:[payload.email]
+      })
+    }else if(payload.role==="teacher"&&payload.teaching_class_ids?.length){
+      for(const class_id of payload.teaching_class_ids){
+        await classUpdatable({
+          class_id,
+          addTeachers:[payload.email]
+        })
+        await delay(300)
+      }
+    }
+    const token = await  getAccessToken()
+    //craete user
+    const user = await createUser(token,payload)
     //update classes
     if(payload.role==="managedStudent"){
       if(!payload.enrolled_class_id) throw new APIError("Invalid Request Body","Class ID is required for managed student.")
@@ -79,16 +100,16 @@ const handlePost = async (
           class_id,
           addTeachers:[payload.email]
         })
+        await delay(300)
       }
     }
-    const token = await  getAccessToken()
-    //craete user
-    const user = await createUser(token,payload)
     //send inviation
-    await sendInvitation(token,`${payload.first_name} ${payload.last_name}`,payload.email)
+    await sendInvitation(token,user.name,user.email)
     res.status(201).json(user)
   } catch (error) {
-    serverHandleError(error,req,res)
+    const handler = new serverErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
   }
 };
 
@@ -104,59 +125,81 @@ const handleClassChange =async (token:string,user:RoledUserType,enrolled_class_i
     const toAdd = newClasses.filter(id=>!oldClasses.includes(id))
     //classes not in updated ids but in present ids
     const toRemove = oldClasses.filter(id=>!newClasses.includes(id))
-    for(const class_id of toRemove){
-      await updateClass({
-        class_id,
-        removeTeachers:[user.email]
-      })
-      await delay(300)
-    }
+    //will check for validity of class ID 
+    //update will stop if one of the update fail, put in try catch to ignore
     for(const class_id of toAdd){
-      await updateClass({
+      const payload = {
         class_id,
         addTeachers:[user.email]
-      })
+      }
+      //will throw error if not updatable
+      await classUpdatable(payload)
+      await updateClass(payload)
+      await delay(300)
+    }
+    for(const class_id of toRemove){
+      const payload ={
+        class_id,
+        removeTeachers:[user.email]
+      }
+      //will throw error if not updatable
+      await classUpdatable(payload)
+      await updateClass(payload)
       await delay(300)
     }
     //no need to reassign role
   }
-  else if(roles.includes("managedStudent")&&enrolled_class_id!==undefined){
+  if(roles.includes("managedStudent")&&enrolled_class_id!==undefined){
     if(enrolled_class_id){
       //change class
       const toRemove = user.user_metadata?.enrolled_class_id
       if(!toRemove) throw new APIError("Auth0 Error",`Enrolled class id undefined in managed student, email: ${user.email}`)
       //add to new class
-      await updateClass({
+      const addPayload = {
         class_id:enrolled_class_id,
         addStudents:[user.email]
-      })
+      }
+       //will throw error if not updatable
+      await classUpdatable(addPayload)
+      await updateClass(addPayload)
       await delay(300)
       //remove from old class
-      await updateClass({
+      const removePayload = {
         class_id:toRemove,
         removeStudents:[user.email]
-      })
+      }
+      //will throw error if not updatable
+       await classUpdatable(removePayload)
+      await updateClass(removePayload)
       //no need to reassign role
     }else{
       //become unmanaged
       const toRemove = user.user_metadata?.enrolled_class_id
       if(!toRemove) throw new APIError("Auth0 Error",`Enrolled class id undefined in managed student, email: ${user.email}`)
-      await updateClass({
+      const payload = {
         class_id:toRemove,
         removeStudents:[user.email]
-      })
+      }
+      //will throw error if not updatable
+      await classUpdatable(payload)
+      await updateClass(payload)
       //reassign role 
       await deleteRole(token,user.user_id,"managedStudent")
+      await delay(300)
       await assignRole(token,user.user_id,"unmanagedStudent")
     }
   }
   else if(roles.includes("unmanagedStudent")&&enrolled_class_id){
     //become managed student
-    await updateClass({
+    const payload = {
       class_id:enrolled_class_id,
       addStudents:[user.email]
-    })
+    }
+    //will throw error if not updatable
+    await classUpdatable(payload)
+    await updateClass(payload)
     await deleteRole(token,user.user_id,"unmanagedStudent")
+    await delay(500)
     await assignRole(token,user.user_id,"managedStudent")
   }
 }
@@ -175,14 +218,18 @@ const handlePut = async (
     const user = await getUserByID(token,payload.userId)
     
     // console.log(payload)
-    const roles = await checkRole(token, payload.userId);
+    const roles = user.roles
+    //will check for the avldiity of class changes, then perform actual class change and role change
     await handleClassChange(token,user,payload.content.enrolled_class_id,payload.content.teaching_class_ids)
+    //update the actual user data
     const data = await updateUser(token, payload, roles);
     // console.log(data)
     res.status(200).json(data);
     return;
   } catch (error: any) {
-    serverHandleError(error,req,res)
+    const handler = new serverErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
   }
 };
 
@@ -198,7 +245,8 @@ const handleDelete = async (
     userId = userId.trim() 
     const token = await getAccessToken();
     const user = await getUserByID(token,userId)
-    //update the classes
+    //update the classes,check for validity for class IDs
+    //IMPORTANT:will stop deletion if the removal is unsuccess
     if(user.roles.includes("teacher")){
       //handle teaching classes
       const toRemove = user.user_metadata?.teaching_class_ids??[]
@@ -224,7 +272,9 @@ const handleDelete = async (
     res.status(204).end();
     return;
   } catch (error: any) {
-    serverHandleError(error,req,res)
+    const handler = new serverErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
   }
 };
 
@@ -248,7 +298,14 @@ const handler = async (req: NextApiRequest,res: NextApiResponse) => {
       await handleDelete(req, res);
       break;
     default:
-      res.status(405).json({message:`${method} is not supported`});
+      res.status(405).json({
+        status:405,
+        message:`${method} is not supported`,
+        details:{
+          resource: req.url,
+          method: req.method
+        }
+      });
       break;
   }
 };

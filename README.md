@@ -1,12 +1,13 @@
 # Admin panel for data management
 
-This is an admin panel for managing user and class information using Auth0 authentication.
+This is an admin panel for managing user and class information using Auth0 authentication and DynamoDB for class databse.
 
 ## Features
-- Create classes (unfinish)
-    - teacherss, capacity and modules
-- Manage classes (unfinish)
-    - managed students enrolled
+- Create classes 
+    - create class with inputed teachers, capacity and modules
+- Manage classes 
+    - manage students enrolled
+    - update class capacity and class name
     - update avaiables modules
     - delete class
 - Manage users
@@ -17,14 +18,9 @@ This is an admin panel for managing user and class information using Auth0 authe
     - delete account
 - Create account
     - manual data input
-    - using csv file
+    - using csv file to perform batch create
 - RESTful api for above features
 
-## Todo
-- [ ] crud user
-- [ ] crud class
-- [ ] batch create
-- [ ] get user/class by id
 
 ## Getting started
 ### Auth 0 
@@ -66,20 +62,30 @@ This is an admin panel for managing user and class information using Auth0 authe
     - In the Setting/Advanced tab, add the logout url in the Allowed logout URLs
         - If the URL for expirated users is not specificed, the url should be same as the base URL of the application e.g. http://localhost:3000
 
-### Email service
-- Prepare a SMTP account that is able to send emails
+### DynamoDB
+- Create an table for class in Dynamo DB
+- Create an IAM user in IAM features/Users
+    - Provide `AdministratorAccess` for the user
+    - In Security credentials, create access key as local code usage
+- These information is needed:
+    <ol>
+    <li>region of DB
+    <li>access key ID 
+    <li>secret access key
+    </ol>
+### Email service (OAuth)
+- Follow  [this tutorial](https://www.youtube.com/watch?v=-rcRf7yswfM&t=747s&ab_channel=MafiaCodes) to set up OAuth on Google Clould
     - These information is needed:
         <ol>
-        <li>address for connecting to SMTP server
-        <li>connection port number
-        <li>account username
-        <li>accoubnt password
+        <li>client id
+        <li>client secret
+        <li>refresh token
         </ol>
-
+    - P.S. Remember to add the sender emial as test user in OAuth consent screen
 ### Application setting
 - Create a `.env.local` file in the current directory
     ```ini
-    
+    # Auth 0 
     AUTH0_SECRET = use [openssl rand -hex 32] to generate a 32 bytes value
     AUTH0_BASE_URL= base url of the app e.g. http://localhost:3000 
     AUTH0_ISSUER_BASE_URL=  'https://{Auth0 regular web app domain}' 
@@ -91,16 +97,29 @@ This is an admin panel for managing user and class information using Auth0 authe
     AUTH0_API_BASE_URL='https://{Auth0 m2m app domain}/api/v2/'
     AUTH0_DB_CONNECTION_ID = database identifier of Username-Password-Authentication
 
-    SMTP_SERVER = addr of stmp connection
-    SMTP_USER = username of smtp account
-    SMTP_PASSWORD = password of smtp pasword
+    # OAuth
+    SENDER_MAIL = mail address of the OAuth a/c
+    OAUTH_CLIENT_ID = OAuth Client ID
+    OAUTH_CLIENT_SECRET= OAuth Client Secret
+    OAUTH_REDIRECT_URL= OAuth redirect URl, usually "https://developers.google.com/oauthplayground"
+    OAUTH_REFRESH_TOKEN= OAuth refresh token"1//04oP7X2DVPRyvCgYIARAAGAQSNwF-L9IrjpxZVOu3IfVs125zhl6kbnMGuuQXjuo16rOfKbMkoEPq1322Q_ovz5mSbhu10far1pY"
+
+    #DynamoDb
+    DYNAMODB_REGION = aws region, e.g.  ap-northeast-1
+    AWS_ACCESS_KEY_ID= Access key ID of IAM user
+    AWS_SECRET_ACCESS_KEY= Access secret key of IAM user
+
+    CLASS_TABLE_NAME = table name of the class table in DynamoDB
+
+    #Configurated for require admin user to access api, default to be True if not set
+    REQUIRE_ADMIN = TRUE/FALSE
     ```
 - install dependences
     ```bash
     npm install
     ```
 - In src/models/auth0_schemas, update the variable `roleMapping` by the correct role id in the Auth0 dash board
-- Requries for admin user is on by default, you can either create an a/c and assign it to admin role in the Auth0 dash board, or the admin check can be turned off in `src/pages/api/users.ts` by setting `requireAdminCheck` to `false`
+- Requries for admin user is on by default, you can either create an a/c and assign it to admin role in the Auth0 dash board, or the admin check can be turned off in `.env.local` by setting `REQUIRE_ADMIN` to `FALSE` (default `TRUE`)
 - Start for development
     ```bash
     npm run dev
@@ -113,9 +132,9 @@ This is an admin panel for managing user and class information using Auth0 authe
 
 ## Customisation
 - Schemas and types
-    - all types and schemas of API request and response can be found and updated in `src/models/api_schemas.ts` and `src/models/auth0_schemas.ts`
+    - all types and schemas of API request and response can be found and updated in `src/models/api_schemas.ts`,`src/models/auth0_schemas.ts` and `src/models/dynamoDB_schemas.ts`.
 - Invitation email
-    - Sender mail address, address formating, signing name can be configurated in `sendInvitation` from `src/lib/auth0_user_management.ts`
+    - Address formating, signing name can be configurated in `sendInvitation` from `src/lib/auth0_user_management.ts`
     - The email templates can be changed in `src/lib/email_template.ts`
     - For medias, te attachment setting can be found in `src/lib/mail_sender.ts`
     - Library reference: <https://nodemailer.com/about/>

@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {z}from "zod";
 import { X, Search,Check } from "lucide-react";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -29,14 +29,14 @@ import {
 import { Input } from "./ui/input";
 import { useToast } from "./ui/use-toast";
 
-import { RoledUserArraySchema,  RoledUserType ,roleMapping} from "@/models/auth0_schemas";
-import { BatchGetClassResSchema, GetUserSchema, PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
+import {  RoledUserType ,roleMapping} from "@/models/auth0_schemas";
+import { BatchGetClassesResSchema, GetUserResSchema, GetUserResType, PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
 
 import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOptions";
 import {UpdateExpiration} from "./UpdateExpiration";
 import DeleteUser from "./DeleteUser";
 import ShowExpiration from "./ShowExpiration";
-import { delay, errorMessage } from "@/lib/utils";
+import { delay, clientErrorHandler} from "@/lib/utils";
 
 
 const formSchema = z.object({
@@ -65,20 +65,20 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
       const response = await axios.get(
         `/api/users/${values.userId}`
       );
-      if (!response.data) {
-        form.setError("userId",{message:"Invalid user ID!"})
-        setIsLoading(false);
-        return
-      }
-      const data = GetUserSchema.parse(response.data)
+      const data = GetUserResSchema.parse(response.data)
       setUser(data);
     } catch (error: any) {
-      const message = errorMessage(error)
-      toast({
-        variant:"destructive",
-        title: "Search error",
-        description: message,
-      })
+      if(error instanceof AxiosError&& error.response?.status===404){
+        form.setError("userId",{message:"Invalid user ID!"})
+      }else{
+        const handler = new clientErrorHandler(error)
+        handler.log()
+        toast({
+          variant:"destructive",
+          title: "Search User Error",
+          description: handler.message,
+        })
+      }
     }
     setIsLoading(false);
   };
@@ -186,7 +186,7 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
       setIsLoading(true)
       try {
         const {data} = await axios.get('/api/classes?'+classIds.map(id=>`class_id=${id}`).join('&'))
-        const present = BatchGetClassResSchema.parse(data).map(entry=>entry.class_id)
+        const present = BatchGetClassesResSchema.parse(data).map(entry=>entry.class_id)
         const missing = classIds.filter(id=>!present.includes(id))
         if(missing.length){
           const message = `${missing.join(", ")} are not valid class IDs.`
@@ -195,10 +195,12 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
           return
         }
       } catch (error:any) {
-        const message = errorMessage(error)
+        const handler = new clientErrorHandler(error)
+        handler.log()
         toast({
-          title:"Search error",
-          description:message
+          variant:"destructive",
+          title:"Search Class Error",
+          description:handler.message
         })
         setIsLoading(false)
         return
@@ -219,35 +221,20 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
             teaching_class_ids:displayClasses
           }
         }
+        //class data will also be updated by this api
         const response =await  axios.put("/api/users",payload)
-        const newClassIds = displayClasses.filter(id=>!storedClaess.includes(id))
-        for(const id of newClassIds){
-          const updateClassPayload:PutClassesReqType={
-            class_id:id,
-            addTeachers:[teacher.email]
-          }
-          await axios.put("/api/classes",updateClassPayload)
-          await delay(200)
-        }
-        for(const id of classesToBeRemoved){
-          const updateClassPayload:PutClassesReqType={
-            class_id:id,
-            removeTeachers:[teacher.email]
-          }
-          await axios.put("/api/classes",updateClassPayload)
-          await delay(200)
-        }
         toast({
           title:"Updated",
         })
         SetRemoved([])
         await  reload()
       } catch (error:any) {
-        const message = errorMessage(error)
+        const handler = new clientErrorHandler(error)
+        handler.log()
         toast({
           variant:"destructive",
-          title:"Update error",
-          description:message
+          title:"Update User Error",
+          description:handler.message
         })
       }
       setIsLoading(false)
@@ -348,31 +335,35 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
 
 
 const ManageUser: FC = () => {
-  const [user, setUser] = useState<RoledUserType | undefined>();
+  const [user, setUser] = useState<GetUserResType | undefined>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const {toast} = useToast()
   const reload = async()=>{
-    setIsLoading(true);
     if(!user||isLoading) return
+    setIsLoading(true);
     const email = user.email;
     setUser(undefined)
     try {
       // console.log(values);
       const response = await axios.get(
-        `/api/users?email=${email}`
+        `/api/users/${email}`
       );
-      const data = RoledUserArraySchema.parse(response.data);
-      if (data.length) {
-       setUser(data[0]);
-      //  console.log(data[0])
-      }
+      const data = GetUserResSchema.parse(response.data);
+      setUser(data);
+
     } catch (error: any) {
-      const message = errorMessage(error)
-      toast({
-        variant:"destructive",
-        title: "Search error",
-        description: message,
-      })
+      if(error instanceof AxiosError && error.response?.status===404){
+        //deleted user
+        setUser(undefined)
+      }else{
+        const handler = new clientErrorHandler(error)
+        handler.log()
+        toast({
+          variant:"destructive",
+          title: "Search error",
+          description: handler.message,
+        })
+      }
     }
     setIsLoading(false);
   }

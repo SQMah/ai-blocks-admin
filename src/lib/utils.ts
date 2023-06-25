@@ -64,21 +64,25 @@ export function removeDuplicates<T>(arr:T[]){
 }
 
 
-
-export const errorMessage = (error:any,logging:boolean = true)=>{
-  let message = error.message as string?? "Unknown error"
-  if(error instanceof z.ZodError){
-    message = zodErrorMessage(error.issues)
-    logging&&console.error(error.message)
+export class clientErrorHandler {
+  public readonly message:string
+  constructor(error:any) {
+    if(error instanceof z.ZodError){
+      this.message = zodErrorMessage(error.issues)
+    }
+    else if(error instanceof AxiosError){
+      this.message = error.response?.data?.message??"Axios Error"
+    }else if(error instanceof Error){
+      this.message = error.message??"Unknown Error"
+    }else{
+      this.message = "Unknown Error"
+    }
   }
-  else if(error instanceof AxiosError){
-    message = error.response?.data?.message as string??"Axios error"
-    logging&&console.error(message)
-  }else{
-    logging&&console.error(error)
+  log(){
+    console.error(this.message)
   }
-  return message
 }
+
 
 export const stringToBoolean =(str:string|undefined)=>{
   if (str?.toLowerCase() === "true") return true

@@ -2,8 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 import { getClass,deleteClass} from "@/lib/class_management";
 
-import { APIError, adminCheck, serverHandleError } from "@/lib/api_utils";
+import { APIError, adminCheck,serverErrorHandler } from "@/lib/api_utils";
 import { dbToJSON } from "@/lib/api_utils";
+import { assignRole, deleteRole, getAccessToken, searchUser, updateUser } from "@/lib/auth0_user_management";
+import { delay } from "@/lib/utils";
 
 
 //get class by class_id
@@ -17,7 +19,9 @@ const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
         // console.log(data)
         res.status(200).json(dbToJSON(data))
     } catch (error:any) {
-       serverHandleError(error,req,res)
+      const handler = new serverErrorHandler(error)
+      handler.log()
+      handler.sendResponse(req,res)
   }
 }
 
@@ -27,11 +31,60 @@ const handleDelete =async (req: NextApiRequest,res: NextApiResponse) => {
       if(!class_id||Array.isArray(class_id)){
         throw new APIError("Invalid Request Params","Please provide one and only one class ID.")
       }
+      const target = await getClass(class_id)
+      const emails = []
+      for(const email in target.student_ids??[]) emails.push(email)
+      for (const email in target.teacher_ids??[]) emails.push(email)
+      const token = await getAccessToken()
+      const users = await searchUser(token,{email:emails},"OR")
+      const teachers = []
+      const students = []
+      for(const user of users){
+        if(user.roles.includes("teacher")) teachers.push(user)
+        else if (user.roles.includes("managedStudent")) students.push(user)
+      }
+      for(const teacher of teachers){
+        try {
+          const {user_id,roles} = teacher
+          const teaching_class_ids = teacher.user_metadata?.teaching_class_ids
+          if(!teaching_class_ids) throw new Error(`${teacher.email} has no teaching classes`)
+          await updateUser(token,{
+            userId:user_id,
+            content:{
+              teaching_class_ids:teaching_class_ids.filter(id=>id!==target.class_id)
+            }
+          },roles)
+        } catch (error:any) {
+          console.error(`Fail to update ${teacher.email}, reason:${error.message??"unknown"}`)
+        }
+        await delay(500)
+      }
+      for(const student of students){
+        try {
+          const {user_id,roles} = student
+          const enrolled = student.user_metadata?.enrolled_class_id
+          if(!enrolled) throw new Error(`${student.email} has no enrolled class`)
+          if(enrolled!==target.class_id) throw new Error(`${student.email} is not enrolled into ${target.class_id}`)
+          await updateUser(token,{
+            userId:user_id,
+            content:{
+              enrolled_class_id:null
+            }
+          },roles)
+          await deleteRole(token,user_id,"managedStudent")
+          await assignRole(token,user_id,"unmanagedStudent")
+        } catch (error:any) {
+          console.error(`Fail to update ${student.email}, reason:${error.message??"unknown"}`)
+        }
+        await delay(500)
+      }
       const data = await deleteClass(class_id)
       // console.log(data)
       res.status(204).end()
   } catch (error:any) {
-    serverHandleError(error,req,res)
+    const handler = new serverErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
   }
 }
 
@@ -49,7 +102,14 @@ const handler = async (req: NextApiRequest,res: NextApiResponse) => {
         await handleDelete(req,res);
         break
       default:
-        res.status(405).json({message:`${method} is not supported`});
+        res.status(405).json({
+          status:405,
+          message:`${method} is not supported`,
+          details:{
+            resource: req.url,
+            method: req.method
+          }
+        });
         break;
     }
   };

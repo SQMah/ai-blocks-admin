@@ -2,12 +2,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 import { v1 as uuidv1 } from 'uuid';
 
-import { scanClass, createClass , updateClass} from "@/lib/class_management";
+import { scanClass, createClass , updateClass, classUpdatable} from "@/lib/class_management";
 
 import {  PostClassesReqSchema,PutClassesReqSchema } from "@/models/api_schemas";
 import {  removeDuplicates ,delay, zodErrorMessage} from "@/lib/utils";
 
-import { adminCheck ,APIError,serverHandleError,dbToJSON} from "@/lib/api_utils";
+import { adminCheck ,APIError,serverErrorHandler,dbToJSON} from "@/lib/api_utils";
 import { getAccessToken, searchUser, updateUser } from "@/lib/auth0_user_management";
 
 
@@ -26,7 +26,9 @@ const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
       // console.log(data)
       res.status(200).json(data.map(entry=>dbToJSON(entry)))
   } catch (error:any) {
-    serverHandleError(error,req,res)
+    const handler = new serverErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
   }
 }
 
@@ -39,6 +41,7 @@ const handlePost = async (req: NextApiRequest,res: NextApiResponse) => {
         const payload = parsing.data
         const token = await  getAccessToken()
         const emails = removeDuplicates(payload.teacher_ids)
+        //valdiate valid teachers
         const searched = (await searchUser(token,{email:emails},"OR"))
         .filter(teacher=>teacher.roles.includes("teacher"))
         const searchedEmails = removeDuplicates(searched.map(teacher=>teacher.email))
@@ -60,7 +63,9 @@ const handlePost = async (req: NextApiRequest,res: NextApiResponse) => {
         res.status(201).json(dbToJSON(data))
 
     } catch (error:any) {
-      serverHandleError(error,req,res)
+      const handler = new serverErrorHandler(error)
+      handler.log()
+      handler.sendResponse(req,res)
     }
   };
 
@@ -72,10 +77,14 @@ const handlePut = async (req: NextApiRequest,res: NextApiResponse) => {
         throw new APIError("Invalid Request Body",zodErrorMessage(parsing.error.issues))
       }
       const payload = PutClassesReqSchema.parse(req.body)
+      //will check for vlaid id and capacity,throw error if invalid
+      await classUpdatable(payload)
       const data = await updateClass(payload)
       res.status(200).json(dbToJSON(data))
   } catch (error:any) {
-   serverHandleError(error,req,res)
+    const handler = new serverErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
   }
 };
 
@@ -98,7 +107,14 @@ const handler = async (req: NextApiRequest,res: NextApiResponse) => {
       await handlePut(req,res);
       break;
     default:
-      res.status(405).json({message:`${method} is not supported`});
+      res.status(405).json({
+        status:405,
+        message:`${method} is not supported`,
+        details:{
+          resource: req.url,
+          method: req.method
+        }
+      });
       break;
   }
 };

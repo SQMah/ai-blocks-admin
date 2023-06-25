@@ -9,7 +9,7 @@ import { roleMapping,UserMetadataType,UserCreationBodyType,
    UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType} from '@/models/auth0_schemas';
 import { PutUsersReqType, PostUsersReqType} from '@/models/api_schemas';
 
-import { removeDuplicates,errorMessage, zodErrorMessage } from './utils';
+import { removeDuplicates, zodErrorMessage } from './utils';
 import { APIError } from './api_utils';
 
 const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;

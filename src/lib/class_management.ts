@@ -30,13 +30,14 @@ export const getClass = async(class_id:string)=>{
     }else if(error instanceof z.ZodError){
       throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
     }else{
-      throw new APIError("Dynamo DB Error",`Connection Error In Getting Class, message:${error.message}`)
+      throw new APIError("Dynamo DB Error",`Connection Error In Getting Class, message:${error.message??"unknown"}`)
     }
   }
   
 
 }
 
+//class_id should be unipue
 export const createClass = async (payload:PostClassesReqType,class_id:string) => {
   try {
     const {teacher_ids,capacity,available_modules,class_name} = payload
@@ -61,7 +62,7 @@ export const createClass = async (payload:PostClassesReqType,class_id:string) =>
     }else if(error instanceof z.ZodError){
       throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
     }else{
-      throw new APIError("Dynamo DB Error",`Connection Error In Craeting Class, message:${error.message}`)
+      throw new APIError("Dynamo DB Error",`Connection Error In Craeting Class, message:${error.message??"unknown"}`)
     }
   }
 
@@ -79,14 +80,12 @@ type updatePaylod={
   removeTeachers?:string[]
 }
 
-
-//remove has higher priority than add
-//adding and removing a student at the same time will perform no op
-export const updateClass = async (payload:updatePaylod) => {
+//checking class id validity, capacity
+export  const classUpdatable =async (payload:updatePaylod) => {
   try {
     const {class_id,class_name,capacity,available_modules,addStudents,addTeachers,removeStudents,removeTeachers} = payload
     if(!(class_name||capacity||addStudents||addTeachers||removeStudents||removeTeachers||available_modules)) throw new APIError("Invalid Request Body","At least one update to be made.")
-    //invalid class id will throw an API error
+     //invalid class id will throw an API error
     const currentClass = await getClass(class_id)
     if(capacity||addStudents){
       const currentCapacity = capacity??currentClass.capacity
@@ -99,7 +98,24 @@ export const updateClass = async (payload:updatePaylod) => {
       }
       if(modifiedStudents.size > currentCapacity) throw new APIError("Conflict","Resulting number of students exceeds capacity.")
     }
+  } catch (error:any) {
+    if(error instanceof APIError){
+      throw error
+    }else{
+      throw new APIError("Dynamo DB Error",`Connection Error In Checking Class, message:${error.message??"unknown"}`)
+    }
+  }
+}
 
+
+//IMPORTANT:should call updatable before this function
+//remove has higher priority than add
+//adding and removing a student at the same time will perform no op
+//since is set operaton, wont check for whether the user to add already in class and user to remove exist in class
+export const updateClass = async (payload:updatePaylod) => {
+  try {
+    const {class_id,class_name,capacity,available_modules,addStudents,addTeachers,removeStudents,removeTeachers} = payload
+    if(!(class_name||capacity||addStudents||addTeachers||removeStudents||removeTeachers||available_modules)) throw new APIError("Invalid Request Body","At least one update to be made.")
     const names = new Map<string,string>()
     const values = new Map<string,string|number|Set<string>>([[":id",class_id]])
     const set = []
@@ -178,7 +194,7 @@ export const updateClass = async (payload:updatePaylod) => {
     }else if(error instanceof z.ZodError){
       throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
     }else{
-      throw new APIError("Dynamo DB Error",`Connection Error In Craeting Class, message:${error.message}`)
+      throw new APIError("Dynamo DB Error",`Connection Error In Craeting Class, message:${error.message??"unknown"}`)
     }
   };
 }
@@ -203,7 +219,7 @@ export const deleteClass = async (class_id:string) =>{
       //class id not exist
       throw new APIError("Resource Not Found","Invalid class ID")
     }else{
-      throw new APIError("Dynamo DB Error",`Connection Error In Deleting Class, message:${error.message}`)
+      throw new APIError("Dynamo DB Error",`Connection Error In Deleting Class, message:${error.message??"unknown"}`)
     }
   }
 }
@@ -235,7 +251,7 @@ export const scanClass = async (classIds: string[])=>{
     } else if(error instanceof z.ZodError){
       throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
     }else{
-      throw new APIError("Dynamo DB Error",`Connection Error In Scanning Class, message:${error.message}`)
+      throw new APIError("Dynamo DB Error",`Connection Error In Scanning Class, message:${error.message??"unknown"}`)
     }
   }
 }

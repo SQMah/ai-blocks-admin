@@ -1,5 +1,5 @@
 import { FC, FormEvent, useId, useState,Dispatch,SetStateAction} from "react";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 
 import { Button } from "./ui/button";
 import {
@@ -17,11 +17,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { X,Check} from "lucide-react";
 
-import { GetClassResSchema, PutClassesReqType, PutUsersReqType } from "@/models/api_schemas";
+import { GetClassesResSchema, PutUsersReqType } from "@/models/api_schemas";
 import { RoledUserType,modulesReady } from "@/models/auth0_schemas";
 
 import RemoveStudentFromClass from "./removeStudentFromClass";
-import { errorMessage } from "@/lib/utils";
+import { clientErrorHandler } from "@/lib/utils";
 
 
 interface ManagedStudentOptionProps{
@@ -53,35 +53,32 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
         }else if(id===currentClass){
             setMessage("The new class ID is not same as the old ID.")
         }else{
+            //can remove capacity and class id validation if needed
             try {
               const {data} = await axios.get('/api/classes/'+id)
-              if(!data){
-                setMessage("Invalid class ID.")
-                setIsLoading(false)
-                return
-              }
-              const target = GetClassResSchema.parse(data)
-              if(target.studentIds.length>=target.capacity){
+              const target = GetClassesResSchema.parse(data)
+              if(target.student_ids.length>=target.capacity){
                 setMessage("Class is full.")
                 setIsLoading(false)
                 return
               }
             } catch (error:any) {
-              errorMessage(error)
+              if(error instanceof AxiosError && error.response?.status===404){
+                setMessage("Invalid class ID.")
+              }else{
+                const handler = new clientErrorHandler(error)
+                handler.log()
+                toast({
+                  variant:"destructive",
+                  title:"Search Class Error",
+                  description:handler.message
+                })
+              }
               setIsLoading(false)
               return
             }
             try {
-                const addPayload:PutClassesReqType ={
-                  class_id:id,
-                  addStudents:[student.email]
-                } 
-                await axios.put('/api/classes',addPayload)
-                const removePayload:PutClassesReqType={
-                  class_id:currentClass,
-                  removeStudents:[student.email]
-                }
-                await axios.put('/api/classes',removePayload)
+                //class will be updated by the api
                 const payload:PutUsersReqType={
                   userId :student.user_id,
                   content:{
@@ -89,17 +86,18 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
                   }
                 }
                 setClassId('')
-                const response =await  axios.put("/api/users",payload)
+                const response = await  axios.put("/api/users",payload)
                 toast({
                   title:"Updated"
                 })
                 await reload()
             } catch (error:any) {
-              const str= errorMessage(error)
+              const handler = new clientErrorHandler(error)
+              handler.log()
               toast({
                 variant:"destructive",
                 title: "Update error",
-                description: str,
+                description: handler.message,
               })
             }
         }
@@ -196,11 +194,12 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
         })
         await reload()
       } catch (error:any) {
-          const str = errorMessage(error)
+          const handler = new clientErrorHandler(error)
+          handler.log()
           toast({
             variant:"destructive",
             title: "Update error",
-            description: str,
+            description: handler.message,
           })
       }
       setIsLoading(false)
@@ -218,47 +217,49 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             return
         }
         try {
+          //class id and capacity validation can be handled by api
           const {data} = await axios.get('/api/classes/'+id)
-          if(!data){
-            setMessage("Invalid class ID.")
-            setIsLoading(false)
-            return
-          }
-          const target = GetClassResSchema.parse(data)
-              if(target.studentIds.length>=target.capacity){
+          const target = GetClassesResSchema.parse(data)
+              if(target.student_ids.length>=target.capacity){
                 setMessage("Class is full.")
                 setIsLoading(false)
                 return
               }
         } catch (error:any) {
-          errorMessage(error)
+          if(error instanceof AxiosError && error.response?.status===404){
+            setMessage("Invalid class ID.")
+          }else{
+            const handler = new clientErrorHandler(error)
+            toast({
+              variant:"destructive",
+              title:"Saecrh Class Error",
+              description:handler.message
+            })
+          }
           setIsLoading(false)
           return
         }
         try {
-            const classPayload:PutClassesReqType = {
-              class_id:id,
-              addStudents:[student.email]
+          const payload:PutUsersReqType={
+            userId :student.user_id,
+            content:{
+              enrolled_class_id:newClassId
             }
-            const classRes = await axios.put('/api/classes',classPayload)
-            toast({
-              title:"Updated"
-            })
-            const payload:PutUsersReqType={
-              userId :student.user_id,
-              content:{
-                enrolled_class_id:newClassId
-              }
-            }
-            setNewClassId('')
-            const response =await  axios.put("/api/users",payload)
-            await  reload()
+          }
+          setNewClassId('')
+          //both class and user data will be upated by api
+          const response =await  axios.put("/api/users",payload)
+          toast({
+            title:"Updated"
+          })
+          await  reload()
         } catch (error:any) {
-          const str = errorMessage(error)
+          const handler = new clientErrorHandler(error)
+          handler.log()
           toast({
             variant:"destructive",
             title: "Update error",
-            description: str,
+            description: handler.message,
           })
       }
       setIsLoading(false)

@@ -16,9 +16,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { PutUsersReqType,PutClassesReqType } from "@/models/api_schemas";
+import { PutUsersReqType} from "@/models/api_schemas";
 import { useToast } from "./ui/use-toast";
-import { errorMessage } from "@/lib/utils";
+import { clientErrorHandler} from "@/lib/utils";
 
 interface props{
   student:RoledUserType,
@@ -44,19 +44,16 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
               }
             }
             // console.log(paylaod)
+            //update user data and class data by single api call
             const response =await  axios.put("/api/users",paylaod)
-            const classPayload:PutClassesReqType ={
-              class_id,
-              removeStudents:[student.email]
-            }
-            const res = await axios.put('/api/classes',classPayload)
             await reload()
         } catch (error:any) {
-          const message = errorMessage(error)
+          const handler = new clientErrorHandler(error)
+          handler.log()
           toast({
             variant:"destructive",
             title: "Remove error",
-            description: message,
+            description: handler.message,
           })
         }
         setIsLoading(false)

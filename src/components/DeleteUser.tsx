@@ -18,8 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { PutClassesReqType } from "@/models/api_schemas";
-import { delay, errorMessage } from "@/lib/utils";
+import { clientErrorHandler,  } from "@/lib/utils";
 
 interface props{
   user:RoledUserType,
@@ -37,39 +36,17 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
         setIsLoading(true)
         try {
             const response =await  axios.delete(`/api/users?userId=${user.user_id}`)
-            for(const id of user.user_metadata?.teaching_class_ids??[]){
-              try {
-                const payload:PutClassesReqType={
-                  class_id:id,
-                  removeTeachers:[user.email]
-                }
-                await axios.put('/api/classes',payload)
-                await delay(200)
-              } catch (error:any) {
-                errorMessage(error)
-              }
-            }
-            if(user.user_metadata?.enrolled_class_id){
-              try {
-                const payload:PutClassesReqType={
-                  class_id:user.user_metadata?.enrolled_class_id,
-                  removeStudents:[user.email]
-                }
-                await axios.put('/api/classes',payload)
-              } catch (error:any) {
-                errorMessage(error)
-              }
-            }
             toast({
               title:"Deleted"
             })
             await reload()
         } catch (error:any) {
-          const message = errorMessage(error)
+          const handler = new clientErrorHandler(error)
+          handler.log()
           toast({
             variant:"destructive",
             title: "Delete error",
-            description: message,
+            description: handler.message,
           })
         }
         setIsLoading(false)

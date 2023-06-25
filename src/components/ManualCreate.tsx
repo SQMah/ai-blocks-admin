@@ -20,12 +20,12 @@ import {
 import { Input } from "./ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 
 import {  roleMapping} from "@/models/auth0_schemas";
-import {GetClassResSchema, PostUsersResSchema, UserCreateFormSchema,UserCreateFormType
-  ,UserCreateDataType, PostUsersReqType, PutClassesReqType,BatchGetClassResSchema } from "@/models/api_schemas";
-import { delay, errorMessage } from "@/lib/utils";
+import {GetClassesResSchema, PostUsersResSchema, UserCreateFormSchema,UserCreateFormType
+  ,PostUsersReqType,BatchGetClassesResSchema } from "@/models/api_schemas";
+import {  clientErrorHandler} from "@/lib/utils";
 
 interface ManualCreateProps{
   isLoading:boolean,
@@ -55,8 +55,9 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       const teaching = teaching_class_ids_str?.split(",").map(id=>id.trim()).filter(id=>id.length)??[]
       if(role==="teacher"&&teaching.length){
         try {
+          //class id valiadation will also be done in api
           const {data} = await axios.get('/api/classes?'+teaching.map(id=>`class_id=${id}`).join('&'))
-          const present = BatchGetClassResSchema.parse(data).map(entry=>entry.class_id)
+          const present = BatchGetClassesResSchema.parse(data).map(entry=>entry.class_id)
           const missing = teaching.filter(id=>!present.includes(id))
           if(missing.length){
             const message = `${missing.join(", ")} are not valid class IDs.`
@@ -65,10 +66,11 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
             return
           }
         } catch (error:any) {
-          const message = errorMessage(error)
+          const handler = new clientErrorHandler(error)
+          handler.log()
           toast({
             title:"Search error",
-            description:message
+            description:handler.message
           })
           setIsLoading(false)
           return
@@ -77,38 +79,33 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       const enrolled  = enrolled_class_id?.trim()
       if(enrolled&&role==="managedStudent"){
         try {
+          //class id will also be done on api
           const {data:classData}=await axios.get('/api/classes/'+enrolled)
-          if(!classData){
-            form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
-            setIsLoading(false)
-            return
-          }
-          const target = GetClassResSchema.parse(classData)
-          if(target.studentIds.length>=target.capacity){
+          const target = GetClassesResSchema.parse(classData)
+          //capacity check will also be done on api
+          if(target.student_ids.length>=target.capacity){
             form.setError("enrolled_class_id",{message:"Class is full."})
             setIsLoading(false)
             return
           }
         } catch (error:any) {
-          errorMessage(error)
+          if(error instanceof AxiosError&&error.response?.status===404){
+            form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
+          }
+          else{
+            const handler = new clientErrorHandler(error)
+            handler.log()
+            toast({
+              variant:'destructive',
+              title:"Search Class Error",
+              description:handler.message,
+            })
+          }
+          setIsLoading(false)
+          return
         }
       }
-      for(const id of role==="teacher"?teaching:[]){
-        const body:PutClassesReqType={
-          class_id:id,
-          addTeachers:[email]
-        }
-        await axios.put('/api/classes',body)
-        await delay(200)
-      }
-      if(enrolled&&role==="managedStudent"){
-        const body:PutClassesReqType={
-          class_id:enrolled,
-          addStudents:[email]
-        }
-        await axios.put('/api/classes',body)
-      }
-      const userData: UserCreateDataType = {
+      const userData:PostUsersReqType = {
         role,
         email,
         first_name,
@@ -119,21 +116,21 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
         ...(role !== "admin" && { account_expiration_date }),
       };      
       // console.log(userData)
-      const payload:PostUsersReqType=  { user: userData };
-      const response = await axios.post("/api/users", payload);
+      //class update will be handled by api
+      const response = await axios.post("/api/users", userData);
       const data = PostUsersResSchema.parse(response.data)
       form.reset()
       toast({
-        title: "Creation status",
-        description: data.message,
+        title: "Created",
       })
       // console.log(data.messages);
     } catch (error: any) {
-      const message = errorMessage(error)
+      const handler = new clientErrorHandler(error)
+      handler.log()
       toast({
         variant:"destructive",
         title: "Creation error",
-        description: message
+        description: handler.message
       })
     }
     setIsLoading(false)

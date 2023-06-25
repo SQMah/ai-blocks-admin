@@ -27,12 +27,12 @@ import { Input } from "./ui/input"
 import { Label } from "@radix-ui/react-label"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios"; 
+import axios, { AxiosError } from "axios"; 
 
-import { getOrdinal,delay, errorMessage,removeDuplicates } from "@/lib/utils"
+import { getOrdinal, clientErrorHandler } from "@/lib/utils"
 import { UserRoleSchema} from "@/models/auth0_schemas"
-import { PostUsersReqType, UserCreateCSVSchema, UserCreateCSVType,PostUsersResSchema,
-  SetExpriationSchema,PutClassesReqType, GetClassResSchema,BatchGetClassResSchema } from "@/models/api_schemas"
+import {  UserCreateCSVSchema, UserCreateCSVType,
+  SetExpriationSchema, GetClassesResSchema,BatchGetClassesResSchema, BatchCreateUserReqType, BatchCreateUsersResSchema } from "@/models/api_schemas"
 
 type CSVData = {
     data: any[];
@@ -115,7 +115,7 @@ const CSVCreate:FC<CSVCreateProps> = ({isLoading,setIsLoading})=>{
                 safe = false
                 if (error instanceof z.ZodError) {
                     const {issues} = error
-                    console.log(issues);
+                    console.error(issues);
                     setErrorMessage(`Fail to process the ${getOrdinal(index+1)} data, messages: ${
                         issues.map((issue,index)=>{
                             const {message,path} = issue
@@ -179,6 +179,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
     const form = useForm<formType>({
       resolver: zodResolver(formSchema),
       defaultValues: {
+        role:undefined,
         enrolled_class_id:"",
         teaching_class_ids_str:"",
         account_expiration_date:"",
@@ -190,10 +191,11 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
       try {
         const {role,enrolled_class_id,teaching_class_ids_str,available_modules,account_expiration_date} = values
         const teaching = teaching_class_ids_str?.split(",").map(id=>id.trim()).filter(id=>id.length)??[]
+        //can remove the logic of validating class id if needed
         if(role==="teacher"&&teaching.length){
           try {
             const {data} = await axios.get('/api/classes?'+teaching.map(id=>`class_id=${id}`).join('&'))
-            const present = BatchGetClassResSchema.parse(data).map(entry=>entry.class_id)
+            const present = BatchGetClassesResSchema.parse(data).map(entry=>entry.class_id)
             const missing = teaching.filter(id=>!present.includes(id))
             if(missing.length){
               const message = `${missing.join(", ")} are not valid class IDs.`
@@ -202,54 +204,46 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
               return
             }
           } catch (error:any) {
-            const message = errorMessage(error)
+            const handler = new  clientErrorHandler(error)
+            handler.log()
             toast({
-              title:"Search error",
-              description:message
+              variant:"destructive",
+              title:"Search Class Error",
+              description:handler.message
             })
             setIsLoading(false)
             return
           }
         }
         const enrolled  = enrolled_class_id?.trim()
+        //can remove the logic of validating class id if needed
         if(enrolled&&role==="managedStudent"){
           try {
             const {data:obj} = await axios.get('/api/classes/'+enrolled)
-            if(!obj){
-              form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
-              setIsLoading(false)
-              return
-            }
-            const target = GetClassResSchema.parse(obj)
-            const remain = Math.max(target.capacity - target.studentIds.length,0)
+            const target = GetClassesResSchema.parse(obj)
+            const remain = Math.max(target.capacity - target.student_ids.length,0)
             if(remain < users.length){
               form.setError('enrolled_class_id',{message:`Class is full, only ${remain} seat(s) remain.`})
               setIsLoading(false)
               return
             }
           } catch (error:any) {
-            errorMessage(error)
+            if(error instanceof AxiosError&&error.response?.status===404){
+              form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
+            }else{
+              const handler = new  clientErrorHandler(error)
+              handler.log()
+              toast({
+                variant:"destructive",
+                title:"Search Class Error",
+                description:handler.message
+              })
+            }
             setIsLoading(false)
             return
           }
         }
-        const emails = removeDuplicates(users.map(user=>user.email))
-        for(const id of role==="teacher"?teaching:[]){
-          const body:PutClassesReqType={
-            class_id:id,
-            addTeachers:emails
-          }
-          await axios.put('/api/classes',body)
-          await delay(200)
-        }
-        if(enrolled&&role==="managedStudent"){
-          const body:PutClassesReqType={
-            class_id:enrolled,
-            addStudents:emails
-          }
-          await axios.put('/api/classes',body)
-        }
-        const payload: PostUsersReqType = { 
+        const payload: BatchCreateUserReqType = { 
           users,role,
           ...(role === "managedStudent" && { enrolled_class_id }),
           ...(role==="unmanagedStudent"&&{available_modules}),
@@ -257,20 +251,21 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
           ...(role !== "admin" && { account_expiration_date }),
         };      
         // console.log(payload)
-        const response = await axios.post("/api/users", payload);
-        const data = PostUsersResSchema.parse(response.data)
-        // console.log(data.message);
+        const response = await axios.post("/api/batch-create-users", payload);
+        const data = BatchCreateUsersResSchema.parse(response.data)
+        // console.log(sata);
         form.reset()
         toast({
           title: "Creation status",
           description: data.message,
         })
       } catch (error: any) {
-        const message = errorMessage(error)
+        const handler = new clientErrorHandler(error)
+        handler.log()
         toast({
           variant:"destructive",
           title: "Creation error",
-          description:message
+          description:handler.message
         })
       }
       setIsLoading(false)

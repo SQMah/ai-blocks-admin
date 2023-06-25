@@ -1,6 +1,6 @@
-import { APIError, serverHandleError,adminCheck } from "@/lib/api_utils";
+import { APIError, serverErrorHandler,adminCheck } from "@/lib/api_utils";
 import { createUser, getAccessToken, sendInvitation } from "@/lib/auth0_user_management";
-import { updateClass } from "@/lib/class_management";
+import { classUpdatable, updateClass } from "@/lib/class_management";
 import { delay, zodErrorMessage } from "@/lib/utils";
 import { BatchCreateUsersReqSchema, BatchCreateUsersResType } from "@/models/api_schemas";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -15,17 +15,17 @@ const handlePost = async (req:NextApiRequest,res:NextApiResponse) =>{
         const payload = parsing.data
         const emails = payload.users.map(user=>user.email)
         if(!emails.length) throw new APIError("Invalid Request Body","Empty users array.")
-        //handle class
+        //check for class validity,will throw error if invalid
         if(payload.role==="teacher"&&payload.teaching_class_ids){
             for(const class_id of payload.teaching_class_ids){
-                await updateClass({
+                await classUpdatable({
                     class_id,
                     addTeachers:emails
                 })
                 await delay(300)
             }
         }else if(payload.role==="managedStudent"&&payload.enrolled_class_id){
-            await updateClass({
+            await classUpdatable({
                 class_id:payload.enrolled_class_id,
                 addStudents:emails
             })
@@ -40,6 +40,7 @@ const handlePost = async (req:NextApiRequest,res:NextApiResponse) =>{
         //role, class, expiration etc.
         const {role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
         const info = {role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} 
+        //create users
         for(const user of payload.users){
             try {
                 const data = await createUser(token,{
@@ -47,22 +48,38 @@ const handlePost = async (req:NextApiRequest,res:NextApiResponse) =>{
                     ...info,
                 })
                 //at least delay half second
-                await Promise.all([sendInvitation(token,`${user.first_name} ${user.last_name}`,user.email),delay(500)])
+                await Promise.all([sendInvitation(token,data.name,data.email),delay(500)])
                 response.created.push(data)
             } catch (error:any) {
-                let reason = error.message??"Unknown error"
-                if(error instanceof APIError){
-                    reason = error.message
-                }
+                const reason = error.message??"Unknown error"
                 response.failed.push({...user,reason})
                 await delay(500)
             }
         }
-        const message = `Success case(s): ${response.created.length}, failed case(s):${response.failed.length}`
-        response.message = message
+        //update classes, validity is checked before
+        const createdEmails = response.created.map(user=>user.email)
+        if(createdEmails.length){
+            if(payload.role==="teacher"&&payload.teaching_class_ids){
+                for(const class_id of payload.teaching_class_ids){
+                    await updateClass({
+                        class_id,
+                        addTeachers:createdEmails
+                    })
+                    await delay(300)
+                }
+            }else if(payload.role==="managedStudent"&&payload.enrolled_class_id){
+                await updateClass({
+                    class_id:payload.enrolled_class_id,
+                    addStudents:createdEmails
+                })
+            }
+        }
+        response.message = `Success case(s): ${response.created.length}, failed case(s):${response.failed.length}`
         res.status(response.created.length>0?201:500).json(response)
     } catch (error) {
-        serverHandleError(error,req,res)
+        const handler = new serverErrorHandler(error)
+        handler.log()
+        handler.sendResponse(req,res)
     }
 }
 
@@ -78,7 +95,14 @@ const handler = async (req: NextApiRequest,res: NextApiResponse) => {
         await handlePost(req,res);
         break;
       default:
-        res.status(405).json({message:`${method} is not supported`});
+        res.status(405).json({
+            status:405,
+            message:`${method} is not supported`,
+            details:{
+              resource: req.url,
+              method: req.method
+            }
+          });
         break;
     }
   };

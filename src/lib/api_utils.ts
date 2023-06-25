@@ -5,7 +5,7 @@ import {
 } from "@/lib/auth0_user_management";
 import { getSession } from "@auth0/nextjs-auth0";
 import { stringToBoolean,zodErrorMessage } from "./utils";
-import { z } from "zod";
+import { string, z } from "zod";
 import { AxiosError } from "axios";
 import { GetClassesResType } from "@/models/api_schemas";
 import { ClassType } from "@/models/dynamoDB_schemas";
@@ -29,7 +29,9 @@ export const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>):
       }
       return true
     } catch (error:any) {
-      serverHandleError(error,req,res)
+      const handler  = new serverErrorHandler(error)
+      handler.log()
+      handler.sendResponse(req,res)
       return false
     }
   };
@@ -69,28 +71,42 @@ export const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>):
     }
   }
 
-  export function serverHandleError(error:any,req:NextApiRequest,res:NextApiResponse){
-    const body = {
-      status:500,
-      message:"Internal Server Error" ,
-      details:{
-        resource: req.url,
-        method: req.method
+  export class serverErrorHandler{
+    private message:string
+    private status_code:number
+    constructor(error:any){
+      if(error instanceof APIError){
+        this.status_code=error.code
+        this.message = error.message
+      }else if(error instanceof z.ZodError){
+        this.status_code = 400
+        this.message =  `Invalid Request Body/Params: ${zodErrorMessage(error.issues)}`
+      }else if(error instanceof AxiosError){
+        this.status_code = 500
+        this.message = `Internal Connect Error: ${error.response?.data?.message??"Unknown"}`
+      }else{
+        this.status_code=500
+        if(error instanceof Error) this.message =  `Internal Server Error: ${error.message??"Unknown"}`
+        else this.message = "Internal Server Error"
       }
     }
-    if(error instanceof APIError){
-      body.status=error.code
-      body.message = error.message
-    }else if(error instanceof z.ZodError){
-      body.status = 400
-      body.message =  `Invalid Request Body/Params: ${zodErrorMessage(error.issues)}`
-    }else if(error instanceof AxiosError){
-      body.message = `Internal Connect Error: ${error.response?.data?.message}`
+    log(){
+      console.error(this.message)
     }
-    res.status(body.status).json(body);
+    sendResponse(req:NextApiRequest,res:NextApiResponse){
+      res.status(this.status_code).json({
+        status:this.status_code,
+        message:this.message ,
+        details:{
+          resource: req.url,
+          method: req.method
+        }
+      })
+    }
   }
 
-  export const dbToJSON = (data:ClassType)=>{
+
+  export const dbToJSON = (data:ClassType):GetClassesResType=>{
     const {class_id,class_name,teacher_ids,student_ids,capacity,available_modules} = data
     const obj:GetClassesResType ={
       class_id,class_name,capacity,

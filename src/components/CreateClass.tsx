@@ -19,9 +19,9 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 
 
-import { RoledUserArraySchema, defaultModels,modulesReady } from "@/models/auth0_schemas"
-import { PostClassesReqType,PostClassesResSchema,PutUsersReqType} from "@/models/api_schemas";
-import { delay,errorMessage } from "@/lib/utils";
+import {  defaultModels,modulesReady } from "@/models/auth0_schemas"
+import { PostClassesReqType,PostClassesResSchema, SearchUsersResSchema} from "@/models/api_schemas";
+import { clientErrorHandler } from "@/lib/utils";
 
 
 
@@ -66,8 +66,9 @@ const CreateClass:FC= ()=>{
             // console.log(values,availableModules)
             let {class_name,teacherIds,capacity} = values
             const emails = teacherIds.split(",").filter(id=>id.length).map(id=>id.trim())
+            //can remove the logic of valdiating teachers if needed
             const {data:users} = await axios.get("/api/users?"+[...emails.map(email=>`email=${email}`),"type=OR"].join("&"))
-            const teachers = RoledUserArraySchema.parse(users).filter(user=>user.roles.includes("teacher"))
+            const teachers = SearchUsersResSchema.parse(users).filter(user=>user.roles.includes("teacher"))
             const teachersEmails = teachers.map(teacher=>teacher.email)
             const missing = emails.filter(email=>!teachersEmails.includes(email))
             // console.log(missing)
@@ -75,41 +76,33 @@ const CreateClass:FC= ()=>{
               form.setError("teacherIds",{
                 message:`${missing.join(", ")} ${missing.length>1?"are":"is"} not valid teacher ID.
                 `})
-              throw new Error("Invlaid teacher ID")
+              setIsLoading(false)
+              return
             }
             // console.log(classId)
             const payload:PostClassesReqType={
                 class_name,
-                teacherIds:teachersEmails,
-                capacity:Number(values.capacity),
+                teacher_ids:teachersEmails,
+                capacity:Number(capacity),
                 available_modules:availableModules||[]
             }
             // console.log(payload)
             const response = await axios.post("/api/classes",payload)
             // console.log(response.data)
-            const classId = PostClassesResSchema.parse(response.data).class_id
-            for (const teacher of teachers){
-              const teaching_class_ids = teacher.user_metadata?.teaching_class_ids??[]
-              teaching_class_ids.push(classId)
-              const updateBody:PutUsersReqType={
-                userId:teacher.user_id,
-                content:{
-                  teaching_class_ids,
-                }
-              }
-              await axios.put("/api/users",updateBody)
-              await delay(500)
-            }
+            const created = PostClassesResSchema.parse(response.data)
             toast({
               title: "Creation status",
-              description: `Created class,class name: ${class_name} class ID: ${classId}, no. of teachers: ${teachers.length}, capacity: ${capacity}, no. of moudles: ${availableModules.length}`
+              description: `Created class,class name: ${created.class_name} class ID: ${created.class_id}, no. of teachers: ${created.teacher_ids.length}, capacity: ${created.capacity}, no. of moudles: ${created.available_modules.length}`
             })
+            form.reset()
+            setAvailableModules(defaultModels.sort())
         } catch (error: any) {
-            const message = errorMessage(error)
+            const handler = new clientErrorHandler(error)
+            handler.log()
             toast({
               variant:"destructive",
-              title: "Creation error",
-              description: message,
+              title:"Create Error",
+              description:handler.message
             })
           }
         setIsLoading(false)

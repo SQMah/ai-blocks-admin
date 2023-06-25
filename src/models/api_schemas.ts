@@ -45,8 +45,8 @@ export const UserCreateCSVSchema = z.object({
 export type UserCreateCSVType = z.infer<typeof UserCreateCSVSchema>
 
 
-export const SeachUsersSchema = RoledUserArraySchema
-export type SearchUsersType = z.infer<typeof SeachUsersSchema>
+export const SearchUsersResSchema = RoledUserArraySchema
+export type SearchUsersResType = z.infer<typeof SearchUsersResSchema>
 
 export const GetUserResSchema = RoledUserSchema
 export type GetUserResType = z.infer<typeof GetUserResSchema>
@@ -93,7 +93,7 @@ export const  BatchCreateUsersReqSchema = z.object({
   }else return true
 },{path:["enrolled_class_id"],message:"Enrolled class ID is required for student account"}
 ).refine(input=>{
-  if(input.role&&input.role!=="admin"){
+  if(input.role!=="admin"){
     return input.account_expiration_date?.length
   }else return true
 },{path:["account_expiration_date"],message:`Expiration date is required`})
@@ -101,7 +101,7 @@ export const  BatchCreateUsersReqSchema = z.object({
 
 export type BatchCreateUserReqType = z.infer<typeof BatchCreateUsersReqSchema>
 
-export const BathCraeteUserResSchema = z.object({
+export const BatchCreateUsersResSchema = z.object({
   created: z.array(UserSchema),
   failed: z.array(UserCreateCSVSchema.extend({
     reason:z.string()
@@ -109,7 +109,7 @@ export const BathCraeteUserResSchema = z.object({
   message:z.string()
 })
 
-export type BatchCreateUsersResType = z.infer<typeof BathCraeteUserResSchema>
+export type BatchCreateUsersResType = z.infer<typeof BatchCreateUsersResSchema>
 
 export const PutUsersReqSchema = z.object({
   userId: z.string().trim().nonempty(),
@@ -119,7 +119,7 @@ export const PutUsersReqSchema = z.object({
 export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
 
 
-export const GetClassResSchema = z.object({
+export const GetClassesResSchema = z.object({
   class_id:z.string(),
   class_name:z.string(),
   teacher_ids:z.array(z.string()),
@@ -128,7 +128,7 @@ export const GetClassResSchema = z.object({
   available_modules:z.array(z.string())
 })
 
-export type GetClassesResType = z.infer<typeof GetClassResSchema>
+export type GetClassesResType = z.infer<typeof GetClassesResSchema>
 
 export const PostClassesReqSchema=z.object({
   class_name:z.string().nonempty({message:"Required"}),
@@ -137,12 +137,12 @@ export const PostClassesReqSchema=z.object({
   available_modules:z.array(z.string())
 })
 
-export const BatchGetClassResSchema = z.array(GetClassResSchema)
-export type BatchGetClassType = z.infer<typeof BatchGetClassResSchema>
+export const BatchGetClassesResSchema = z.array(GetClassesResSchema)
+export type BatchGetClassesType = z.infer<typeof BatchGetClassesResSchema>
 
 export type  PostClassesReqType = z.infer<typeof  PostClassesReqSchema>
 
-export const PostClassesResSchema = GetClassResSchema
+export const PostClassesResSchema = GetClassesResSchema
 export type PostClassesResType = z.infer<typeof PostClassesResSchema>
 
 export const PutClassesReqSchema=z.object({
@@ -150,8 +150,10 @@ export const PutClassesReqSchema=z.object({
   class_name:z.string().nonempty().optional(),
   capacity:z.number().min(1,{message:"Capacity must greater than 0"}).optional(),
   available_modules:z.array(z.string()).optional(),
-}).refine(e=>false,{message:"test"})
+})
 
 
 
 export type  PutClassesReqType = z.infer<typeof  PutClassesReqSchema>
+
+export const PutClassesResSchema = GetClassesResSchema

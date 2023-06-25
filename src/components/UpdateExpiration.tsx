@@ -29,7 +29,7 @@ import { useToast } from "./ui/use-toast";
 
 import { PutUsersReqType, SetExpriationSchema } from "@/models/api_schemas";
 import { RoledUserType,RoledUserArrayType } from "@/models/auth0_schemas";
-import {findEarliestDate,delay, errorMessage} from "@/lib/utils"
+import {findEarliestDate,delay, clientErrorHandler} from "@/lib/utils"
 import ShowExpiration from "./ShowExpiration";
 
 
@@ -69,11 +69,12 @@ export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,
       })
       await reload();
     } catch (error: any) {
-      const message = errorMessage(error)
+      const handler = new clientErrorHandler(error)
+      handler.log()
       toast({
         variant:"destructive",
         title: "Update error",
-        description: message,
+        description: handler.message,
       })
 
     }
@@ -168,11 +169,12 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
         await delay(500)
         success+=1
       } catch (error: any) {
-        const message = errorMessage(error)
+        const handler = new clientErrorHandler(error)
+        handler.log()
         toast({
           variant:"destructive",
           title: "Update error for "+user.email,
-          description: message ,
+          description: handler.message ,
         })
         continue
       }

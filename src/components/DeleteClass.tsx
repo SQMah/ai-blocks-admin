@@ -18,9 +18,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { RoledUserArrayType } from "@/models/auth0_schemas";
-import { PutUsersReqType,GetClassesResType } from "@/models/api_schemas";
+import { GetClassesResType } from "@/models/api_schemas";
 
-import { delay, errorMessage} from "@/lib/utils";
+import { clientErrorHandler,} from "@/lib/utils";
 
 interface Props{
     teachers:RoledUserArrayType;
@@ -38,38 +38,18 @@ const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading
     const handleDelete =async () => {
         setIsLoading(true)
         try {
-            //sequence: update studens -> update teachers -> delete class data
-            for(const student of students){
-                const payload:PutUsersReqType ={
-                    userId:student.user_id,
-                    content:{
-                        enrolled_class_id:null
-                    }
-                }
-                const {data} = await  axios.put("/api/users",payload)
-                await delay(500)
-            }
-            for(const teacher of teachers){
-                const teaching_class_ids = teacher.user_metadata?.teaching_class_ids
-                ?.filter(id=>id!==classId)??[]
-                const payload:PutUsersReqType ={
-                    userId:teacher.user_id,
-                    content:{teaching_class_ids}
-                }
-                const {data} = await  axios.put("/api/users",payload)
-                await delay(500)
-            }
             const delRes = await  axios.delete("/api/classes/"+classId)
             toast({
                 title:"Deleted"
             })
             await handleChangeClass(undefined)
         } catch (error:any) {
-          const message = errorMessage(error)
+          const handler = new clientErrorHandler(error)
+          handler.log()
           toast({
             variant:"destructive",
             title: "Delete error",
-            description: message,
+            description: handler.message,
           })
         }
         setIsLoading(false)
@@ -85,15 +65,15 @@ const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading
                 <AlertDialogHeader>
                   <AlertDialogTitle>Are you absolutely sure to delete the class {classId}?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    <p>This action cannot be undone. The action will have the following effects:</p>
-                    <ul className=" list-disc mt-1 ml-4">
+                    <a>This action cannot be undone. The action will have the following effects:</a>
+                    <span className=" list-disc mt-1 ml-4">
                         <li>Delete all associated data of {classId}</li>
                         <li>Remove {classId} from the class list of {teachers.length} teachers.</li>
                         <li>Remove {classId} from the user metadata of {students.length} students</li>
                         <li>Turn {students.length} students to unmanaged students</li>
-                    </ul>
+                    </span>
                   </AlertDialogDescription>
-                    <div className="flex items-center space-x-2">
+                    <span className="flex items-center space-x-2">
                         <Checkbox id="terms" className="mt-4 mb-2" checked={confirm} onCheckedChange={(e:boolean)=>setConfirm(e)}/>
                         <label
                             htmlFor="terms"
@@ -101,7 +81,7 @@ const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading
                         >
                             Confirm deleting {classId}
                         </label>
-                    </div>
+                    </span>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel onClick={()=>setConfirm(false)}>Cancel</AlertDialogCancel>

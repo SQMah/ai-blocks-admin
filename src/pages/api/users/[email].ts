@@ -4,8 +4,7 @@ import {
   getUserByEmail,
 } from "@/lib/auth0_user_management";
 
-import {errorMessage} from "@/lib/utils";
-import { APIError, adminCheck, serverHandleError } from "@/lib/api_utils";
+import { APIError, adminCheck, serverErrorHandler } from "@/lib/api_utils";
 import { z } from "zod";
 
 
@@ -25,7 +24,9 @@ const handleGet = async (
     res.status(200).json(user);
     return;
   } catch (error: any) {
-    serverHandleError(error,req,res)
+    const handler = new serverErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
   }
 };
 
@@ -42,7 +43,14 @@ const handler = async (req: NextApiRequest,res: NextApiResponse) => {
       await handleGet(req, res);
       break;
     default:
-      res.status(405).json({message:`${method} is not supported`});
+      res.status(405).json({
+        status:405,
+        message:`${method} is not supported`,
+        details:{
+          resource: req.url,
+          method: req.method
+        }
+      });
       break;
   }
 };
