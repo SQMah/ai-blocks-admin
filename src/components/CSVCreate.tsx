@@ -194,7 +194,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
         //can remove the logic of validating class id if needed
         if(role==="teacher"&&teaching.length){
           try {
-            const {data} = await axios.get('/api/classes?'+teaching.map(id=>`class_id=${id}`).join('&'))
+            const {data} = await axios.get('/api/v1/classes?'+teaching.map(id=>`class_id=${id}`).join('&'))
             const present = BatchGetClassesResSchema.parse(data).map(entry=>entry.class_id)
             const missing = teaching.filter(id=>!present.includes(id))
             if(missing.length){
@@ -219,7 +219,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
         //can remove the logic of validating class id if needed
         if(enrolled&&role==="managedStudent"){
           try {
-            const {data:obj} = await axios.get('/api/classes/'+enrolled)
+            const {data:obj} = await axios.get('/api/v1/classes/'+enrolled)
             const target = GetClassesResSchema.parse(obj)
             const remain = Math.max(target.capacity - target.student_ids.length,0)
             if(remain < users.length){
@@ -251,7 +251,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
           ...(role !== "admin" && { account_expiration_date }),
         };      
         // console.log(payload)
-        const response = await axios.post("/api/batch-create-users", payload);
+        const response = await axios.post("/api/v1/batch-create-users", payload);
         const data = BatchCreateUsersResSchema.parse(response.data)
         // console.log(sata);
         form.reset()
@@ -262,6 +262,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
       } catch (error: any) {
         const handler = new clientErrorHandler(error)
         handler.log()
+        // console.log(error.response?.data)
         toast({
           variant:"destructive",
           title: "Creation error",

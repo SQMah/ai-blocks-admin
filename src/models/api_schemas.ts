@@ -2,7 +2,7 @@ import {z}from "zod"
 import { RoledUserArraySchema, RoledUserArrayType, RoledUserSchema, UserMetadataSchema, UserRoleSchema, UserSchema } from "./auth0_schemas"
 import { validDateString,afterToday} from "@/lib/utils"
 
-export const SetExpriationSchema = z.string().nonempty({message:"Required"}).refine(str=>{
+export const SetExpriationSchema = z.string().trim().nonempty({message:"Required"}).refine(str=>{
     if(str) return validDateString(str)
     return true
   },
@@ -12,14 +12,16 @@ export const SetExpriationSchema = z.string().nonempty({message:"Required"}).ref
   return true
 },{message:"Expiration date is required to be set after today"})
 
+export const emailSchema = z.string().email()
+
 export const UserCreateFormSchema = z.object({
   role: UserRoleSchema ,
   email: z.string().trim().email({message:"Please provide a valid email"}),
   first_name: z.string().trim().nonempty({message:"Required"}),
   last_name: z.string().trim().nonempty({message:"Required"}),
-  enrolled_class_id: z.string().optional(),
-  teaching_class_ids_str:z.string().optional(),  
-  available_modules:z.array(z.string()).optional(),
+  enrolled_class_id: z.string().trim().nonempty().optional(),
+  teaching_class_ids_str:z.string().trim().nonempty().optional(),  
+  available_modules:z.array(z.string().trim().nonempty()).optional(),
   account_expiration_date: SetExpriationSchema.or(z.literal("")).optional(),
 })
 .refine((input)=>{
@@ -44,9 +46,19 @@ export const UserCreateCSVSchema = z.object({
 
 export type UserCreateCSVType = z.infer<typeof UserCreateCSVSchema>
 
+export const  SearchUsersReqSchema = z.object({
+  email:z.array(emailSchema).or(emailSchema).transform(input=>Array.isArray(input)?input:[input]).optional(),
+  enrolled_class_id:z.array(z.string().trim().nonempty()).or(z.string().trim().nonempty()).transform(input=>Array.isArray(input)?input:[input]).optional(),
+  teaching_class_ids:z.array(z.string().trim().nonempty()).or(z.string().trim().nonempty()).transform(input=>Array.isArray(input)?input:[input]).optional(),
+  type:z.enum(["AND","OR"]).optional()
+}).refine(inputs=>inputs.email||inputs.enrolled_class_id||inputs.teaching_class_ids,{message:"Please provide at least one search query"})
 
 export const SearchUsersResSchema = RoledUserArraySchema
 export type SearchUsersResType = z.infer<typeof SearchUsersResSchema>
+
+export const  GetUsersReqSchema = z.object({
+  email:emailSchema
+})
 
 export const GetUserResSchema = RoledUserSchema
 export type GetUserResType = z.infer<typeof GetUserResSchema>
@@ -57,9 +69,9 @@ export const PostUsersReqSchema = z.object({
   email: z.string().trim().email({message:"Please provide a valid email"}),
   first_name: z.string().trim().nonempty({message:"Required"}),
   last_name: z.string().trim().nonempty({message:"Required"}),
-  enrolled_class_id: z.string().optional(),
+  enrolled_class_id: z.string().trim().nonempty().optional(),
   teaching_class_ids:z.array(z.string().trim().nonempty()).optional(),
-  available_modules:z.array(z.string()).optional(),
+  available_modules:z.array(z.string().trim().nonempty()).optional(),
   account_expiration_date: SetExpriationSchema.or(z.literal("")).optional(),
 })
 .refine((input)=>{
@@ -83,9 +95,9 @@ export type PostUsersResType = z.infer<typeof PostUsersResSchema>;
 export const  BatchCreateUsersReqSchema = z.object({
   users: z.array(UserCreateCSVSchema),
   role: UserRoleSchema,
-  enrolled_class_id: z.string().optional(),
+  enrolled_class_id: z.string().trim().nonempty().optional(),
   teaching_class_ids:z.array(z.string().trim().nonempty()).optional(),
-  available_modules:z.array(z.string()).optional(),
+  available_modules:z.array(z.string().trim().nonempty()).optional(),
   account_expiration_date:  SetExpriationSchema.or(z.literal("")).optional(),
 }).refine((input)=>{
   if(input.role==="managedStudent"){
@@ -118,23 +130,34 @@ export const PutUsersReqSchema = z.object({
 })
 export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
 
+export const DeleteUsersReqSchema = z.object({
+  userId:z.string().trim().nonempty()
+})
+
+export const GetClassesReqSchema= z.object({
+  class_id:z.string().trim().nonempty()
+})
 
 export const GetClassesResSchema = z.object({
-  class_id:z.string(),
-  class_name:z.string(),
-  teacher_ids:z.array(z.string()),
-  student_ids:z.array(z.string()),
+  class_id:z.string().trim().nonempty(),
+  class_name:z.string().trim().nonempty(),
+  teacher_ids:z.array(z.string().trim().nonempty()),
+  student_ids:z.array(z.string().trim().nonempty()),
   capacity:z.number().nonnegative(),
-  available_modules:z.array(z.string())
+  available_modules:z.array(z.string().trim().nonempty())
 })
 
 export type GetClassesResType = z.infer<typeof GetClassesResSchema>
 
 export const PostClassesReqSchema=z.object({
-  class_name:z.string().nonempty({message:"Required"}),
+  class_name:z.string().trim().nonempty({message:"Required"}),
   teacher_ids:z.array(z.string().email().trim().nonempty()),
   capacity:z.number().min(1,{message:"Capacity must greater than 0"}),
-  available_modules:z.array(z.string())
+  available_modules:z.array(z.string().trim().nonempty())
+})
+
+export const BatchGetClassesReqSchema = z.object({
+  class_id:z.string().nonempty().or(z.array(z.string().nonempty())).transform(input=>Array.isArray(input)?input:[input])
 })
 
 export const BatchGetClassesResSchema = z.array(GetClassesResSchema)
@@ -146,10 +169,10 @@ export const PostClassesResSchema = GetClassesResSchema
 export type PostClassesResType = z.infer<typeof PostClassesResSchema>
 
 export const PutClassesReqSchema=z.object({
-  class_id:z.string().nonempty({message:"Required"}),
+  class_id:z.string().trim().nonempty({message:"Required"}),
   class_name:z.string().nonempty().optional(),
   capacity:z.number().min(1,{message:"Capacity must greater than 0"}).optional(),
-  available_modules:z.array(z.string()).optional(),
+  available_modules:z.array(z.string().trim().nonempty()).optional(),
 })
 
 
@@ -157,3 +180,11 @@ export const PutClassesReqSchema=z.object({
 export type  PutClassesReqType = z.infer<typeof  PutClassesReqSchema>
 
 export const PutClassesResSchema = GetClassesResSchema
+
+export const DeleteClassesReqSchema= z.object({
+  class_id:z.string().trim().nonempty()
+})
+
+export const PostInvitationReqSchema = z.object({
+  email:emailSchema
+})

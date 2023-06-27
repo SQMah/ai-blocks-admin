@@ -82,6 +82,7 @@ This is an admin panel for managing user and class information using Auth0 authe
         <li>refresh token
         </ol>
     - P.S. Remember to add the sender emial as test user in OAuth consent screen
+    - Touble shooting: when encountering unauthorized client, try aauthorize the api again in playground with client id and secret. If problem still exists, rebuild credential in console.
 ### Application setting
 - Create a `.env.local` file in the current directory
     ```ini

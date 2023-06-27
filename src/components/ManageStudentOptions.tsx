@@ -55,7 +55,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
         }else{
             //can remove capacity and class id validation if needed
             try {
-              const {data} = await axios.get('/api/classes/'+id)
+              const {data} = await axios.get('/api/v1/classes/'+id)
               const target = GetClassesResSchema.parse(data)
               if(target.student_ids.length>=target.capacity){
                 setMessage("Class is full.")
@@ -86,7 +86,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
                   }
                 }
                 setClassId('')
-                const response = await  axios.put("/api/users",payload)
+                const response = await  axios.put("/api/v1/users",payload)
                 toast({
                   title:"Updated"
                 })
@@ -188,7 +188,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             available_modules:availableModules,
           }
         }
-        const response =await  axios.put("/api/users",paylaod)
+        const response =await  axios.put("/api/v1/users",paylaod)
         toast({
           title:"Updated"
         })
@@ -218,7 +218,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
         }
         try {
           //class id and capacity validation can be handled by api
-          const {data} = await axios.get('/api/classes/'+id)
+          const {data} = await axios.get('/api/v1/classes/'+id)
           const target = GetClassesResSchema.parse(data)
               if(target.student_ids.length>=target.capacity){
                 setMessage("Class is full.")
@@ -248,7 +248,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
           }
           setNewClassId('')
           //both class and user data will be upated by api
-          const response =await  axios.put("/api/users",payload)
+          const response =await  axios.put("/api/v1/users",payload)
           toast({
             title:"Updated"
           })

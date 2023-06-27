@@ -6,6 +6,7 @@ import {
 
 import { APIError, adminCheck, serverErrorHandler } from "@/lib/api_utils";
 import { z } from "zod";
+import { GetUsersReqSchema } from "@/models/api_schemas";
 
 
 const handleGet = async (
@@ -14,13 +15,13 @@ const handleGet = async (
 ) => {
   try {
     // console.log(req.query)
-    const  { email} = req.query;
-    const parsing = z.string().email().safeParse(email)
+    // const  { email} = req.query;
+    const parsing = GetUsersReqSchema.safeParse(req.query)
     if(!parsing.success){
         throw new APIError("Invalid Request Params","Please provide one and only one email.")
     }
     const token = await getAccessToken()
-    const user =  await getUserByEmail(token,parsing.data)
+    const user =  await getUserByEmail(token,parsing.data.email)
     res.status(200).json(user);
     return;
   } catch (error: any) {

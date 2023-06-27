@@ -63,7 +63,7 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
     try {
       // console.log(values);
       const response = await axios.get(
-        `/api/users/${values.userId}`
+        `/api/v1/users/${values.userId}`
       );
       const data = GetUserResSchema.parse(response.data)
       setUser(data);
@@ -185,7 +185,7 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
       }
       setIsLoading(true)
       try {
-        const {data} = await axios.get('/api/classes?'+classIds.map(id=>`class_id=${id}`).join('&'))
+        const {data} = await axios.get('/api/v1/classes?'+classIds.map(id=>`class_id=${id}`).join('&'))
         const present = BatchGetClassesResSchema.parse(data).map(entry=>entry.class_id)
         const missing = classIds.filter(id=>!present.includes(id))
         if(missing.length){
@@ -222,7 +222,7 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
           }
         }
         //class data will also be updated by this api
-        const response =await  axios.put("/api/users",payload)
+        const response =await  axios.put("/api/v1/users",payload)
         toast({
           title:"Updated",
         })
@@ -346,7 +346,7 @@ const ManageUser: FC = () => {
     try {
       // console.log(values);
       const response = await axios.get(
-        `/api/users/${email}`
+        `/api/v1/users/${email}`
       );
       const data = GetUserResSchema.parse(response.data);
       setUser(data);

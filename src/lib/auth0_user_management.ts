@@ -237,6 +237,7 @@ interface SerachQuery {
 export const searchUser = async (access_token:string,query:SerachQuery,type:"AND"|"OR"="OR"):Promise<RoledUserArrayType>=>{
   // console.log(query,type)
   const {email,enrolled_class_id,teaching_class_ids} = query
+  // console.log(query)
   const seperator = `%20${type}%20`
   const queryStrs = [
     email&&email.map(input=>`email:${input}`),

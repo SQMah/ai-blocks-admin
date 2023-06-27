@@ -45,7 +45,7 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
             }
             // console.log(paylaod)
             //update user data and class data by single api call
-            const response =await  axios.put("/api/users",paylaod)
+            const response =await  axios.put("/api/v1/users",paylaod)
             await reload()
         } catch (error:any) {
           const handler = new clientErrorHandler(error)

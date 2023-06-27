@@ -82,7 +82,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
     try {
       // console.log(values);
       const response = await axios.get(
-        `/api/users/${values.userId}`
+        `/api/v1/users/${values.userId}`
       );
       const data = GetUserResSchema.parse(response.data);
       if (!data.roles.includes("teacher")) {
@@ -93,7 +93,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
       setTeacher(data);
       const teachingIds = data.user_metadata?.teaching_class_ids?.filter(id=>id.length)
       if(teachingIds?.length){
-        const {data:classes} = await axios.get('/api/classes?'+teachingIds.map(id=>`class_id=${id}`).join("&"))
+        const {data:classes} = await axios.get('/api/v1/classes?'+teachingIds.map(id=>`class_id=${id}`).join("&"))
         setTeaching(BatchGetClassesResSchema.parse(classes))
       }
     } catch (error: any) {
@@ -119,7 +119,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
     if(isLoading) return
     setIsLoading(true)
     try {
-      const response = await axios.get(`/api/classes/${selectedId}`)
+      const response = await axios.get(`/api/v1/classes/${selectedId}`)
       const data = GetClassesResSchema.parse(response.data)
       await handleChangeClass(data)
     } catch (error:any) {
@@ -229,8 +229,8 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
         if(isLoading) return
         setIsLoading(true)
         try {
-          // console.log("/api/classes?class_id="+class_id)
-          const {data} = await axios.get("/api/classes/"+input)
+          // console.log("/api/v1/classes?class_id="+class_id)
+          const {data} = await axios.get("/api/v1/classes/"+input)
           if(!data){
             setMessage("Invalid class ID")
             await handleChangeClass(undefined)
@@ -321,7 +321,7 @@ const UpdateCapacity:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,
         class_id:data.class_id,
         capacity:Number(values.capacity)
       }
-      const response = await axios.put('/api/classes',payload)
+      const response = await axios.put('/api/v1/classes',payload)
       toast({
         title:"Updated"
       })
@@ -419,7 +419,7 @@ const UpdateName:FC<NameProps> =({isLoading,setIsLoading,handleChangeClass,data}
         class_id:data.class_id,
         class_name:values.class_name.trim()
       }
-      const response = await axios.put('/api/classes',payload)
+      const response = await axios.put('/api/v1/classes',payload)
       toast({
         title:"Updated"
       })
@@ -517,7 +517,7 @@ const ManageClass: FC = () => {
         setIsLoading(false);
         return
       }
-      let url = `/api/users?type=OR`
+      let url = `/api/v1/users?type=OR`
       for(const email of emails){
         url+=`&email=${email}`
       }
@@ -563,7 +563,7 @@ const ManageClass: FC = () => {
             available_modules:availableModules
         }
         // console.log(payload)
-        const response = await axios.put("/api/classes",payload)
+        const response = await axios.put("/api/v1/classes",payload)
         toast({
           title:"Updated"
         })

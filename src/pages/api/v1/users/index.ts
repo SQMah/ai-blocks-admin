@@ -12,11 +12,12 @@ import {
   assignRole,
 } from "@/lib/auth0_user_management";
 
-import { PostUsersReqSchema, PutUsersReqSchema } from "@/models/api_schemas";
-import { delay ,removeDuplicates, zodErrorMessage} from "@/lib/utils";
+import { DeleteUsersReqSchema, PostUsersReqSchema, PutUsersReqSchema, SearchUsersReqSchema, emailSchema } from "@/models/api_schemas";
+import { delay , zodErrorMessage} from "@/lib/utils";
 import { APIError, adminCheck, serverErrorHandler } from "@/lib/api_utils";
 import { classUpdatable,  updateClass } from "@/lib/class_management";
 import {  RoledUserType } from "@/models/auth0_schemas";
+
 
 
 const handleGet = async (
@@ -25,27 +26,17 @@ const handleGet = async (
 ) => {
   try {
     // console.log(req.query)
-    let  { email,enrolled_class_id,teaching_class_ids,type} = req.query;
-    if([email,enrolled_class_id,teaching_class_ids].every(query=>!query)){
-      throw new APIError("Invalid Request Params","Please provide at least one search query.")
+    //validate and turn all string to string[]
+    const parsing = SearchUsersReqSchema.safeParse(req.query)
+    if(!parsing.success){
+      throw new APIError("Invalid Request Params",zodErrorMessage(parsing.error.issues))
     }
-    const inputs = [email,enrolled_class_id,teaching_class_ids]
-    .map(input=>{
-      if(input===undefined) return undefined
-      if(!Array.isArray(input)) return [input]
-      return removeDuplicates(input)
-    })
-    const emailParsing = z.array(z.string().email()).optional().safeParse(inputs[0])
-    if(!emailParsing.success){
-      throw new APIError("Invalid Request Params",zodErrorMessage(emailParsing.error.issues))
+    const query = {
+      email:parsing.data.email,
+      teaching_class_ids:parsing.data.teaching_class_ids,
+      enrolled_class_id:parsing.data.enrolled_class_id
     }
-    const  query = {
-      email:emailParsing.data,
-      enrolled_class_id:inputs[1],
-      teaching_class_ids:inputs[2],
-    }
-    const searchType = type==="AND"||type==="OR"?type:undefined
-    // console.log(query,searchType)
+    const searchType = parsing.data.type
     const token = await getAccessToken();
     const users = await searchUser(token, query,searchType);
     // console.log(users)
@@ -238,11 +229,11 @@ const handleDelete = async (
   res: NextApiResponse
 ) => {
   try {
-    let { userId } = req.query;
-    if (userId == undefined||Array.isArray(userId)) {
+    const parsing = DeleteUsersReqSchema.safeParse(req.query)
+    if (!parsing.success) {
       throw new APIError("Invalid Request Params","Please provide one and only one non-empty userId")
     }
-    userId = userId.trim() 
+    const {userId} = parsing.data
     const token = await getAccessToken();
     const user = await getUserByID(token,userId)
     //update the classes,check for validity for class IDs

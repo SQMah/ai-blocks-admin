@@ -56,7 +56,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       if(role==="teacher"&&teaching.length){
         try {
           //class id valiadation will also be done in api
-          const {data} = await axios.get('/api/classes?'+teaching.map(id=>`class_id=${id}`).join('&'))
+          const {data} = await axios.get('/api/v1/classes?'+teaching.map(id=>`class_id=${id}`).join('&'))
           const present = BatchGetClassesResSchema.parse(data).map(entry=>entry.class_id)
           const missing = teaching.filter(id=>!present.includes(id))
           if(missing.length){
@@ -80,7 +80,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       if(enrolled&&role==="managedStudent"){
         try {
           //class id will also be done on api
-          const {data:classData}=await axios.get('/api/classes/'+enrolled)
+          const {data:classData}=await axios.get('/api/v1/classes/'+enrolled)
           const target = GetClassesResSchema.parse(classData)
           //capacity check will also be done on api
           if(target.student_ids.length>=target.capacity){
@@ -117,7 +117,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       };      
       // console.log(userData)
       //class update will be handled by api
-      const response = await axios.post("/api/users", userData);
+      const response = await axios.post("/api/v1/users", userData);
       const data = PostUsersResSchema.parse(response.data)
       form.reset()
       toast({

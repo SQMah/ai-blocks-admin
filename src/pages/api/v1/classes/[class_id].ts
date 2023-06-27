@@ -6,15 +6,18 @@ import { APIError, adminCheck,serverErrorHandler } from "@/lib/api_utils";
 import { dbToJSON } from "@/lib/api_utils";
 import { assignRole, deleteRole, getAccessToken, searchUser, updateUser } from "@/lib/auth0_user_management";
 import { delay } from "@/lib/utils";
+import { DeleteClassesReqSchema, GetClassesReqSchema } from "@/models/api_schemas";
 
 
 //get class by class_id
 const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
     try {
-        const {class_id} = req.query
-        if(!class_id||Array.isArray(class_id)){
-          throw new APIError("Invalid Request Params","Please provide one and only one class ID")
+        const parsing = GetClassesReqSchema.safeParse(req.query)
+        if(!parsing.success){
+          throw new APIError("Invalid Request Params","Please provide one and only one class ID.")
         }
+        const {class_id} = parsing.data
+        console.log(class_id,typeof class_id,class_id.length)
         const data = await getClass(class_id)
         // console.log(data)
         res.status(200).json(dbToJSON(data))
@@ -27,10 +30,11 @@ const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
 
 const handleDelete =async (req: NextApiRequest,res: NextApiResponse) => {
   try {
-      const {class_id} = req.query
-      if(!class_id||Array.isArray(class_id)){
+      const parsing =  DeleteClassesReqSchema.safeParse(req.query)
+      if(!parsing.success){
         throw new APIError("Invalid Request Params","Please provide one and only one class ID.")
       }
+      const {class_id} = parsing.data
       const target = await getClass(class_id)
       const emails = []
       for(const email in target.student_ids??[]) emails.push(email)

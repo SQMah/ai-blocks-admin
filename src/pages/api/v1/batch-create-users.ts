@@ -16,7 +16,8 @@ const handlePost = async (req:NextApiRequest,res:NextApiResponse) =>{
         const emails = payload.users.map(user=>user.email)
         if(!emails.length) throw new APIError("Invalid Request Body","Empty users array.")
         //check for class validity,will throw error if invalid
-        if(payload.role==="teacher"&&payload.teaching_class_ids){
+        // console.log(payload)
+        if(payload.role==="teacher"&&payload.teaching_class_ids?.length){
             for(const class_id of payload.teaching_class_ids){
                 await classUpdatable({
                     class_id,
@@ -52,6 +53,7 @@ const handlePost = async (req:NextApiRequest,res:NextApiResponse) =>{
                 response.created.push(data)
             } catch (error:any) {
                 const reason = error.message??"Unknown error"
+                console.log(reason + `, ${user.email}`)
                 response.failed.push({...user,reason})
                 await delay(500)
             }
@@ -59,7 +61,7 @@ const handlePost = async (req:NextApiRequest,res:NextApiResponse) =>{
         //update classes, validity is checked before
         const createdEmails = response.created.map(user=>user.email)
         if(createdEmails.length){
-            if(payload.role==="teacher"&&payload.teaching_class_ids){
+            if(payload.role==="teacher"&&payload.teaching_class_ids?.length){
                 for(const class_id of payload.teaching_class_ids){
                     await updateClass({
                         class_id,

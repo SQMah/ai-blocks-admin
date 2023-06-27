@@ -4,7 +4,7 @@ import { v1 as uuidv1 } from 'uuid';
 
 import { scanClass, createClass , updateClass, classUpdatable} from "@/lib/class_management";
 
-import {  PostClassesReqSchema,PutClassesReqSchema } from "@/models/api_schemas";
+import {  BatchGetClassesReqSchema, PostClassesReqSchema,PutClassesReqSchema } from "@/models/api_schemas";
 import {  removeDuplicates ,delay, zodErrorMessage} from "@/lib/utils";
 
 import { adminCheck ,APIError,serverErrorHandler,dbToJSON} from "@/lib/api_utils";
@@ -16,12 +16,11 @@ import { getAccessToken, searchUser, updateUser } from "@/lib/auth0_user_managem
 
 const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
   try {
-      const {class_id} = req.query
-      // console.log(class_id)
-      if(!class_id){
-        throw new APIError("Invalid Request Params","Please provide a class_id")
+      const parsing = BatchGetClassesReqSchema.safeParse(req.query)
+      if(!parsing.success){
+        throw new APIError("Invalid Request Params","Please provide some class_id")
       }
-      const classIDs = Array.isArray(class_id)?class_id:[class_id]
+      const classIDs = parsing.data.class_id
       const data = await scanClass(classIDs)
       // console.log(data)
       res.status(200).json(data.map(entry=>dbToJSON(entry)))

@@ -1,7 +1,6 @@
 import nodemailer from 'nodemailer';
 import {google} from "googleapis"
 import { htmlContent,textContent } from './email_template';
-import { APIError } from './api_utils';
 
 const sender_mail = process.env.SENDER_MAIL
 if(!sender_mail) throw new Error("Mail address of sender is not set")
@@ -22,7 +21,7 @@ export const sendMail = async (subject:string,sender_name:string,
     // console.log("creating connection")
     try {
         const accessToken = await oAuth2Client.getAccessToken();
-        // console.log(accessToken)
+        // console.log("token gain")
         const transporter = nodemailer.createTransport({
             // @ts-expect-error nodemailer
             service: 'gmail',
@@ -53,8 +52,9 @@ export const sendMail = async (subject:string,sender_name:string,
             },]
           });
         
-    } catch (error) {
-        throw new Error("Mailing Service Connection Failure")
+    } catch (error:any) {
+        console.error(error)
+        throw new Error(error.message??"Mailing Service Connection Failure")
     }
 }
 

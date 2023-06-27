@@ -63,7 +63,7 @@ export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,
           account_expiration_date: values.account_expiration_date,
         }
       };
-      const response =await  axios.put("/api/users",payload)
+      const response =await  axios.put("/api/v1/users",payload)
       toast({
         title:"Updated"
       })
@@ -165,7 +165,7 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
             account_expiration_date: values.account_expiration_date,
           }
         };
-        const response =await  axios.put("/api/users",payload)
+        const response =await  axios.put("/api/v1/users",payload)
         await delay(500)
         success+=1
       } catch (error: any) {

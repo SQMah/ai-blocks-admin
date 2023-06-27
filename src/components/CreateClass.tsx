@@ -67,7 +67,7 @@ const CreateClass:FC= ()=>{
             let {class_name,teacherIds,capacity} = values
             const emails = teacherIds.split(",").filter(id=>id.length).map(id=>id.trim())
             //can remove the logic of valdiating teachers if needed
-            const {data:users} = await axios.get("/api/users?"+[...emails.map(email=>`email=${email}`),"type=OR"].join("&"))
+            const {data:users} = await axios.get("/api/v1/users?"+[...emails.map(email=>`email=${email}`),"type=OR"].join("&"))
             const teachers = SearchUsersResSchema.parse(users).filter(user=>user.roles.includes("teacher"))
             const teachersEmails = teachers.map(teacher=>teacher.email)
             const missing = emails.filter(email=>!teachersEmails.includes(email))
@@ -87,7 +87,7 @@ const CreateClass:FC= ()=>{
                 available_modules:availableModules||[]
             }
             // console.log(payload)
-            const response = await axios.post("/api/classes",payload)
+            const response = await axios.post("/api/v1/classes",payload)
             // console.log(response.data)
             const created = PostClassesResSchema.parse(response.data)
             toast({

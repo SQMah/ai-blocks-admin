@@ -38,7 +38,7 @@ const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading
     const handleDelete =async () => {
         setIsLoading(true)
         try {
-            const delRes = await  axios.delete("/api/classes/"+classId)
+            const delRes = await  axios.delete("/api/v1/classes/"+classId)
             toast({
                 title:"Deleted"
             })
