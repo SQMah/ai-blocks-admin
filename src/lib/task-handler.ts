@@ -6,14 +6,16 @@ import {
 } from "@/models/auth0_schemas";
 import { APIError, ERROR_STATUS_TEXT, ServerErrorHandler } from "./api_utils";
 import {
+  SerachQuery,
   assignRole,
   createUser,
   deleteUser,
   getAccessToken,
   getUserByEmail,
+  searchUser,
   sendInvitation,
 } from "./auth0_user_management";
-import { scanClass, updateClass } from "./class_management";
+import { getClass, scanClass, updateClass } from "./class_management";
 import {
   ClassType,
   classArraySchema,
@@ -71,48 +73,62 @@ class TaskHandler {
   private revert_stack: Procedure<Action>[] = [];
   private error_status_text: ERROR_STATUS_TEXT | undefined; //!undefined -> error occurs -> stop process and revert changes
   private error_messages: string[] = [];
-  public readonly logic = {
-    user:{
-      createSingleUser: (payload: PostUsersReqType) => {
-        const classPaylaods = this.classUpdatePaylaodsFromCreateUser(payload);
-        this.addCheckClassUpdatable(classPaylaods);
-        this.addCreateUser(payload);
-        classPaylaods.forEach((data) => this.addUpdateClass(data));
-        this.addSendInvitationByEmail(payload.email)
-      },
-      batchCreateUsers:(payload:BatchCreateUserReqType)=>{
-        const {users,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
-        const classPaylaods = this.classUpdatePayloadsFromBatchCreate(payload)
-        this.addCheckClassUpdatable(classPaylaods);
-        users.forEach(user=>{
-          this.addCreateUser({
-            ...user,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date
-          })
-        })
-        classPaylaods.forEach(data=>this.addUpdateClass(data))
-        users.forEach(user=>{
-          this.addSendInvitationByEmail(user.email)
-        })
-      },
-      getUserByEmail:(email:string)=>{
-        this.addFindUserByEmail(email)
-      }
-    },
-    class:{
-
-    },
-    email:{}
-  };
-
+  
   /**
    * email -> user data
-   */
-  private users = new Map<string, RoledUserType>();
-  /**
-   * class_id -> class data
-   */
-  private classes = new Map<string, ClassType>();
+  */
+ private users = new Map<string, RoledUserType>();
+ /**
+  * class_id -> class data
+ */
+private classes = new Map<string, ClassType>();
 
+//logic to call directly
+public readonly logic = {
+  user:{
+    createSingleUser: (payload: PostUsersReqType) => {
+      const classPaylaods = this.classUpdatePaylaodsFromCreateUser(payload);
+      this.addCheckClassUpdatable(classPaylaods);
+      this.addCreateUser(payload);
+      classPaylaods.forEach((data) => this.addUpdateClass(data));
+      this.addSendInvitationByEmail(payload.email)
+    },
+    batchCreateUsers:(payload:BatchCreateUserReqType)=>{
+      const {users,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
+      const classPaylaods = this.classUpdatePayloadsFromBatchCreate(payload)
+      this.addCheckClassUpdatable(classPaylaods);
+      users.forEach(user=>{
+        this.addCreateUser({
+          ...user,role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date
+        })
+      })
+      classPaylaods.forEach(data=>this.addUpdateClass(data))
+      users.forEach(user=>{
+        this.addSendInvitationByEmail(user.email)
+      })
+    },
+    getUserByEmail:(email:string)=>{
+      this.addFindUserByEmail(email)
+    },
+    serachUsers:(query:SerachQuery)=>{
+      this.addSearchUsers(query)
+    }
+  },
+  class:{
+    getSingleClass:(class_id:string)=>{
+      this.addGetClass(class_id)
+    },
+    batchGetClass:(class_ids:string[])=>{
+      this.addBatchGetClasses(class_ids)
+    }
+  },
+  email:{
+    resendInvitation:(email:string)=>{
+      this.addFindUserByEmail(email)
+      this.addSendInvitationByEmail(email)
+    }
+  }
+};
   //handler error when over try limit
   private handleError = (error: any) => {
     const handler = new ServerErrorHandler(error);
@@ -129,7 +145,8 @@ class TaskHandler {
     stoppingStatus: ERROR_STATUS_TEXT | undefined = undefined,
     tried: number = 1
   ): Promise<Proccessed<T>> {
-    const { action, payload } = procedure;
+    const { action, payload,name } = procedure;
+    console.log(`Procesing ${name}`)
     if (tried > TRY_LIMIT)
       throw new APIError("Internal Server Error", "Try Limit Exceeded");
     try {
@@ -205,6 +222,12 @@ class TaskHandler {
   //handle data
   private handleUserData(user: RoledUserType) {
     this.users.set(user.email, user);
+  }
+
+  private handleUsersData(users:RoledUserType[]){
+    users.forEach(user=>{
+      this.users.set(user.email,user)
+    })
   }
 
   private handleClassData(data: ClassType) {
@@ -446,9 +469,87 @@ class TaskHandler {
         payload:[token,email]
       }
       //process
-      const user = await this.process(procedure,"Not Found")
+      const user = await this.process(procedure,'Resource Not Found')
       //handle data
       this.handleUserData(user)
+      //no revert
+    }
+    this.task_queue.push(task)
+  }
+  /**
+   * Prerequisite: none
+   *
+   * Checking: have auth0 token 
+   *
+   * Task to be added : search users
+   *
+   * Procedure pushed to Revert Stack: none
+   * @param query search query 
+   */
+  private addSearchUsers(query:SerachQuery){
+    this.require_token = true
+    const task:Task =async()=>{
+      const token = this.haveAuth0Token()
+      const procedure:Procedure<typeof searchUser>={
+        name:"Search Users",
+        action:searchUser,
+        payload:[token,query]
+      }
+      //process
+      const users = await this.process(procedure)
+      //handle data
+      this.handleUsersData(users)
+      //no revert
+    }
+    this.task_queue.push(task)
+  }
+
+  /**
+   * Prerequisite:  none
+   *
+   * Checking: none
+   *
+   * Task to be added : update class data
+   *
+   * Procedure pushed to Revert Stack: none
+   * @param class_id class id to search
+   */
+  private addGetClass(class_id:string){
+    const task:Task = async ()=>{
+     const procedure:Procedure<typeof getClass>={
+      name:`Get class data, ID: ${class_id}`,
+      action:getClass,
+      payload:[class_id]
+     }
+     //process
+     const data =  await this.process(procedure)
+     //handle data
+     this.handleClassData(data)
+     //no revert
+    }
+    this.task_queue.push(task)
+  }
+  /**
+   * Prerequisite:  none
+   *
+   * Checking: none
+   *
+   * Task to be added : batch get class data
+   * 
+   * Procedure pushed to Revert Stack: none
+   * @param class_ids class IDs to get
+   */
+  private addBatchGetClasses(class_ids:string[]){
+    const task:Task = async()=>{
+      const procedure:Procedure<typeof scanClass> ={
+        name:"Batch Get Class",
+        action:scanClass,
+        payload:[class_ids]
+      }
+      //process
+      const data = await this.process(procedure)
+      //handle data
+      this.handleClassesData(data)
       //no revert
     }
     this.task_queue.push(task)
@@ -588,7 +689,7 @@ class TaskHandler {
       );
     }
 
-    //get token first before continue to prcess tasks
+    //get token first before continue to process tasks
     if (this.require_token && !this.auth0_token) {
       const procedure: Procedure<typeof getAccessToken> = {
         name: "Get Auth0 Access Token",

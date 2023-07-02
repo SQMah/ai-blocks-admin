@@ -229,18 +229,19 @@ export const sendInvitation = async(access_token:string,receiver_name:string
   
 }
 
-interface SerachQuery {
+export interface SerachQuery {
     email?:string[]
     enrolled_class_id?:string[]
-    teaching_class_ids?:string[]
+    teaching_class_ids?:string[],
+    type?:"AND"|"OR"
 }
 
 
-export const searchUser = async (access_token:string,query:SerachQuery,type:"AND"|"OR"="OR"):Promise<RoledUserArrayType>=>{
+export const searchUser = async (access_token:string,query:SerachQuery):Promise<RoledUserArrayType>=>{
   // console.log(query,type)
-  const {email,enrolled_class_id,teaching_class_ids} = query
+  const {email,enrolled_class_id,teaching_class_ids,type} = query
   // console.log(query)
-  const seperator = `%20${type}%20`
+  const seperator = `%20${type??"OR"}%20`
   const queryStrs = [
     email&&email.map(input=>`email:${input}`),
     enrolled_class_id&&enrolled_class_id.map(input=>`user_metadata.enrolled_class_id:${input}`),
