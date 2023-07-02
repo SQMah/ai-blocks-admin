@@ -3,7 +3,7 @@
 This is an admin panel for managing user and class information using Auth0 authentication and DynamoDB for class databse.
 
 
-##TODO
+## TODO
 
 - [ ] complete task handler
     - [x] search users
