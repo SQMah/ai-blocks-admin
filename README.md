@@ -6,6 +6,8 @@ This is an admin panel for managing user and class information using Auth0 authe
 ## TODO
 
 - [ ] complete task handler
+    - [ ] create user
+    - [ ] batch create users
     - [x] search users
     - [ ] update users by email
     - [ ] delete user by email
