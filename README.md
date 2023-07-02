@@ -2,6 +2,23 @@
 
 This is an admin panel for managing user and class information using Auth0 authentication and DynamoDB for class databse.
 
+
+##TODO
+
+- [ ] complete task handler
+    - [ ] search users
+    - [ ] update users by email
+    - [ ] delete user by email
+    - [ ] create class
+    - [ ] get class by id
+    - [ ] batch get class by ids
+    - [ ] update class by id (maybe almost done)
+    - [ ] delete class by id
+    - [ ] send invitation by email
+- [ ] change api schemas (use email as user index)
+- [ ] implement actual api using task handler
+- [ ] check front end
+
 ## Features
 - Create classes 
     - create class with inputed teachers, capacity and modules

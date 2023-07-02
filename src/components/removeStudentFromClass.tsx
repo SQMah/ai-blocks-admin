@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { PutUsersReqType} from "@/models/api_schemas";
 import { useToast } from "./ui/use-toast";
-import { clientErrorHandler} from "@/lib/utils";
+import { ClientErrorHandler} from "@/lib/utils";
 
 interface props{
   student:RoledUserType,
@@ -48,7 +48,7 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
             const response =await  axios.put("/api/v1/users",paylaod)
             await reload()
         } catch (error:any) {
-          const handler = new clientErrorHandler(error)
+          const handler = new ClientErrorHandler(error)
           handler.log()
           toast({
             variant:"destructive",

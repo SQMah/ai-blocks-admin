@@ -39,7 +39,7 @@ import {
 import { useToast } from "./ui/use-toast";
 import { Label } from "./ui/label";
 
-import { cn, clientErrorHandler } from "@/lib/utils"
+import { cn, ClientErrorHandler } from "@/lib/utils"
 import { RoledUserArrayType, RoledUserType ,modulesReady} from "@/models/auth0_schemas";
 import ShowExpiration from "./ShowExpiration";
 import { UpdateAllExpiration } from "./UpdateExpiration";
@@ -100,7 +100,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
       if(error instanceof AxiosError && error.response?.status===404){
         form.setError("userId",{message:"Invalid teacher ID!"})
       }else{
-        const handler = new clientErrorHandler(error)
+        const handler = new ClientErrorHandler(error)
         handler.log()
         toast({
           variant:"destructive",
@@ -128,7 +128,7 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
         setTeaching(prev=>prev.filter(entry=>entry.class_id!==selectedId))
         await handleChangeClass(undefined)
       }else{
-        const handler = new clientErrorHandler(error)
+        const handler = new ClientErrorHandler(error)
         handler.log()
         toast({
           variant:"destructive",
@@ -242,7 +242,7 @@ const InputClassID:FC<Props> = ({ isLoading,setIsLoading,handleChangeClass})=>{
           if(error instanceof AxiosError&&error.response?.status===404){
             setMessage("Invalid class ID")
           }else{
-            const handler = new clientErrorHandler(error)
+            const handler = new ClientErrorHandler(error)
             handler.log()
             toast({
               title:"Search Error",
@@ -327,7 +327,7 @@ const UpdateCapacity:FC<CapacProps> =({isLoading,setIsLoading,handleChangeClass,
       })
       await handleChangeClass(PutClassesResSchema.parse(response.data))
     } catch (error:any) {
-      const handler = new clientErrorHandler(error)
+      const handler = new ClientErrorHandler(error)
       handler.log()
       toast({
         variant:"destructive",
@@ -425,7 +425,7 @@ const UpdateName:FC<NameProps> =({isLoading,setIsLoading,handleChangeClass,data}
       })
       await handleChangeClass(PutClassesResSchema.parse(response.data))
     } catch (error:any) {
-      const handler = new clientErrorHandler(error)
+      const handler = new ClientErrorHandler(error)
       handler.log()
       toast({
         variant:"destructive",
@@ -526,7 +526,7 @@ const ManageClass: FC = () => {
       // console.log(data)
       setUsers(data)
     } catch (error: any) {
-      const handler = new clientErrorHandler(error)
+      const handler = new ClientErrorHandler(error)
       handler.log()
       toast({
         variant:"destructive",
@@ -570,7 +570,7 @@ const ManageClass: FC = () => {
         const updated = PutClassesResSchema.parse(response.data)
         await handleChangeClass(updated)
     } catch (error:any) {
-      const handler = new clientErrorHandler(error)
+      const handler = new ClientErrorHandler(error)
       handler.log()
       toast({
         variant:"destructive",

@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { clientErrorHandler,  } from "@/lib/utils";
+import { ClientErrorHandler,  } from "@/lib/utils";
 
 interface props{
   user:RoledUserType,
@@ -41,7 +41,7 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
             })
             await reload()
         } catch (error:any) {
-          const handler = new clientErrorHandler(error)
+          const handler = new ClientErrorHandler(error)
           handler.log()
           toast({
             variant:"destructive",

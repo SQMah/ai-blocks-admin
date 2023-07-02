@@ -5,8 +5,7 @@ import {z} from "zod"
 
 import { roleMapping,UserMetadataType,UserCreationBodyType,
   AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArrayType,  RoleArrayType, UserSchema, 
-  UserType, UserSearchResponseArraySchema,
-   UserSearchResponseType, UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType} from '@/models/auth0_schemas';
+   UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType, RoledUserType, UserArrayScehma, UserType} from '@/models/auth0_schemas';
 import { PutUsersReqType, PostUsersReqType} from '@/models/api_schemas';
 
 import { removeDuplicates, zodErrorMessage } from './utils';
@@ -18,7 +17,7 @@ if(!auth0BaseUrl) throw new Error("AUTH 0 ISSUER IS NOT DEFINDED")
 
 
 
-export async function createUser(access_token:string,payload:PostUsersReqType){
+export async function createUser(access_token:string,payload:PostUsersReqType):Promise<RoledUserType>{
   const {role,first_name,last_name,email,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
   const roleId:string|undefined = roleMapping[role]?.id
   if(!roleId){
@@ -51,9 +50,10 @@ export async function createUser(access_token:string,payload:PostUsersReqType){
 
     const data = UserSchema.parse(response.data)
     const userId:string = data.user_id
-    await assignRole(access_token,userId,role)
+    //shd be an seperate call
+    //await assignRole(access_token,userId,role)
     console.log(`${payload.role} account for ${data.email} is creacted`)
-    return data;
+    return {...data,roles:[role]};
   } catch (error:any) {
     if(error instanceof APIError){
       throw error
@@ -121,6 +121,7 @@ export const assignRole = async (access_token:string,userId:string,role:UserRole
           Authorization: `Bearer ${access_token}`,
         },
       });
+      return role
     } catch (error:any) {
       if(error instanceof APIError){
         throw error
@@ -215,7 +216,8 @@ export const sendInvitation = async(access_token:string,receiver_name:string
       await sendMail(subject,formated_addr,receiver_name,reciever_mail,url,signing_name)
       console.log(`Invitation mail sent to ${reciever_mail}`)  
   } catch (error:any) {
-   if(error instanceof AxiosError){
+  if(error instanceof APIError) throw error
+   else if(error instanceof AxiosError){
       if(error.response){
         const statusCode = error.response.status;
         throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when generating password changing ticket, message: ${error.response.data?.message}`)
@@ -253,10 +255,10 @@ export const searchUser = async (access_token:string,query:SerachQuery,type:"AND
         Authorization: `Bearer ${access_token}`,
       },
     });
-    // console.log(response.data)
-    const data = UserSearchResponseArraySchema.parse(response.data)
-    // console.log(data)
-    let res = await Promise.all(data.map(async (user:UserSearchResponseType)=>{
+    console.log(response.data)
+    const data = UserArrayScehma.parse(response.data)
+    console.log(data)
+    const res = await Promise.all(data.map(async (user)=>{
       const roles = await checkRole(access_token,user.user_id)
       return {...user,roles}
     }))
@@ -303,7 +305,7 @@ export const getUserByEmail = async (access_token:string,email:string)=>{
     else if(error instanceof AxiosError){
       if(error.response){
         const statusCode = error.response.status;
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when get user, message: ${error.response.data?.message}`)
+        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when getting user, message: ${error.response.data?.message}`)
       }
       throw new APIError("Internal Server Error","Connection Error In Getting User")
     }
@@ -378,6 +380,7 @@ export const deleteUser = async (access_token:string,userId:string) =>{
     throw new APIError("Internal Server Error",`Fail to delete user, message:${error.message??"Unknown Error"}`)
   }
 }
+
 
 export const getUserByID =async (access_token:string,userId:string) => {
   try {

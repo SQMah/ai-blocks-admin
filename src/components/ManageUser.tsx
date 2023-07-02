@@ -36,7 +36,7 @@ import {ManagedStudentOption,UnmanagedStudentOption }from "./ManageStudentOption
 import {UpdateExpiration} from "./UpdateExpiration";
 import DeleteUser from "./DeleteUser";
 import ShowExpiration from "./ShowExpiration";
-import { delay, clientErrorHandler} from "@/lib/utils";
+import { delay, ClientErrorHandler} from "@/lib/utils";
 
 
 const formSchema = z.object({
@@ -71,7 +71,7 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
       if(error instanceof AxiosError&& error.response?.status===404){
         form.setError("userId",{message:"Invalid user ID!"})
       }else{
-        const handler = new clientErrorHandler(error)
+        const handler = new ClientErrorHandler(error)
         handler.log()
         toast({
           variant:"destructive",
@@ -195,7 +195,7 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
           return
         }
       } catch (error:any) {
-        const handler = new clientErrorHandler(error)
+        const handler = new ClientErrorHandler(error)
         handler.log()
         toast({
           variant:"destructive",
@@ -229,7 +229,7 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
         SetRemoved([])
         await  reload()
       } catch (error:any) {
-        const handler = new clientErrorHandler(error)
+        const handler = new ClientErrorHandler(error)
         handler.log()
         toast({
           variant:"destructive",
@@ -356,7 +356,7 @@ const ManageUser: FC = () => {
         //deleted user
         setUser(undefined)
       }else{
-        const handler = new clientErrorHandler(error)
+        const handler = new ClientErrorHandler(error)
         handler.log()
         toast({
           variant:"destructive",

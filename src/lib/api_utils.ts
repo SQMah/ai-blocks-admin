@@ -9,6 +9,7 @@ import { string, z } from "zod";
 import { AxiosError } from "axios";
 import { GetClassesResType } from "@/models/api_schemas";
 import { ClassType } from "@/models/dynamoDB_schemas";
+import { UserRoleType } from "@/models/auth0_schemas";
 
 
 const requireAdminCheck = stringToBoolean(process.env.REQUIRE_ADMIN)??true
@@ -29,7 +30,7 @@ export const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>):
       }
       return true
     } catch (error:any) {
-      const handler  = new serverErrorHandler(error)
+      const handler  = new ServerErrorHandler(error)
       handler.log()
       handler.sendResponse(req,res)
       return false
@@ -48,21 +49,33 @@ export const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>):
     "Conflict": 409,
     "Auth0 Error":500,
     "Dynamo DB Error":500,
+    "Implementation Error":500,
     "Internal Server Error": 500
 } as const;
 
   
   type API_ERROR_STATUS = typeof APIErrorStatus
 
-  type ERROR_STATUS = keyof API_ERROR_STATUS
+  export type ERROR_STATUS_TEXT = keyof API_ERROR_STATUS
 
-  type ERROR_STATUS_CODE  = API_ERROR_STATUS[ERROR_STATUS]
+  type ERROR_STATUS_CODE  = API_ERROR_STATUS[ERROR_STATUS_TEXT]
+
+  const APISccuessStatus ={
+    "OK":200,
+    "Created":201,
+    "No Conetent":204
+  } as const 
+
+  type API_SUCCESS_STATUS = typeof APISccuessStatus
+
+  export type SUCCESS_STATUS_TEXT = keyof API_SUCCESS_STATUS
+  export type SUCCESS_STATUS_CODE = API_SUCCESS_STATUS[SUCCESS_STATUS_TEXT]
 
   export class APIError extends Error{
     public readonly code:ERROR_STATUS_CODE
-    public readonly status:ERROR_STATUS
+    public readonly status:ERROR_STATUS_TEXT
     public readonly name:string
-    constructor(status:ERROR_STATUS,message:string|undefined = undefined){
+    constructor(status:ERROR_STATUS_TEXT,message:string|undefined = undefined){
       message = message?`${status}: ${message}`:status
       super(message)
       this.name = "APIError"
@@ -71,21 +84,26 @@ export const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>):
     }
   }
 
-  export class serverErrorHandler{
-    private message:string
+  export class ServerErrorHandler{
+    public readonly message:string
+    public readonly status_text:ERROR_STATUS_TEXT
     private status_code:number
     constructor(error:any){
       if(error instanceof APIError){
         this.status_code=error.code
+        this.status_text = error.status
         this.message = error.message
       }else if(error instanceof z.ZodError){
         this.status_code = 400
+        this.status_text = "Bad Request"
         this.message =  `Invalid Request Body/Params: ${zodErrorMessage(error.issues)}`
       }else if(error instanceof AxiosError){
         this.status_code = 500
+        this.status_text ="Internal Server Error"
         this.message = `Internal Connect Error: ${error.response?.data?.message??"Unknown"}`
       }else{
         this.status_code=500
+        this.status_text ="Internal Server Error"
         if(error instanceof Error) this.message =  `Internal Server Error: ${error.message??"Unknown"}`
         else this.message = "Internal Server Error"
       }

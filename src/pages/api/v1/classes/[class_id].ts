@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 import { getClass,deleteClass} from "@/lib/class_management";
 
-import { APIError, adminCheck,serverErrorHandler } from "@/lib/api_utils";
+import { APIError, adminCheck,ServerErrorHandler } from "@/lib/api_utils";
 import { dbToJSON } from "@/lib/api_utils";
 import { assignRole, deleteRole, getAccessToken, searchUser, updateUser } from "@/lib/auth0_user_management";
 import { delay } from "@/lib/utils";
@@ -22,7 +22,7 @@ const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
         // console.log(data)
         res.status(200).json(dbToJSON(data))
     } catch (error:any) {
-      const handler = new serverErrorHandler(error)
+      const handler = new ServerErrorHandler(error)
       handler.log()
       handler.sendResponse(req,res)
   }
@@ -86,7 +86,7 @@ const handleDelete =async (req: NextApiRequest,res: NextApiResponse) => {
       // console.log(data)
       res.status(204).end()
   } catch (error:any) {
-    const handler = new serverErrorHandler(error)
+    const handler = new ServerErrorHandler(error)
     handler.log()
     handler.sendResponse(req,res)
   }

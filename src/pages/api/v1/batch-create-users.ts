@@ -1,4 +1,4 @@
-import { APIError, serverErrorHandler,adminCheck } from "@/lib/api_utils";
+import { APIError, ServerErrorHandler,adminCheck } from "@/lib/api_utils";
 import { createUser, getAccessToken, sendInvitation } from "@/lib/auth0_user_management";
 import { classUpdatable, updateClass } from "@/lib/class_management";
 import { delay, zodErrorMessage } from "@/lib/utils";
@@ -42,6 +42,7 @@ const handlePost = async (req:NextApiRequest,res:NextApiResponse) =>{
         const {role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
         const info = {role,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} 
         //create users
+        const created = []
         for(const user of payload.users){
             try {
                 const data = await createUser(token,{
@@ -50,36 +51,51 @@ const handlePost = async (req:NextApiRequest,res:NextApiResponse) =>{
                 })
                 //at least delay half second
                 await Promise.all([sendInvitation(token,data.name,data.email),delay(500)])
-                response.created.push(data)
+                created.push(data)
             } catch (error:any) {
                 const reason = error.message??"Unknown error"
-                console.log(reason + `, ${user.email}`)
                 response.failed.push({...user,reason})
                 await delay(500)
             }
         }
         //update classes, validity is checked before
-        const createdEmails = response.created.map(user=>user.email)
-        if(createdEmails.length){
-            if(payload.role==="teacher"&&payload.teaching_class_ids?.length){
-                for(const class_id of payload.teaching_class_ids){
+        if(created.length){
+            try {
+                if(payload.role==="teacher"&&payload.teaching_class_ids?.length){
+                    const createdEmails = created.map(user=>user.email)
+                    for(const class_id of payload.teaching_class_ids){
+                        await updateClass({
+                            class_id,
+                            addTeachers:createdEmails
+                        })
+                        await delay(300)
+                    }
+                }else if(payload.role==="managedStudent"&&payload.enrolled_class_id){
+                    const createdEmails = created.map(user=>user.email)
                     await updateClass({
-                        class_id,
-                        addTeachers:createdEmails
+                        class_id:payload.enrolled_class_id,
+                        addStudents:createdEmails
                     })
-                    await delay(300)
                 }
-            }else if(payload.role==="managedStudent"&&payload.enrolled_class_id){
-                await updateClass({
-                    class_id:payload.enrolled_class_id,
-                    addStudents:createdEmails
-                })
+                response.created = created
+            } catch (error) {
+                const handler = new ServerErrorHandler(error)
+                for(const user of created){
+                    response.failed.push({
+                        email:user.email,
+                        first_name:user.given_name??user.name,
+                        last_name:user.family_name??user.name,
+                        reason:handler.message + " at class update."
+                    })
+                }
             }
         }
+        //logging failed users
+        response.failed.length>0&&console.error("Failed Creation: ",response.failed)
         response.message = `Success case(s): ${response.created.length}, failed case(s):${response.failed.length}`
         res.status(response.created.length>0?201:500).json(response)
     } catch (error) {
-        const handler = new serverErrorHandler(error)
+        const handler = new ServerErrorHandler(error)
         handler.log()
         handler.sendResponse(req,res)
     }

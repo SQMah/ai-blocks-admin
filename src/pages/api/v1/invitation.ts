@@ -5,7 +5,7 @@ import {
   sendInvitation,
 } from "@/lib/auth0_user_management";
 
-import { APIError, adminCheck, serverErrorHandler } from "@/lib/api_utils";
+import { APIError, adminCheck, ServerErrorHandler } from "@/lib/api_utils";
 import { PostInvitationReqSchema } from "@/models/api_schemas";
 
 
@@ -28,7 +28,7 @@ const handlePost = async (
     res.status(204).end()
     return;
   } catch (error: any) {
-    const handler = new serverErrorHandler(error)
+    const handler = new ServerErrorHandler(error)
     handler.log()
     handler.sendResponse(req,res)
   }

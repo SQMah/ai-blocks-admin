@@ -64,7 +64,7 @@ export function removeDuplicates<T>(arr:T[]){
 }
 
 
-export class clientErrorHandler {
+export class ClientErrorHandler {
   public readonly message:string
   constructor(error:any) {
     if(error instanceof z.ZodError){

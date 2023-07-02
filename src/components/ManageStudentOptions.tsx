@@ -21,7 +21,7 @@ import { GetClassesResSchema, PutUsersReqType } from "@/models/api_schemas";
 import { RoledUserType,modulesReady } from "@/models/auth0_schemas";
 
 import RemoveStudentFromClass from "./removeStudentFromClass";
-import { clientErrorHandler } from "@/lib/utils";
+import { ClientErrorHandler } from "@/lib/utils";
 
 
 interface ManagedStudentOptionProps{
@@ -66,7 +66,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
               if(error instanceof AxiosError && error.response?.status===404){
                 setMessage("Invalid class ID.")
               }else{
-                const handler = new clientErrorHandler(error)
+                const handler = new ClientErrorHandler(error)
                 handler.log()
                 toast({
                   variant:"destructive",
@@ -92,7 +92,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
                 })
                 await reload()
             } catch (error:any) {
-              const handler = new clientErrorHandler(error)
+              const handler = new ClientErrorHandler(error)
               handler.log()
               toast({
                 variant:"destructive",
@@ -194,7 +194,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
         })
         await reload()
       } catch (error:any) {
-          const handler = new clientErrorHandler(error)
+          const handler = new ClientErrorHandler(error)
           handler.log()
           toast({
             variant:"destructive",
@@ -229,7 +229,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
           if(error instanceof AxiosError && error.response?.status===404){
             setMessage("Invalid class ID.")
           }else{
-            const handler = new clientErrorHandler(error)
+            const handler = new ClientErrorHandler(error)
             toast({
               variant:"destructive",
               title:"Saecrh Class Error",
@@ -254,7 +254,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
           })
           await  reload()
         } catch (error:any) {
-          const handler = new clientErrorHandler(error)
+          const handler = new ClientErrorHandler(error)
           handler.log()
           toast({
             variant:"destructive",

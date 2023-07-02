@@ -1,6 +1,7 @@
 import {z}from "zod"
-import { RoledUserArraySchema, RoledUserArrayType, RoledUserSchema, UserMetadataSchema, UserRoleSchema, UserSchema } from "./auth0_schemas"
+import { RoledUserArraySchema, RoledUserSchema, UserMetadataSchema, UserRoleSchema, UserSchema } from "./auth0_schemas"
 import { validDateString,afterToday} from "@/lib/utils"
+import { classArraySchema } from "./dynamoDB_schemas"
 
 export const SetExpriationSchema = z.string().trim().nonempty({message:"Required"}).refine(str=>{
     if(str) return validDateString(str)
@@ -13,30 +14,6 @@ export const SetExpriationSchema = z.string().trim().nonempty({message:"Required
 },{message:"Expiration date is required to be set after today"})
 
 export const emailSchema = z.string().email()
-
-export const UserCreateFormSchema = z.object({
-  role: UserRoleSchema ,
-  email: z.string().trim().email({message:"Please provide a valid email"}),
-  first_name: z.string().trim().nonempty({message:"Required"}),
-  last_name: z.string().trim().nonempty({message:"Required"}),
-  enrolled_class_id: z.string().trim().nonempty().optional(),
-  teaching_class_ids_str:z.string().trim().nonempty().optional(),  
-  available_modules:z.array(z.string().trim().nonempty()).optional(),
-  account_expiration_date: SetExpriationSchema.or(z.literal("")).optional(),
-})
-.refine((input)=>{
-  if(input.role==="managedStudent"){
-    return input.enrolled_class_id?.length
-  }else return true
-},{path:["enrolled_class_id"],message:"Enrolled class ID is required for student account"}
-)
-.refine(input=>{
-  if(input.role!=="admin"){
-    return input.account_expiration_date?.length
-  }else return true
-},{path:["account_expiration_date"],message:`Expiration date is required`})
-
-export type UserCreateFormType = z.infer<typeof UserCreateFormSchema>
 
 export const UserCreateCSVSchema = z.object({
   email: z.string().trim().email({message:"Please provide a valid email"}),
@@ -88,7 +65,7 @@ export const PostUsersReqSchema = z.object({
 
 export type PostUsersReqType = z.infer<typeof PostUsersReqSchema>;
 
-export const PostUsersResSchema = UserSchema
+export const PostUsersResSchema = RoledUserSchema
 
 export type PostUsersResType = z.infer<typeof PostUsersResSchema>;
 
@@ -114,7 +91,7 @@ export const  BatchCreateUsersReqSchema = z.object({
 export type BatchCreateUserReqType = z.infer<typeof BatchCreateUsersReqSchema>
 
 export const BatchCreateUsersResSchema = z.object({
-  created: z.array(UserSchema),
+  created: z.array(RoledUserSchema),
   failed: z.array(UserCreateCSVSchema.extend({
     reason:z.string()
   })),
@@ -160,7 +137,7 @@ export const BatchGetClassesReqSchema = z.object({
   class_id:z.string().nonempty().or(z.array(z.string().nonempty())).transform(input=>Array.isArray(input)?input:[input])
 })
 
-export const BatchGetClassesResSchema = z.array(GetClassesResSchema)
+export const BatchGetClassesResSchema = classArraySchema
 export type BatchGetClassesType = z.infer<typeof BatchGetClassesResSchema>
 
 export type  PostClassesReqType = z.infer<typeof  PostClassesReqSchema>

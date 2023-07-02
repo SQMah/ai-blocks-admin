@@ -7,7 +7,7 @@ import { scanClass, createClass , updateClass, classUpdatable} from "@/lib/class
 import {  BatchGetClassesReqSchema, PostClassesReqSchema,PutClassesReqSchema } from "@/models/api_schemas";
 import {  removeDuplicates ,delay, zodErrorMessage} from "@/lib/utils";
 
-import { adminCheck ,APIError,serverErrorHandler,dbToJSON} from "@/lib/api_utils";
+import { adminCheck ,APIError,ServerErrorHandler,dbToJSON} from "@/lib/api_utils";
 import { getAccessToken, searchUser, updateUser } from "@/lib/auth0_user_management";
 
 
@@ -25,7 +25,7 @@ const handleGet =async (req: NextApiRequest,res: NextApiResponse) => {
       // console.log(data)
       res.status(200).json(data.map(entry=>dbToJSON(entry)))
   } catch (error:any) {
-    const handler = new serverErrorHandler(error)
+    const handler = new ServerErrorHandler(error)
     handler.log()
     handler.sendResponse(req,res)
   }
@@ -62,7 +62,7 @@ const handlePost = async (req: NextApiRequest,res: NextApiResponse) => {
         res.status(201).json(dbToJSON(data))
 
     } catch (error:any) {
-      const handler = new serverErrorHandler(error)
+      const handler = new ServerErrorHandler(error)
       handler.log()
       handler.sendResponse(req,res)
     }
@@ -81,7 +81,7 @@ const handlePut = async (req: NextApiRequest,res: NextApiResponse) => {
       const data = await updateClass(payload)
       res.status(200).json(dbToJSON(data))
   } catch (error:any) {
-    const handler = new serverErrorHandler(error)
+    const handler = new ServerErrorHandler(error)
     handler.log()
     handler.sendResponse(req,res)
   }

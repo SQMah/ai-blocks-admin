@@ -20,7 +20,7 @@ import {
 import { RoledUserArrayType } from "@/models/auth0_schemas";
 import { GetClassesResType } from "@/models/api_schemas";
 
-import { clientErrorHandler,} from "@/lib/utils";
+import { ClientErrorHandler,} from "@/lib/utils";
 
 interface Props{
     teachers:RoledUserArrayType;
@@ -44,7 +44,7 @@ const DeleteClass:FC<Props> = ({teachers,students,classId,isLoading,setIsLoading
             })
             await handleChangeClass(undefined)
         } catch (error:any) {
-          const handler = new clientErrorHandler(error)
+          const handler = new ClientErrorHandler(error)
           handler.log()
           toast({
             variant:"destructive",

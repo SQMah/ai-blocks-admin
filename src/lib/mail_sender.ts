@@ -18,7 +18,7 @@ oAuth2Client.setCredentials({refresh_token:refresh_token})
 
 export const sendMail = async (subject:string,sender_name:string,
     receiver_name:string,reciever_mail:string,url:string,signig_name:string) =>{
-    // console.log("creating connection")
+        // console.log("creating connection")
     try {
         const accessToken = await oAuth2Client.getAccessToken();
         // console.log("token gain")

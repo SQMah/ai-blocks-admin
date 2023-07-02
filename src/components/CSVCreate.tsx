@@ -29,7 +29,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios, { AxiosError } from "axios"; 
 
-import { getOrdinal, clientErrorHandler } from "@/lib/utils"
+import { getOrdinal, ClientErrorHandler } from "@/lib/utils"
 import { UserRoleSchema} from "@/models/auth0_schemas"
 import {  UserCreateCSVSchema, UserCreateCSVType,
   SetExpriationSchema, GetClassesResSchema,BatchGetClassesResSchema, BatchCreateUserReqType, BatchCreateUsersResSchema } from "@/models/api_schemas"
@@ -204,7 +204,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
               return
             }
           } catch (error:any) {
-            const handler = new  clientErrorHandler(error)
+            const handler = new  ClientErrorHandler(error)
             handler.log()
             toast({
               variant:"destructive",
@@ -231,7 +231,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
             if(error instanceof AxiosError&&error.response?.status===404){
               form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
             }else{
-              const handler = new  clientErrorHandler(error)
+              const handler = new  ClientErrorHandler(error)
               handler.log()
               toast({
                 variant:"destructive",
@@ -260,7 +260,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
           description: data.message,
         })
       } catch (error: any) {
-        const handler = new clientErrorHandler(error)
+        const handler = new ClientErrorHandler(error)
         handler.log()
         // console.log(error.response?.data)
         toast({

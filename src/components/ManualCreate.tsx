@@ -21,16 +21,42 @@ import { Input } from "./ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios, { AxiosError } from "axios";
+import {z} from "zod"
 
 import {  roleMapping} from "@/models/auth0_schemas";
-import {GetClassesResSchema, PostUsersResSchema, UserCreateFormSchema,UserCreateFormType
-  ,PostUsersReqType,BatchGetClassesResSchema } from "@/models/api_schemas";
-import {  clientErrorHandler} from "@/lib/utils";
+import {GetClassesResSchema, PostUsersResSchema,SetExpriationSchema,
+  PostUsersReqType,BatchGetClassesResSchema } from "@/models/api_schemas";
+import { UserRoleSchema } from "@/models/auth0_schemas";
+import {  ClientErrorHandler} from "@/lib/utils";
 
 interface ManualCreateProps{
   isLoading:boolean,
   setIsLoading:Dispatch<SetStateAction<boolean>>
 }
+
+const UserCreateFormSchema = z.object({
+  role: UserRoleSchema ,
+  email: z.string().trim().email({message:"Please provide a valid email"}),
+  first_name: z.string().trim().nonempty({message:"Required"}),
+  last_name: z.string().trim().nonempty({message:"Required"}),
+  enrolled_class_id: z.string().trim().optional(),
+  teaching_class_ids_str:z.string().trim().optional(),  
+  available_modules:z.array(z.string().trim().nonempty()).optional(),
+  account_expiration_date: SetExpriationSchema.or(z.literal("")).optional(),
+})
+.refine((input)=>{
+  if(input.role==="managedStudent"){
+    return input.enrolled_class_id?.length
+  }else return true
+},{path:["enrolled_class_id"],message:"Enrolled class ID is required for student account"}
+)
+.refine(input=>{
+  if(input.role!=="admin"){
+    return input.account_expiration_date?.length
+  }else return true
+},{path:["account_expiration_date"],message:`Expiration date is required`})
+
+type UserCreateFormType = z.infer<typeof UserCreateFormSchema>
 
 const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
   const { toast } = useToast()
@@ -66,7 +92,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
             return
           }
         } catch (error:any) {
-          const handler = new clientErrorHandler(error)
+          const handler = new ClientErrorHandler(error)
           handler.log()
           toast({
             title:"Search error",
@@ -93,7 +119,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
             form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
           }
           else{
-            const handler = new clientErrorHandler(error)
+            const handler = new ClientErrorHandler(error)
             handler.log()
             toast({
               variant:'destructive',
@@ -125,7 +151,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
       })
       // console.log(data.messages);
     } catch (error: any) {
-      const handler = new clientErrorHandler(error)
+      const handler = new ClientErrorHandler(error)
       handler.log()
       toast({
         variant:"destructive",
@@ -138,8 +164,10 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
 
   return (
     <>
+      {isLoading?1:0}
       <Form {...form}>
         <form
+          // onSubmit={form.handleSubmit(onSubmitManual)}
           onSubmit={form.handleSubmit(onSubmitManual)}
           className="space-y-8"
         >
@@ -279,6 +307,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
               />
             </>
           ) : null}
+          <Button>test</Button>
           <div className="flex justify-end">
           {form.watch("role")?<Button type="submit" disabled={isLoading}>{isLoading?"Loading...":"Submit"}</Button>:null}
           </div>

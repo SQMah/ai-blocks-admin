@@ -7,20 +7,16 @@ export const modulesReady:string[] = defaultModels.concat(["Module D","Module E"
 export const PossilbeRoles = ["admin","managedStudent","teacher","unmanagedStudent"] as const
 export const  UserRoleSchema = z.enum(PossilbeRoles)
 export type UserRoleType = z.infer<typeof UserRoleSchema>
+
 export const RoleArraySchema = z.array(UserRoleSchema)
-export const nonAdminRoles = PossilbeRoles.filter(role=>role!=="admin")
 
 
-export type RoleArrayType = z.infer<typeof RoleArraySchema>
+export type RoleArrayType = UserRoleType[]
 
-const RoleRecordSchema =z.record(UserRoleSchema,z.object({
-  name:z.string().trim().nonempty(),
-  id:z.string().trim().nonempty(),
-}))
-
-type RoleRecord =z.infer<typeof RoleRecordSchema>
-
-export const roleMapping: RoleRecord = {
+export const roleMapping:Record<UserRoleType,{
+  name:string
+  id:string
+}> = {
   admin: {
     name: "admin",
     id: "rol_dhBIdUmGdNR52dha",
@@ -37,7 +33,8 @@ export const roleMapping: RoleRecord = {
     name: "unmanaged student",
     id: "rol_JHWVsaPKEqqHno00",
   },
-};
+} as const;
+
 
 
 const IdentitySchema = z.object({
@@ -78,23 +75,12 @@ export const UserSchema = z.object({
 
 export type UserType = z.infer<typeof UserSchema>
 
-export const UserArrayScehma = z.array(UserSchema.nullable().optional())
+export const UserArrayScehma = z.array(UserSchema)
 export type UserArrayType = z.infer<typeof UserArrayScehma>
 
-export const UserSearchResponseSchema = z.object({
-  email:z.string(),
-  name:z.string(),
-  user_id: z.string(),
-  user_metadata: UserMetadataSchema.optional(),
-  app_metadata: AppmetadataSchema.optional(),
-}).passthrough()
 
-export type UserSearchResponseType = z.infer<typeof UserSearchResponseSchema>
 
-export const  UserSearchResponseArraySchema = z.array(UserSearchResponseSchema)
-export type UserSearchResponseArrayType =z.infer<typeof UserSearchResponseArraySchema>
-
-export const RoledUserSchema = UserSearchResponseSchema.extend({
+export const RoledUserSchema = UserSchema.extend({
   roles:RoleArraySchema ,
 });
 

@@ -10,11 +10,12 @@ import {
   getUserByID,
   deleteRole,
   assignRole,
+  checkRole,
 } from "@/lib/auth0_user_management";
 
 import { DeleteUsersReqSchema, PostUsersReqSchema, PutUsersReqSchema, SearchUsersReqSchema, emailSchema } from "@/models/api_schemas";
 import { delay , zodErrorMessage} from "@/lib/utils";
-import { APIError, adminCheck, serverErrorHandler } from "@/lib/api_utils";
+import { APIError, adminCheck, ServerErrorHandler } from "@/lib/api_utils";
 import { classUpdatable,  updateClass } from "@/lib/class_management";
 import {  RoledUserType } from "@/models/auth0_schemas";
 
@@ -43,7 +44,7 @@ const handleGet = async (
     res.status(200).json(users);
     return;
   } catch (error: any) {
-    const handler = new serverErrorHandler(error)
+    const handler = new ServerErrorHandler(error)
     handler.log()
     handler.sendResponse(req,res)
   }
@@ -98,7 +99,7 @@ const handlePost = async (
     await sendInvitation(token,user.name,user.email)
     res.status(201).json(user)
   } catch (error) {
-    const handler = new serverErrorHandler(error)
+    const handler = new ServerErrorHandler(error)
     handler.log()
     handler.sendResponse(req,res)
   }
@@ -214,11 +215,12 @@ const handlePut = async (
     await handleClassChange(token,user,payload.content.enrolled_class_id,payload.content.teaching_class_ids)
     //update the actual user data
     const data = await updateUser(token, payload, roles);
+    const newRoles = await checkRole(token,data.user_id)
     // console.log(data)
-    res.status(200).json(data);
+    res.status(200).json({...data,roles:newRoles});
     return;
   } catch (error: any) {
-    const handler = new serverErrorHandler(error)
+    const handler = new ServerErrorHandler(error)
     handler.log()
     handler.sendResponse(req,res)
   }
@@ -263,7 +265,7 @@ const handleDelete = async (
     res.status(204).end();
     return;
   } catch (error: any) {
-    const handler = new serverErrorHandler(error)
+    const handler = new ServerErrorHandler(error)
     handler.log()
     handler.sendResponse(req,res)
   }
