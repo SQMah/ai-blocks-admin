@@ -13,10 +13,17 @@ import {
   deleteUser,
   getAccessToken,
   getUserByEmail,
+  revertUserDeletion,
   searchUser,
   sendInvitation,
 } from "./auth0_user_management";
-import { ClassUpdatePaylod, classUpdatable, getClass, scanClass, updateClass } from "./class_management";
+import {
+  ClassUpdatePaylod,
+  classUpdatable,
+  getClass,
+  scanClass,
+  updateClass,
+} from "./class_management";
 import {
   ClassType,
   classArraySchema,
@@ -64,17 +71,19 @@ type Data =
  */
 type Action<D extends Data> = (...args: any) => Promise<D>;
 
-type AuthAction<D extends Data> = (access_token:string,...args:any)=>Promise<D>
+type AuthAction<D extends Data> = (
+  access_token: string,
+  ...args: any
+) => Promise<D>;
 
 type Proccessed<A extends Action<Data>> = Awaited<ReturnType<A>>;
 
+type CheckFn = (...args: any) => TaskHandler;
 
-type CheckFn = (...args:any)=>TaskHandler
-
-type Check<T extends CheckFn > = {
-  fn:T
-  args:Parameters<T>
-}
+type Check<T extends CheckFn> = {
+  fn: T;
+  args: Parameters<T>;
+};
 
 type DataHandler<D extends Data> = (data: D) => void;
 
@@ -84,15 +93,18 @@ type DataHandler<D extends Data> = (data: D) => void;
 type Procedure<T extends Action<Data>> = {
   name: string;
   action: T;
-  stoppingCondition:ERROR_STATUS_TEXT[]
-}&({
-  //auth0 procedure
-  requireAuth0Token:true;
-  payload: TupleSplit<Parameters<T>, 1>[1]; 
-}|{
-  requireAuth0Token:false;
-  payload: Parameters<T>; 
-});
+  stoppingCondition: ERROR_STATUS_TEXT[];
+} & (
+  | {
+      //auth0 procedure
+      requireAuth0Token: true;
+      payload: TupleSplit<Parameters<T>, 1>[1];
+    }
+  | {
+      requireAuth0Token: false;
+      payload: Parameters<T>;
+    }
+);
 
 /**
  * Auth0 action shd be warp by warp auth0
@@ -112,12 +124,12 @@ class Task<D extends Data> {
   //how to handle data
   dataHandler: DataHandler<D> = (data: D) => {};
   //take enque data and add a revert action to stack
-  createRevert?: (data: D) => Procedure<Action<D>>;
+  createRevert?: (data: D) => Procedure<Action<D>> | Procedure<Action<D>>[];
   //direct procedure to add
-  revertProcedure?: Procedure<Action<any>>;
+  revertProcedures: Procedure<Action<any>>[] = [];
   //check after data handle and forward process
-  postCheck:Check<CheckFn>[]=[]
-  //additional action after handle data 
+  postCheck: Check<CheckFn>[] = [];
+  //additional action after handle data
   enqueue: DataHandler<D> = (data: D) => {};
   constructor(forward: Procedure<Action<D>>) {
     this.forward = forward;
@@ -146,8 +158,12 @@ class Task<D extends Data> {
     this.createRevert = fn;
     return this;
   }
-  setRevert(procedure: Procedure<Action<any>>) {
-    this.revertProcedure = procedure;
+  setRevert(procedure: Procedure<Action<any>> | Procedure<Action<any>>[]) {
+    if (Array.isArray(procedure)) {
+      this.revertProcedures.concat(procedure);
+    } else {
+      this.revertProcedures.push(procedure);
+    }
     return this;
   }
   setEnqueue(fn: DataHandler<D>) {
@@ -177,14 +193,27 @@ export class TaskHandler {
   //todo...
 
   public logic = {
-    createSingleUser:(payload:PostUsersReqType)=>{
-      const classPayloads = this.classUpdatePaylaodsFromCreateUser(payload)
-      classPayloads.forEach(payload=>{
-        this.addCheckClassUpdatetable(payload).addUpdateClass(payload)
-      })
-      this.addCreateUser(payload)
-    }
-  }
+    createSingleUser: (payload: PostUsersReqType) => {
+      const classPayloads = this.classUpdatePaylaodsFromCreateUser(payload);
+      classPayloads.forEach((payload) => {
+        this.addCheckClassUpdatetable(payload).addUpdateClass(payload);
+      });
+      this.addCreateUser(payload);
+    },
+    findUserByEmail: (email: string) => {
+      this.addFindUserByEmail(email);
+    },
+    searchUser: (query: SerachQuery) => {
+      this.addSearchUsers(query);
+    },
+    deleteUser: (user: RoledUserType) => {
+      const classPayloads = this.classUpdatePayloadsFromDeleteUser(user);
+      classPayloads.forEach((payload) => {
+        this.addCheckClassUpdatetable(payload).addUpdateClass(payload);
+      });
+      this.addDeleteUser(user);
+    },
+  };
 
   //handler error when over try limit
   private handleError = (name: string, error: any) => {
@@ -201,38 +230,46 @@ export class TaskHandler {
     procedure: Procedure<A>,
     tried: number = 1
   ): Promise<Proccessed<A>> {
-    const { action, payload, name, requireAuth0Token,stoppingCondition } = procedure;
-    console.log(`Procesing ${name}`);
+    const { action, payload, name, requireAuth0Token, stoppingCondition } =
+      procedure;
+    console.log(`Procesing ${name}.`);
     if (tried > TRY_LIMIT)
       throw new APIError("Internal Server Error", "Try Limit Exceeded");
     try {
       //try to call the procedure
-      if(requireAuth0Token){
+      if (requireAuth0Token) {
         //pass token as for first prams if token is required
-        const token = this.auth0_token
-        if(!token) throw new APIError("Internal Server Error","Auth0 Access Token Not Set")
-        const data = await action.apply(this,[token,...payload])
+        const token = this.auth0_token;
+        if (!token)
+          throw new APIError(
+            "Internal Server Error",
+            "Auth0 Access Token Not Set"
+          );
+        const data = await action.apply(this, [token, ...payload]);
         //return if no error
-        console.log(`${name} done.`)
+        console.log(`${name} done.`);
         return data as Proccessed<A>;
-      }else{
-        const data = await action.apply(this,[...payload])
-        console.log(`${name} done.`)
+      } else {
+        const data = await action.apply(this, [...payload]);
+        console.log(`${name} done.`);
         //return if no error
         return data as Proccessed<A>;
       }
     } catch (error: any) {
       //exceed limit and throw the error
       if (tried >= TRY_LIMIT) {
-        throw error
+        throw error;
       }
       //hit the stopping condition (e.g. user not found) => DO NOT try agn
-      if (error instanceof APIError && stoppingCondition.includes(error.status)) {
-        throw error
+      if (
+        error instanceof APIError &&
+        stoppingCondition.includes(error.status)
+      ) {
+        throw error;
       }
       //try again
       await wait();
-      return await this.process(procedure,  tried + 1);
+      return await this.process(procedure, tried + 1);
     }
   }
 
@@ -244,92 +281,128 @@ export class TaskHandler {
    */
   private classUpdatePaylaodsFromCreateUser(
     payload: Parameters<typeof createUser>[1]
-  ):ClassUpdatePaylod[] {
+  ): ClassUpdatePaylod[] {
     const { role, enrolled_class_id, teaching_class_ids, email } = payload;
+    const payloads = [];
     if (role === "managedStudent" && enrolled_class_id) {
-      const payload:ClassUpdatePaylod =  {
+      const data: ClassUpdatePaylod = {
         class_id: enrolled_class_id,
         addStudents: [email],
       };
-      return [payload]
+      payloads.push(data);
     }
-   if (role === "teacher" && teaching_class_ids) {
-      const payloads: ClassUpdatePaylod[] = teaching_class_ids.map((id) => {
+    if (role === "teacher" && teaching_class_ids) {
+      const data: ClassUpdatePaylod[] = teaching_class_ids.map((id) => {
         return {
           class_id: id,
           addTeachers: [email],
         };
       });
-      return payloads
+      payloads.concat(data);
     }
-    return []
+    return payloads;
   }
 
-  private classUpdatePayloadsFromBatchCreate(payload: BatchCreateUserReqType):ClassUpdatePaylod[] {
+  private classUpdatePayloadsFromBatchCreate(
+    payload: BatchCreateUserReqType
+  ): ClassUpdatePaylod[] {
     const { role, enrolled_class_id, teaching_class_ids, users } = payload;
+    const payloads: ClassUpdatePaylod[] = [];
     if (role === "managedStudent" && enrolled_class_id) {
-      const payload = {
+      const data = {
         class_id: enrolled_class_id,
         addStudents: users.map((user) => user.email),
       };
-      return [payload]
+      payloads.push(data);
     }
     if (role === "teacher" && teaching_class_ids) {
-      const payloads= teaching_class_ids.map((id) => {
+      const data = teaching_class_ids.map((id) => {
         return {
           class_id: id,
           addTeachers: users.map((user) => user.email),
         };
       });
-      return payloads
+      payloads.concat(data);
     }
-    return [];
+    return payloads;
   }
 
-  createNoTokenProcedure<A extends Action<Data>>(
+  private classUpdatePayloadsFromDeleteUser(
+    user: RoledUserType
+  ): ClassUpdatePaylod[] {
+    const { role, user_metadata, email } = user;
+    if (!user_metadata) return [];
+    const { enrolled_class_id, teaching_class_ids } = user_metadata;
+    const payloads = [];
+    if (role === "managedStudent" && enrolled_class_id) {
+      const data: ClassUpdatePaylod = {
+        class_id: enrolled_class_id,
+        removeStudents: [email],
+      };
+      payloads.push(data);
+    }
+    if (role === "teacher" && teaching_class_ids) {
+      const data: ClassUpdatePaylod[] = teaching_class_ids.map((id) => {
+        return {
+          class_id: id,
+          removeTeachers: [email],
+        };
+      });
+      payloads.concat(data);
+    }
+    return payloads;
+  }
+
+  createDynamoDBProcedure<A extends Action<Data>>(
     name: string,
     action: A,
     payload: Parameters<A>,
-    condition?:ERROR_STATUS_TEXT[]
+    condition?: ERROR_STATUS_TEXT[]
   ): Procedure<A> {
-    return { name, action, payload, stoppingCondition:condition??[],requireAuth0Token: false };
+    return {
+      name,
+      action,
+      payload,
+      stoppingCondition: condition ?? [],
+      requireAuth0Token: false,
+    };
   }
 
   createAuth0Procedure<A extends AuthAction<Data>>(
     name: string,
     action: A,
     payload: TupleSplit<Parameters<A>, 1>[1],
-    condition?:ERROR_STATUS_TEXT[]
+    condition?: ERROR_STATUS_TEXT[]
   ): Procedure<A> {
-    this.require_token = true
+    this.require_token = true;
     return {
       name,
       action,
       payload,
-      stoppingCondition:condition??[],
+      stoppingCondition: condition ?? [],
       requireAuth0Token: true,
     };
   }
 
-  createCheck<T extends CheckFn>(fn:T,args:Parameters<T>):Check<T>{
-    return{fn,args}
+  createCheck<T extends CheckFn>(fn: T, args: Parameters<T>): Check<T> {
+    return { fn, args };
   }
 
   //handle data
-  private handleUserData(data:RoledUserType|RoledUserType[]|undefined){
-    if(data===undefined) return
-    if(!Array.isArray(data)){
-      data= [ data]
+  private handleUserData(data: RoledUserType | RoledUserType[] | undefined) {
+    if (data === undefined) return;
+    if (!Array.isArray(data)) {
+      data = [data];
     }
-    data.forEach(entry=>this.users.set(entry.email,entry))
+    data.forEach((entry) => this.users.set(entry.email, entry));
   }
 
-  private handleClassData(data:ClassType|ClassType[]|undefined){
-    if(data===undefined) return
-    if(!Array.isArray(data)){
-      data= [ data]
+  private handleClassData(data: ClassType | ClassType[] | undefined) {
+    if (data === undefined) return;
+    if (!Array.isArray(data)) {
+      data = [data];
     }
-    data.forEach(entry=>this.classes.set(entry.class_id,entry))
+    data.forEach((entry) => this.classes.set(entry.class_id, entry));
   }
 
   //checking fn s,throw error if check fail
@@ -374,7 +447,7 @@ export class TaskHandler {
     //user is  undefined  || user is not the  role
     if (!data || !satisfyRole)
       throw new APIError(
-       "Resource Not Found",
+        "Resource Not Found",
         `Required ${role ?? "user"} not found in handler`
       );
     return this;
@@ -393,7 +466,6 @@ export class TaskHandler {
       );
     return this;
   }
-
 
   /**
    * Prerequisite: users exist in auth0 db
@@ -465,18 +537,20 @@ export class TaskHandler {
    * Procedure pushed to Revert Stack: Delete user
    * @param payload request body of create user
    */
-  private addCreateUser(payload: Parameters<typeof createUser>[1]) {
+  private addCreateUser(
+    payload: Parameters<typeof createUser>[1],
+    sendInvitation: boolean = true
+  ) {
     this.require_token = true;
     //todo =>check classs updabale
     const createUserProcedure = this.createAuth0Procedure(
       `Create Account for ${payload.email}`,
       createUser,
       [payload],
-      ["Conflict","Bad Request"]
+      ["Conflict", "Bad Request"]
     );
 
-    const myTask = new Task(createUserProcedure);
-    myTask
+    const myTask = new Task(createUserProcedure)
       .setDataHandler(this.handleUserData)
       .setCreateRevert((data) => {
         const revertProcedure = this.createAuth0Procedure(
@@ -489,13 +563,10 @@ export class TaskHandler {
       })
       .setEnqueue((data) => {
         const { email, name, user_id } = data;
-        this.addAssignRole(
-          user_id,
-          payload.role,
-          false,
-          data
-        )
-        .addSendInvitation(email, name);
+        this.addAssignRole(user_id, payload.role, false, data);
+        if (sendInvitation) {
+          this.addSendInvitation(email, name);
+        }
       });
 
     this.task_queue.push(myTask);
@@ -503,16 +574,16 @@ export class TaskHandler {
   }
 
   /**
-   * Prerequisite:  
-   * 
+   * Prerequisite:
+   *
    * Task to be added : assign role to user (update user data in property if user is provided)
    *
    * Procedure pushed to Revert Stack: delete user role
-   * @param user_id 
-   * @param role 
+   * @param user_id
+   * @param role
    * @param revert //default ture, willl not add revert action if set to false
    * @param user   //will udpate data in propery if provide the corrisponding user data
-   * @returns 
+   * @returns
    */
   private addAssignRole(
     user_id: string,
@@ -527,70 +598,73 @@ export class TaskHandler {
       [user_id, role, user],
       ["Resource Not Found"]
     );
-    const myTask = new Task(procedure);
-    myTask.setDataHandler(this.handleUserData)
+    const myTask = new Task(procedure).setDataHandler(this.handleUserData);
     //if revert ...
-    if(revert){
-      const revert = this.createAuth0Procedure(`Revert Assign ${role}, user_id: ${user_id}`,deleteRole,[user_id,role,user],["Resource Not Found"])
-      myTask.setRevert(revert)
+    if (revert) {
+      const revert = this.createAuth0Procedure(
+        `Revert Assign ${role}, user_id: ${user_id}`,
+        deleteRole,
+        [user_id, role, user],
+        ["Resource Not Found"]
+      );
+      myTask.setRevert(revert);
     }
-    this.task_queue.push(myTask)
+    this.task_queue.push(myTask);
     return this;
   }
   /**
    * Prerequisite: none
    *
-   * Checking: have auth0 token
    *
    * Task to be added : get user by email
    *
    * Procedure pushed to Revert Stack: none
    * @param email user email
    */
-  // private addFindUserByEmail(email: string) {
-  //   this.require_token = true;
-  //   const task: Task = async () => {
-  //     const token = this.haveAuth0Token();
-  //     const procedure: Procedure<typeof getUserByEmail> = {
-  //       name: `Get Data of ${email}`,
-  //       action: getUserByEmail,
-  //       payload: [token, email],
-  //     };
-  //     //process
-  //     const user = await this.process(procedure, "Resource Not Found");
-  //     //handle data
-  //     this.handleUserData(user);
-  //     //no revert
-  //   };
-  //   this.task_queue.push(task);
-  // }
+  private addFindUserByEmail(email: string) {
+    const procedure = this.createAuth0Procedure(
+      `Find user with emial:${email}`,
+      getUserByEmail,
+      [email],
+      ["Resource Not Found"]
+    );
+    const check = this.createCheck(this.haveUserData, [email]);
+    const myTask = new Task(procedure)
+      .setDataHandler(this.handleUserData)
+      .addPostCheck(check);
+    this.task_queue.push(myTask);
+  }
   /**
    * Prerequisite: none
-   *
-   * Checking: have auth0 token
    *
    * Task to be added : search users
    *
    * Procedure pushed to Revert Stack: none
    * @param query search query
    */
-  // private addSearchUsers(query: SerachQuery) {
-  //   this.require_token = true;
-  //   const task: Task = async () => {
-  //     const token = this.haveAuth0Token();
-  //     const procedure: Procedure<typeof searchUser> = {
-  //       name: "Search Users",
-  //       action: searchUser,
-  //       payload: [token, query],
-  //     };
-  //     //process
-  //     const users = await this.process(procedure);
-  //     //handle data
-  //     this.handleUsersData(users);
-  //     //no revert
-  //   };
-  //   this.task_queue.push(task);
-  // }
+  private addSearchUsers(query: SerachQuery) {
+    const procedure = this.createAuth0Procedure("Search Users", searchUser, [
+      query,
+    ]);
+    const task = new Task(procedure).setDataHandler(this.handleUserData);
+    this.task_queue.push(task);
+  }
+
+  private addDeleteUser(user: RoledUserType) {
+    const { user_id, email } = user;
+    const procedure = this.createAuth0Procedure(
+      `Delete User Email:${email}`,
+      deleteUser,
+      [user_id]
+    );
+    const revert = this.createAuth0Procedure(
+      `Revert User Deletion Email: ${email}`,
+      revertUserDeletion,
+      [user]
+    );
+    const task = new Task(procedure).setRevert(revert);
+    this.task_queue.push(task);
+  }
 
   /**
    * Prerequisite:  none
@@ -643,53 +717,72 @@ export class TaskHandler {
   //   this.task_queue.push(task);
   // }
 
-
-  private addCheckClassUpdatetable(payload: ClassUpdatePaylod){
-    const checkProcedure = this.createNoTokenProcedure(`Check Class Updable, class_id:${payload.class_id}`,classUpdatable,[payload],["Resource Not Found","Conflict"])
-    const checkTask = new Task(checkProcedure)
+  private addCheckClassUpdatetable(payload: ClassUpdatePaylod) {
+    const checkProcedure = this.createDynamoDBProcedure(
+      `Check Class Updable, class_id:${payload.class_id}`,
+      classUpdatable,
+      [payload],
+      ["Resource Not Found", "Conflict"]
+    );
+    const checkTask = new Task(checkProcedure);
     //check updable and save the origanal class data
-    const checkHaveClass = this.createCheck(this.haveClassData,[payload.class_id])
-    checkTask.setDataHandler(this.handleClassData).addPostCheck(checkHaveClass)
-    this.task_queue.push(checkTask)
-    return this
+    const checkHaveClass = this.createCheck(this.haveClassData, [
+      payload.class_id,
+    ]);
+    checkTask.setDataHandler(this.handleClassData).addPostCheck(checkHaveClass);
+    this.task_queue.push(checkTask);
+    return this;
   }
 
   /**
    *
    * Prerequisite:  user exist ad in correct type => handle by update user check
-   * 
+   *
    * Task to be added : check class updable and update class
    *
    * Procedure pushed to Revert Stack: Update Class to previous data
    * @param payload params of updateClass
    */
   private addUpdateClass(payload: ClassUpdatePaylod) {
-   
-    
     //perform update
-    const updateProcedure = this.createNoTokenProcedure(`Update class, ID: ${payload.class_id}`,updateClass,[payload])
-    const updateTask = new Task(updateProcedure)
+    const updateProcedure = this.createDynamoDBProcedure(
+      `Update class, ID: ${payload.class_id}`,
+      updateClass,
+      [payload]
+    );
+    const updateTask = new Task(updateProcedure);
     //add precheck -> hv class data
-    const checkHaveClass = this.createCheck(this.haveClassData,[payload.class_id])
-    updateTask.addPreCheck(checkHaveClass).setCreateRevert(data=>{
-      const { class_id, class_name, capacity, available_modules } = this.getSingleClass(data.class_id) //old class
-      const { addStudents, addTeachers, removeStudents, removeTeachers } = payload; //update action
-      const revertPayload: ClassUpdatePaylod = {
-        class_id,
-        class_name,
-        capacity,
-        available_modules: Array.from(available_modules ?? []),
-        addStudents: removeStudents,
-        removeStudents: addStudents,
-        addTeachers: removeTeachers,
-        removeTeachers: addTeachers,
-      };
-      const procedure = this.createNoTokenProcedure(`Revert Class Update, ID: ${data.class_id}`,updateClass,[revertPayload])
-      return procedure
-    }).setDataHandler(this.handleClassData) //update class data
+    const checkHaveClass = this.createCheck(this.haveClassData, [
+      payload.class_id,
+    ]);
+    updateTask
+      .addPreCheck(checkHaveClass)
+      .setCreateRevert((data) => {
+        const { class_id, class_name, capacity, available_modules } =
+          this.getSingleClass(data.class_id); //old class
+        const { addStudents, addTeachers, removeStudents, removeTeachers } =
+          payload; //update action
+        const revertPayload: ClassUpdatePaylod = {
+          class_id,
+          class_name,
+          capacity,
+          available_modules: Array.from(available_modules ?? []),
+          addStudents: removeStudents,
+          removeStudents: addStudents,
+          addTeachers: removeTeachers,
+          removeTeachers: addTeachers,
+        };
+        const procedure = this.createDynamoDBProcedure(
+          `Revert Class Update, ID: ${data.class_id}`,
+          updateClass,
+          [revertPayload]
+        );
+        return procedure;
+      })
+      .setDataHandler(this.handleClassData); //update class data
 
-    this.task_queue.push(updateTask)
-    return this
+    this.task_queue.push(updateTask);
+    return this;
   }
 
   /**
@@ -746,6 +839,10 @@ export class TaskHandler {
     return users;
   }
 
+  getAllUsers(): RoledUserType[] {
+    return Array.from(this.users.values());
+  }
+
   getSingleClass(class_id: string) {
     const data = this.classes.get(class_id);
     if (!data)
@@ -785,15 +882,15 @@ export class TaskHandler {
       forward,
       dataHandler,
       createRevert,
-      revertProcedure,
+      revertProcedures,
       enqueue,
     } = task;
     //pre check
     try {
       //check is passed if no error thrown
-      preCheck.forEach( obj => {
-        const {fn,args} = obj
-        fn.apply(this,args)
+      preCheck.forEach((obj) => {
+        const { fn, args } = obj;
+        fn.apply(this, args);
       });
     } catch (error) {
       //stop the task if checking is not passed
@@ -805,19 +902,16 @@ export class TaskHandler {
       //only call the FNs if there is no error in proccessing
       if (this.error_status_text) return;
       //add revert directly
-      if (revertProcedure) {
-        try {
-          this.revert_stack.push(revertProcedure);
-        } catch (error) {
-          this.handleError("Push Revert Procedure", error);
-          return;
-        }
-      }
+      this.revert_stack.concat(revertProcedures);
       //create and add revert
       if (createRevert) {
         try {
           const procedure = createRevert.apply(this, [data]);
-          this.revert_stack.push(procedure);
+          if (Array.isArray(procedure)) {
+            this.revert_stack.concat(procedure);
+          } else {
+            this.revert_stack.push(procedure);
+          }
         } catch (error) {
           this.handleError("Create Revert Procedure", error);
           return;
@@ -832,9 +926,9 @@ export class TaskHandler {
       }
       //post check
       try {
-        postCheck.forEach( obj => {
-          const {fn,args} = obj
-          fn.apply(this,args)
+        postCheck.forEach((obj) => {
+          const { fn, args } = obj;
+          fn.apply(this, args);
         });
       } catch (error) {
         //stop the task if checking is not passed
@@ -850,7 +944,7 @@ export class TaskHandler {
       }
     } catch (error) {
       //the only uncatch error is error from forward process
-      this.handleError(forward.name,error)
+      this.handleError(forward.name, error);
     }
     return;
   }
@@ -883,7 +977,7 @@ export class TaskHandler {
 
     //get token first before continue to process tasks
     if (this.require_token && !this.auth0_token) {
-      const procedure = this.createNoTokenProcedure(
+      const procedure = this.createDynamoDBProcedure(
         "Get Auth0 Access Token",
         getAccessToken,
         []
@@ -900,7 +994,13 @@ export class TaskHandler {
     //deque the task and handle it as the handler
 
     const task = this.task_queue.shift(); //deque the first task from queue
-    if (!task) return; //no task remain
+    if (!task) {
+      //no task remain
+      console.log('All tasks completed.')
+      //clear revert stack
+      this.revert_stack = [];
+      return;
+    }
 
     await this.doTask(task);
 

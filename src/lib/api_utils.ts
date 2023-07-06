@@ -109,7 +109,7 @@ export const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>):
       }
     }
     log(){
-      console.error(`Final Error Message: ${this.message}`)
+      console.error(`Logging Error Message: ${this.message}`)
     }
     sendResponse(req:NextApiRequest,res:NextApiResponse){
       res.status(this.status_code).json({

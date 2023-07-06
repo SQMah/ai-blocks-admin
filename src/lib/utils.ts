@@ -2,6 +2,7 @@ import { ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import  { AxiosError } from 'axios';
 import {z} from "zod"
+import { DateTime } from "luxon";
 import { generateErrorMessage, ErrorMessageOptions, generateError } from 'zod-error';
 
  
@@ -40,6 +41,10 @@ export function afterToday(str:string):boolean{
   const tdy = new Date()
   const data = new Date(`${str}T00:00:00`);
   return data > tdy
+}
+
+export function futureDay(days:number,months:number,years:number){
+    return DateTime.now().plus({days,months,years}).toFormat("yyyy-MM-dd")
 }
 
 export function findEarliestDate(dates: (string | undefined|null)[]): string | undefined {

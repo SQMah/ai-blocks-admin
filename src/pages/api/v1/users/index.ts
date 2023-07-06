@@ -13,7 +13,7 @@ import {
   checkRole,
 } from "@/lib/auth0_user_management";
 
-import { DeleteUsersReqSchema, PostUsersReqSchema, PutUsersReqSchema, SearchUsersReqSchema, emailSchema } from "@/models/api_schemas";
+import { DeleteUsersByEmailReqSchema, PostUsersReqSchema, PutUsersReqSchema, SearchUsersReqSchema, emailSchema } from "@/models/api_schemas";
 import { delay , zodErrorMessage} from "@/lib/utils";
 import { APIError, adminCheck, ServerErrorHandler } from "@/lib/api_utils";
 import { classUpdatable,  updateClass } from "@/lib/class_management";
@@ -22,34 +22,30 @@ import { TaskHandler } from "@/lib/task-handler";
 
 
 
-// const handleGet = async (
-//   req: NextApiRequest,
-//   res: NextApiResponse
-// ) => {
-//   try {
-//     // console.log(req.query)
-//     //validate and turn all string to string[]
-//     const parsing = SearchUsersReqSchema.safeParse(req.query)
-//     if(!parsing.success){
-//       throw new APIError("Invalid Request Params",zodErrorMessage(parsing.error.issues))
-//     }
-//     const query = {
-//       email:parsing.data.email,
-//       teaching_class_ids:parsing.data.teaching_class_ids,
-//       enrolled_class_id:parsing.data.enrolled_class_id
-//     }
-//     const searchType = parsing.data.type
-//     const token = await getAccessToken();
-//     const users = await searchUser(token, query,searchType);
-//     // console.log(users)
-//     res.status(200).json(users);
-//     return;
-//   } catch (error: any) {
-//     const handler = new ServerErrorHandler(error)
-//     handler.log()
-//     handler.sendResponse(req,res)
-//   }
-// };
+const handleGet = async (
+  req: NextApiRequest,
+  res: NextApiResponse
+) => {
+  try {
+    // console.log(req.query)
+    //validate and turn all string to string[]
+    const parsing = SearchUsersReqSchema.safeParse(req.query)
+    if(!parsing.success){
+      throw new APIError("Invalid Request Params",zodErrorMessage(parsing.error.issues))
+    }
+    const query = parsing.data
+    const taskHandler = new TaskHandler()
+    taskHandler.logic.searchUser(query)
+    await taskHandler.start()
+    const users = taskHandler.getAllUsers()
+    res.status(200).json(users);
+    return;
+  } catch (error: any) {
+    const handler = new ServerErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
+  }
+};
 
 const handlePost = async (
   req: NextApiRequest,
@@ -65,43 +61,6 @@ const handlePost = async (
     taskHandler.logic.createSingleUser(payload)
     await taskHandler.start()
     const user = taskHandler.getSingleUser(payload.email,payload.role)
-    // //check for class updatable, thow error if invalid
-    // if(payload.role==="managedStudent"){
-    //   if(!payload.enrolled_class_id) throw new APIError("Invalid Request Body","Class ID is required for managed student.")
-    //   await classUpdatable({
-    //     class_id:payload.enrolled_class_id,
-    //     addStudents:[payload.email]
-    //   })
-    // }else if(payload.role==="teacher"&&payload.teaching_class_ids?.length){
-    //   for(const class_id of payload.teaching_class_ids){
-    //     await classUpdatable({
-    //       class_id,
-    //       addTeachers:[payload.email]
-    //     })
-    //     await delay(300)
-    //   }
-    // }
-    // const token = await  getAccessToken()
-    // //craete user
-    // const user = await createUser(token,payload)
-    // //update classes
-    // if(payload.role==="managedStudent"){
-    //   if(!payload.enrolled_class_id) throw new APIError("Invalid Request Body","Class ID is required for managed student.")
-    //   await updateClass({
-    //     class_id:payload.enrolled_class_id,
-    //     addStudents:[payload.email]
-    //   })
-    // }else if(payload.role==="teacher"&&payload.teaching_class_ids?.length){
-    //   for(const class_id of payload.teaching_class_ids){
-    //     await updateClass({
-    //       class_id,
-    //       addTeachers:[payload.email]
-    //     })
-    //     await delay(300)
-    //   }
-    // }
-    // //send inviation
-    // await sendInvitation(token,user.name,user.email)
     res.status(201).json(user)
   } catch (error) {
     const handler = new ServerErrorHandler(error)
@@ -236,7 +195,7 @@ const handlePost = async (
 //   res: NextApiResponse
 // ) => {
 //   try {
-//     const parsing = DeleteUsersReqSchema.safeParse(req.query)
+//     const parsing = DeleteUsersByEmailReqSchema.safeParse(req.query)
 //     if (!parsing.success) {
 //       throw new APIError("Invalid Request Params","Please provide one and only one non-empty userId")
 //     }
@@ -283,9 +242,9 @@ const handler = async (req: NextApiRequest,res: NextApiResponse) => {
   }
   const method: string | undefined = req.method;
   switch (method) {
-    // case "GET":
-    //   await handleGet(req, res);
-    //   break;
+    case "GET":
+      await handleGet(req, res);
+      break;
     case "POST":
       await handlePost(req, res);
       break;

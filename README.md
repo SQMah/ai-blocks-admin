@@ -5,8 +5,9 @@ This is an admin panel for managing user and class information using Auth0 authe
 
 ## TODO
 
-- [ ] Fix oauth issue agn
+- [x] Fix oauth issue agn
 - [x] better check fn -> hv args
+- [ ] maybe change revert stack from procedure[] => task[]
 - [ ] complete task handler
     - [x] create user
     - [ ] batch create users

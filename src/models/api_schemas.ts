@@ -13,10 +13,10 @@ export const SetExpriationSchema = z.string().trim().nonempty({message:"Required
   return true
 },{message:"Expiration date is required to be set after today"})
 
-export const emailSchema = z.string().email()
+export const emailSchema = z.string().trim().email({message:"Please provide a valid email"})
 
 export const UserCreateCSVSchema = z.object({
-  email: z.string().trim().email({message:"Please provide a valid email"}),
+  email: emailSchema,
   first_name: z.string().trim().nonempty({message:"Required"}),
   last_name: z.string().trim().nonempty({message:"Required"}),  
 })
@@ -43,7 +43,7 @@ export type GetUserResType = z.infer<typeof GetUserResSchema>
 
 export const PostUsersReqSchema = z.object({
   role: UserRoleSchema ,
-  email: z.string().trim().email({message:"Please provide a valid email"}),
+  email: emailSchema,
   first_name: z.string().trim().nonempty({message:"Required"}),
   last_name: z.string().trim().nonempty({message:"Required"}),
   enrolled_class_id: z.string().trim().nonempty().optional(),
@@ -107,8 +107,8 @@ export const PutUsersReqSchema = z.object({
 })
 export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
 
-export const DeleteUsersReqSchema = z.object({
-  userId:z.string().trim().nonempty()
+export const DeleteUsersByEmailReqSchema = z.object({
+  email:emailSchema
 })
 
 export const GetClassesReqSchema= z.object({
@@ -128,7 +128,7 @@ export type GetClassesResType = z.infer<typeof GetClassesResSchema>
 
 export const PostClassesReqSchema=z.object({
   class_name:z.string().trim().nonempty({message:"Required"}),
-  teacher_ids:z.array(z.string().email().trim().nonempty()),
+  teacher_ids:emailSchema,
   capacity:z.number().min(1,{message:"Capacity must greater than 0"}),
   available_modules:z.array(z.string().trim().nonempty())
 })

@@ -1,8 +1,8 @@
 import {z} from "zod"
 import { validDateString } from "@/lib/utils"
 
-export const defaultModels:string[] = ["Module A","Module B", "Module C"]
-export const modulesReady:string[] = defaultModels.concat(["Module D","Module E"])
+export const defaultModules:string[] = ["Module A","Module B", "Module C"]
+export const modulesReady:string[] = defaultModules.concat(["Module D","Module E"])
 
 export const PossilbeRoles = ["admin","managedStudent","teacher","unmanagedStudent"] as const
 export const  UserRoleSchema = z.enum(PossilbeRoles)

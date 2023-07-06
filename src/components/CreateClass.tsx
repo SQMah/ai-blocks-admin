@@ -19,7 +19,7 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 
 
-import {  defaultModels,modulesReady } from "@/models/auth0_schemas"
+import {  defaultModules,modulesReady } from "@/models/auth0_schemas"
 import { PostClassesReqType,PostClassesResSchema, SearchUsersResSchema} from "@/models/api_schemas";
 import { ClientErrorHandler } from "@/lib/utils";
 
@@ -46,7 +46,7 @@ const FormSchema = z.object({
 
 const CreateClass:FC= ()=>{
     const [isLoading,setIsLoading] = useState<boolean>(false)
-    const [availableModules,setAvailableModules] = useState<string[]>(defaultModels.sort())
+    const [availableModules,setAvailableModules] = useState<string[]>(defaultModules.sort())
     const modulesToAdd:string[] = modulesReady.filter(module=>!availableModules.includes(module))
     const { toast } = useToast()
 
@@ -95,7 +95,7 @@ const CreateClass:FC= ()=>{
               description: `Created class,class name: ${created.class_name} class ID: ${created.class_id}, no. of teachers: ${created.teacher_ids.length}, capacity: ${created.capacity}, no. of moudles: ${created.available_modules.length}`
             })
             form.reset()
-            setAvailableModules(defaultModels.sort())
+            setAvailableModules(defaultModules.sort())
         } catch (error: any) {
             const handler = new ClientErrorHandler(error)
             handler.log()
@@ -200,7 +200,7 @@ const CreateClass:FC= ()=>{
                 </div>
             <div className="items-center justify-end flex col-span-2 space-x-10">
             <Button type="reset" onClick={()=>{
-              setAvailableModules(defaultModels)
+              setAvailableModules(defaultModules)
               form.reset()
             }} variant={"secondary"} >Default values</Button>
             <Button type="submit" disabled={isLoading}>{isLoading?"Loading...":"Create Class"}</Button>
