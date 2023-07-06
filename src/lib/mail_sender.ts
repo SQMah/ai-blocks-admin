@@ -53,7 +53,7 @@ export const sendMail = async (subject:string,sender_name:string,
           });
         
     } catch (error:any) {
-        console.error(error)
+        console.error("OAuth problem")
         throw new Error(error.message??"Mailing Service Connection Failure")
     }
 }

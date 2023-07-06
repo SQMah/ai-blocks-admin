@@ -81,7 +81,7 @@ export type UserArrayType = z.infer<typeof UserArrayScehma>
 
 
 export const RoledUserSchema = UserSchema.extend({
-  roles:RoleArraySchema ,
+  roles:RoleArraySchema.default([]) ,
 });
 
 export type RoledUserType = z.infer<typeof RoledUserSchema>

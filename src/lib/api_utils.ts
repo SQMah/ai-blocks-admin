@@ -76,7 +76,7 @@ export const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>):
     public readonly status:ERROR_STATUS_TEXT
     public readonly name:string
     constructor(status:ERROR_STATUS_TEXT,message:string|undefined = undefined){
-      message = message?`${status}: ${message}`:status
+      message = message??status
       super(message)
       this.name = "APIError"
       this.status = status
@@ -96,25 +96,25 @@ export const adminCheck = async (req: NextApiRequest,res: NextApiResponse<any>):
       }else if(error instanceof z.ZodError){
         this.status_code = 400
         this.status_text = "Bad Request"
-        this.message =  `Invalid Request Body/Params: ${zodErrorMessage(error.issues)}`
+        this.message =   zodErrorMessage(error.issues)
       }else if(error instanceof AxiosError){
         this.status_code = 500
         this.status_text ="Internal Server Error"
-        this.message = `Internal Connect Error: ${error.response?.data?.message??"Unknown"}`
+        this.message = error.response?.data?.message??"Unknown"
       }else{
         this.status_code=500
         this.status_text ="Internal Server Error"
-        if(error instanceof Error) this.message =  `Internal Server Error: ${error.message??"Unknown"}`
-        else this.message = "Internal Server Error"
+        if(error instanceof Error) this.message = error.message??"Unknown"
+        else this.message = "Unknown"
       }
     }
     log(){
-      console.error(this.message)
+      console.error(`Final Error Message: ${this.message}`)
     }
     sendResponse(req:NextApiRequest,res:NextApiResponse){
       res.status(this.status_code).json({
         status:this.status_code,
-        message:this.message ,
+        message:`${this.status_text}: ${this.message}`  ,
         details:{
           resource: req.url,
           method: req.method

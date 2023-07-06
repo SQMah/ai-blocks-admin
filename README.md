@@ -5,18 +5,20 @@ This is an admin panel for managing user and class information using Auth0 authe
 
 ## TODO
 
+- [ ] Fix oauth issue agn
+- [x] better check fn -> hv args
 - [ ] complete task handler
     - [x] create user
-    - [x] batch create users
-    - [x] search users
+    - [ ] batch create users
+    - [ ] search users
     - [ ] update users by email
     - [ ] delete user by email
     - [ ] create class
-    - [x] get class by id
-    - [x] batch get class by ids
+    - [ ] get class by id
+    - [ ] batch get class by ids
     - [ ] update class by id (maybe almost done)
     - [ ] delete class by id
-    - [x] send invitation by email
+    - [ ] send invitation by email
 - [ ] change api schemas (use email as user index, changed search user schema)
 - [ ] implement actual api using task handler
 - [ ] check front end
@@ -101,8 +103,10 @@ This is an admin panel for managing user and class information using Auth0 authe
         <li>client secret
         <li>refresh token
         </ol>
-    - P.S. Remember to add the sender emial as test user in OAuth consent screen
-    - Touble shooting: when encountering unauthorized client, try aauthorize the api again in playground with client id and secret. If problem still exists, rebuild credential in console.
+    - P.S. Remember to add the sender email as test user in OAuth consent screen when testing application, publish the app asap for the reason below.
+    - <b>Refresh Token will be expired in 7 days if the application has a status of 'Testing'. You need to publish the app and regrant the refresh token. </b>
+    - ref: <https://github.com/googleapis/google-api-nodejs-client#readme>
+    
 ### Application setting
 - Create a `.env.local` file in the current directory
     ```ini

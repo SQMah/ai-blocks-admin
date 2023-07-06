@@ -5,7 +5,7 @@ import {z} from "zod"
 
 import { roleMapping,UserMetadataType,UserCreationBodyType,
   AssignRoleBodyType, RoleCheckResponseSchema, RoledUserArrayType,  RoleArrayType, UserSchema, 
-   UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType, RoledUserType, UserArrayScehma, UserType} from '@/models/auth0_schemas';
+   UserMetadataSchema, UserCreationBodySchema, defaultModels, UserRoleType, RoledUserType, UserArrayScehma, UserType, RoledUserSchema} from '@/models/auth0_schemas';
 import { PutUsersReqType, PostUsersReqType} from '@/models/api_schemas';
 
 import { removeDuplicates, zodErrorMessage } from './utils';
@@ -15,8 +15,37 @@ const auth0BaseUrl = process.env.AUTH0_ISSUER_BASE_URL;
 
 if(!auth0BaseUrl) throw new Error("AUTH 0 ISSUER IS NOT DEFINDED")
 
+const handleAuth0Error = (error:any)=>{
+  if(error instanceof APIError){
+   return error
+  }
+  if(error instanceof z.ZodError){
+    return  new APIError("Auth0 Error",zodErrorMessage(error.issues))
+  }
+  else if(error instanceof AxiosError){
+    if(error.response){
+      const statusCode = error.response.status;
+      const message = error.response.data?.message
+      switch (statusCode) {
+        case 400:
+          return new APIError("Bad Request",message??"Invalid request to Auth0")
+          break;
+        case 404:
+          return new APIError("Resource Not Found",message??"User not found")
+        case 409:
+          return new APIError("Conflict",message??"Unknown Conflict")
+        case 429:
+          return new APIError("Internal Server Error",message??"Reach Auth0 Rate Limit")
+        default:
+          return new APIError("Internal Server Error", message??"Auth0 Request Error"+`, Status ${statusCode}`)
+      }
+    }
+  }
+  return new APIError("Internal Server Error",`Auth0 Action Failure, message:${error.message??"Unknown Error"}`)
+}
 
 
+//wont assign role anymore
 export async function createUser(access_token:string,payload:PostUsersReqType):Promise<RoledUserType>{
   const {role,first_name,last_name,email,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date} = payload
   const roleId:string|undefined = roleMapping[role]?.id
@@ -48,31 +77,14 @@ export async function createUser(access_token:string,payload:PostUsersReqType):P
         },
       });
 
-    const data = UserSchema.parse(response.data)
+    const data = RoledUserSchema.parse(response.data)
     const userId:string = data.user_id
     //shd be an seperate call
     //await assignRole(access_token,userId,role)
     console.log(`${payload.role} account for ${data.email} is creacted`)
-    return {...data,roles:[role]};
+    return data;
   } catch (error:any) {
-    if(error instanceof APIError){
-      throw error
-    }
-    if(error instanceof z.ZodError){
-      throw new APIError("Auth0 Error",zodErrorMessage(error.issues))
-    }
-    else if(error instanceof AxiosError){
-      if(error.response){
-        const statusCode = error.response.status;
-        //handle conflict
-        if(statusCode == 409){
-          throw new APIError("Conflict",`${payload.email} already an existing user.`)
-        }
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} for email: ${payload.email}, message: ${error.response.data?.message}`)
-      }
-      throw new APIError("Internal Server Error",`Connection Error In User Creation`)
-    }
-    throw new APIError("Internal Server Error",`Fail to create account for ${payload.email}, message:${error.message??"Unknown Error"}`)
+   throw  handleAuth0Error(error)
   }
 }
 
@@ -91,22 +103,12 @@ export async function getAccessToken(): Promise<string> {
       const token = z.string().parse(response.data.access_token)
       return token;
     } catch (error:any) {
-      if(error instanceof z.ZodError){
-        throw new APIError("Auth0 Error",zodErrorMessage(error.issues))
-      }
-      else if(error instanceof AxiosError){
-        if(error.response){
-          const statusCode = error.response.status;
-          throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when getting access token, message: ${error.response.data?.message}`)
-        }
-        throw new APIError("Internal Server Error","Connection Error In Getting Access Token")
-      }
-      throw new APIError("Internal Server Error",`Fail to get access token, message:${error.message??"Unknown Error"}`)
+      throw  handleAuth0Error(error)
     }
     
 }
 
-export const assignRole = async (access_token:string,userId:string,role:UserRoleType)=>{
+export const assignRole = async (access_token:string,userId:string,role:UserRoleType,user?:RoledUserType):Promise<RoledUserType|undefined>=>{
     const roleId:string|undefined = roleMapping[role]?.id
     if(!roleId){
       throw new APIError("Invalid Request Body","Invalid role")
@@ -121,23 +123,18 @@ export const assignRole = async (access_token:string,userId:string,role:UserRole
           Authorization: `Bearer ${access_token}`,
         },
       });
-      return role
+      if(user){
+        const {roles} = user
+        if(!roles.includes(role)) roles.push(role)
+        return{...user,roles}
+      }
+      return undefined
     } catch (error:any) {
-      if(error instanceof APIError){
-        throw error
-      }
-      else if(error instanceof AxiosError){
-        if(error.response){
-          const statusCode = error.response.status;
-          throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when assigning role, message: ${error.response.data?.message}`)
-        }
-        throw new APIError("Internal Server Error",`Connection Error In Role Assign`)
-      }
-      throw new APIError("Internal Server Error",`Fail to assign role, message:${error.message??"Unknown Error"}`)
+      throw  handleAuth0Error(error)
     }
 }
 
-export const deleteRole = async (access_token:string,userId:string,role:UserRoleType)=>{
+export const deleteRole = async (access_token:string,userId:string,role:UserRoleType,user?:RoledUserType):Promise<undefined|RoledUserType>=>{
   const roleId:string|undefined = roleMapping[role]?.id
   if(!roleId){
     throw new APIError("Invalid Request Body","Invalid role")
@@ -153,18 +150,15 @@ export const deleteRole = async (access_token:string,userId:string,role:UserRole
       },
       data:body
     });
-  } catch (error:any) {
-    if(error instanceof APIError){
-      throw error
-    }
-    else if(error instanceof AxiosError){
-      if(error.response){
-        const statusCode = error.response.status;
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when removing role, message: ${error.response.data?.message}`)
+    if(user){
+      return {
+        ...user,
+        roles:user.roles.filter(r=>r!==role)
       }
-      throw new APIError("Internal Server Error",`Connection Error In Role Remove`)
     }
-    throw new APIError("Internal Server Error",`Fail to remove role, message:${error.message??"Unknown Error"}`)
+    return undefined
+  } catch (error:any) {
+    throw  handleAuth0Error(error)
   }
 }
 
@@ -180,17 +174,7 @@ export const checkRole = async(access_token:string,userId:string):Promise<RoleAr
     let res = data.map((role)=>role.name)
     return res
   } catch (error:any) {
-    if(error instanceof z.ZodError){
-      throw new APIError("Auth0 Error",zodErrorMessage(error.issues))
-    }
-    else if(error instanceof AxiosError){
-      if(error.response){
-        const statusCode = error.response.status;
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when checking role, message: ${error.response.data?.message}`)
-      }
-      throw new APIError("Internal Server Error","Connection Error In Role Checking")
-    }
-    throw new APIError("Internal Server Error",`Fail to check role, message:${error.message??"Unknown Error"}`)
+    throw  handleAuth0Error(error)
   }
 }
 
@@ -216,15 +200,7 @@ export const sendInvitation = async(access_token:string,receiver_name:string
       await sendMail(subject,formated_addr,receiver_name,reciever_mail,url,signing_name)
       console.log(`Invitation mail sent to ${reciever_mail}`)  
   } catch (error:any) {
-  if(error instanceof APIError) throw error
-   else if(error instanceof AxiosError){
-      if(error.response){
-        const statusCode = error.response.status;
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when generating password changing ticket, message: ${error.response.data?.message}`)
-      }
-      throw new APIError("Internal Server Error","Connection Error In Password Changing ticket Generation")
-    }
-    throw new APIError("Internal Server Error",`Fail to send inviation email, message:${error.message??"Unknown Error"}`)
+    throw  handleAuth0Error(error)
   }
   
 }
@@ -266,19 +242,7 @@ export const searchUser = async (access_token:string,query:SerachQuery):Promise<
     // console.log(res.map(user=>user.name))
     return res
   } catch (error:any) {
-    if(error instanceof APIError){
-      throw error
-    }else if(error instanceof z.ZodError){
-      throw new APIError("Auth0 Error",zodErrorMessage(error.issues))
-    }
-    else if(error instanceof AxiosError){
-      if(error.response){
-        const statusCode = error.response.status;
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when searching users, message: ${error.response.data?.message}`)
-      }
-      throw new APIError("Internal Server Error","Connection Error In Users Search")
-    }
-    throw new APIError("Internal Server Error",`Fail to search users, message:${error.message??"Unknown Error"}`)
+    throw  handleAuth0Error(error)
   }
 }
 
@@ -298,19 +262,7 @@ export const getUserByEmail = async (access_token:string,email:string)=>{
     const roles = await checkRole(access_token,user.user_id)
     return {...user,roles}
   } catch (error:any) {
-    if(error instanceof APIError){
-      throw error
-    }else if(error instanceof z.ZodError){
-      throw new APIError("Auth0 Error",zodErrorMessage(error.issues))
-    }
-    else if(error instanceof AxiosError){
-      if(error.response){
-        const statusCode = error.response.status;
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when getting user, message: ${error.response.data?.message}`)
-      }
-      throw new APIError("Internal Server Error","Connection Error In Getting User")
-    }
-    throw new APIError("Internal Server Error",`Fail to getting user, message:${error.message??"Unknown Error"}`)
+    throw  handleAuth0Error(error)
   }
 }
 
@@ -345,19 +297,7 @@ export const updateUser = async (access_token:string,payload:PutUsersReqType,rol
     });
     return UserSchema.parse(data)    
   } catch (error:any) {
-    if(error instanceof APIError){
-      throw error
-    }else if(error instanceof z.ZodError){
-      throw new APIError("Auth0 Error",zodErrorMessage(error.issues))
-    }
-    else if(error instanceof AxiosError){
-      if(error.response){
-        const statusCode = error.response.status;
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when updating user, message: ${error.response.data?.message}`)
-      }
-      throw new APIError("Internal Server Error","Connection Error In Users Update")
-    }
-    throw new APIError("Internal Server Error",`Fail to update user, message:${error.message??"Unknown Error"}`)
+    throw  handleAuth0Error(error)
   }
 }
 
@@ -371,14 +311,7 @@ export const deleteUser = async (access_token:string,userId:string) =>{
     });
     return response.data
   } catch (error:any) {
-   if(error instanceof AxiosError){
-      if(error.response){
-        const statusCode = error.response.status;
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when deleting user, message: ${error.response.data?.message}`)
-      }
-      throw new APIError("Internal Server Error","Connection Error In User Deletion")
-    }
-    throw new APIError("Internal Server Error",`Fail to delete user, message:${error.message??"Unknown Error"}`)
+    throw  handleAuth0Error(error)
   }
 }
 
@@ -394,19 +327,7 @@ export const getUserByID =async (access_token:string,userId:string) => {
     const roles = await checkRole(access_token,userId)
     return {...user,roles}
   } catch (error:any) {
-    if(error instanceof APIError){
-      throw error
-    }else if(error instanceof z.ZodError){
-      throw new APIError("Auth0 Error",zodErrorMessage(error.issues))
-    }
-    else if(error instanceof AxiosError){
-      if(error.response){
-        const statusCode = error.response.status;
-        throw new APIError("Auth0 Error",`Error occcurs with status code ${statusCode} when getting user, message: ${error.response.data?.message}`)
-      }
-      throw new APIError("Internal Server Error","Connection Error In Users Get")
-    }
-    throw new APIError("Internal Server Error",`Fail to get user, message:${error.message??"Unknown Error"}`)
+    throw  handleAuth0Error(error)
   }
   
 }

@@ -2,7 +2,7 @@ import { PutCommand,GetCommand ,UpdateCommand,DeleteCommand,ScanCommand} from "@
 import { ddbDocClient } from "@/lib/ddbDocClient";
 
 import {  PostClassesReqType,} from "@/models/api_schemas";
-import { classSchema } from "@/models/dynamoDB_schemas";
+import { ClassType, classSchema } from "@/models/dynamoDB_schemas";
 import { z } from "zod";
 import { APIError } from "./api_utils";
 import { zodErrorMessage } from "./utils";
@@ -69,7 +69,7 @@ export const createClass = async (payload:PostClassesReqType,class_id:string) =>
 };
 
 
-type updatePaylod={
+export type ClassUpdatePaylod={
   class_id:string
   class_name?:string
   capacity?:number
@@ -81,7 +81,7 @@ type updatePaylod={
 }
 
 //checking class id validity, capacity
-export  const classUpdatable =async (payload:updatePaylod) => {
+export  const classUpdatable =async (payload:ClassUpdatePaylod):Promise<ClassType> => {
   try {
     const {class_id,class_name,capacity,available_modules,addStudents,addTeachers,removeStudents,removeTeachers} = payload
     if(!(class_name||capacity||addStudents||addTeachers||removeStudents||removeTeachers||available_modules)) throw new APIError("Invalid Request Body","At least one update to be made.")
@@ -98,6 +98,7 @@ export  const classUpdatable =async (payload:updatePaylod) => {
       }
       if(modifiedStudents.size > currentCapacity) throw new APIError("Conflict","Resulting number of students exceeds capacity.")
     }
+    return currentClass
   } catch (error:any) {
     if(error instanceof APIError){
       throw error
@@ -112,7 +113,7 @@ export  const classUpdatable =async (payload:updatePaylod) => {
 //remove has higher priority than add
 //adding and removing a student at the same time will perform no op
 //since is set operaton, wont check for whether the user to add already in class and user to remove exist in class
-export const updateClass = async (payload:updatePaylod) => {
+export const updateClass = async (payload:ClassUpdatePaylod) => {
   try {
     const {class_id,class_name,capacity,available_modules,addStudents,addTeachers,removeStudents,removeTeachers} = payload
     if(!(class_name||capacity||addStudents||addTeachers||removeStudents||removeTeachers||available_modules)) throw new APIError("Invalid Request Body","At least one update to be made.")
