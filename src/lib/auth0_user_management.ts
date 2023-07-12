@@ -379,9 +379,10 @@ type PutUserBodyType = z.infer<typeof PutUserBodySchema>;
 export const updateUser = async (
   access_token: string,
   payload: PutUsersReqType,
+  userId:string,
   roles: RoleArrayType
-) => {
-  const { userId, content } = payload;
+):Promise<RoledUserType> => {
+  const {  content } = payload;
   const {
     available_modules,
     enrolled_class_id,
@@ -394,23 +395,24 @@ export const updateUser = async (
   const isTeacher = roles.includes("teacher");
   const isAdmin = roles.includes("admin");
   body.user_metadata = {
-    ...(isStudent && { enrolled_class_id }),
-    ...(isTeacher && {
+    ...(isStudent&&enrolled_class_id!==undefined && { enrolled_class_id }),
+    ...(isTeacher&&teaching_class_ids!==undefined && {
       teaching_class_ids: teaching_class_ids
         ? removeDuplicates(teaching_class_ids)
         : teaching_class_ids,
     }),
-    ...(isStudent && {
+    ...(isStudent&&available_modules!==undefined && {
       available_modules: available_modules
         ? removeDuplicates(available_modules)
         : available_modules,
     }),
     ...(isAdmin &&
       account_expiration_date === null && { account_expiration_date }),
-    ...(!isAdmin && { account_expiration_date }),
+    ...(!isAdmin && account_expiration_date!==undefined&& { account_expiration_date }),
   };
-  if (!Object.keys(body).length)
-    throw new APIError("Invalid Request Body", "Invalid update content");
+  // console.log("body:",body)
+  if (Object.keys(body).length===0||Object.keys(body.user_metadata).length===0)
+    throw new APIError("Invalid Request Body", "Invalid update content, maybe fields are ignored");
   try {
     const { data } = await axios.patch(
       `${auth0BaseUrl}/api/v2/users/${userId}`,
@@ -422,7 +424,7 @@ export const updateUser = async (
         },
       }
     );
-    return UserSchema.parse(data);
+    return RoledUserSchema.parse(data);
   } catch (error: any) {
     throw handleAuth0Error(error);
   }
@@ -460,6 +462,30 @@ export const getUserByID = async (access_token: string, userId: string) => {
   }
 };
 
+
+export const revertUpdateUser =async (access_token:string,old:RoledUserType,updated:RoledUserType) => {
+  //update if there is other changes
+  const extra = Object.keys(updated.user_metadata??{}).filter(key=> Object.keys(old??{}).includes(key))
+  const newMeta_data = {...old.user_metadata}
+  extra.forEach(key=>newMeta_data[key]=null)
+  const body:PutUserBodyType = {user_metadata:newMeta_data}
+  try {
+    const { data } = await axios.patch(
+      `${auth0BaseUrl}/api/v2/users/${old.user_id}`,
+      body,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${access_token}`,
+        },
+      }
+    );
+    return RoledUserSchema.parse(data);
+  } catch (error: any) {
+    throw handleAuth0Error(error);
+  }
+}
+
 export const revertUserDeletion = async (
   access_token: string,
   user: RoledUserType
@@ -482,7 +508,7 @@ export const revertUserDeletion = async (
       available_modules,
       account_expiration_date,
     } = metaData;
-    const roleToAssign: UserRoleType = roles.length ? roles[0] : defaultRole;
+    const roleToAssign: UserRoleType =  roles[0]??defaultRole;
     const createPayload: PostUsersReqType = {
       email,
       enrolled_class_id: enrolled_class_id ?? undefined,

@@ -1,12 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import {
-  getAccessToken,
-  getUserByEmail,
-  sendInvitation,
-} from "@/lib/auth0_user_management";
-
 import { APIError, adminCheck, ServerErrorHandler } from "@/lib/api_utils";
 import { PostInvitationReqSchema } from "@/models/api_schemas";
+import { TaskHandler } from "@/lib/task-handler";
 
 
 const handlePost = async (
@@ -20,11 +15,10 @@ const handlePost = async (
     if(!parsing.success){
         throw new APIError("Invalid Request Params","Please provide one and only one email")
     }
-    const token = await getAccessToken()
     const {email} = parsing.data
-    const user = await getUserByEmail(token,email)
-    // console.log(user)
-    await sendInvitation(token,user.name,email)
+    const taskHandler  = new TaskHandler()
+    taskHandler.logic.resendInvitation(email)
+    await taskHandler.start()
     res.status(204).end()
     return;
   } catch (error: any) {

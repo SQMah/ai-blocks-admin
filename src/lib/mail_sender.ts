@@ -20,6 +20,7 @@ export const sendMail = async (subject:string,sender_name:string,
     receiver_name:string,reciever_mail:string,url:string,signig_name:string) =>{
         // console.log("creating connection")
     try {
+        // throw new Error("random error") //for testing
         const accessToken = await oAuth2Client.getAccessToken();
         // console.log("token gain")
         const transporter = nodemailer.createTransport({
@@ -53,7 +54,7 @@ export const sendMail = async (subject:string,sender_name:string,
           });
         
     } catch (error:any) {
-        console.error("OAuth problem")
+        // console.error("OAuth problem")
         throw new Error(error.message??"Mailing Service Connection Failure")
     }
 }

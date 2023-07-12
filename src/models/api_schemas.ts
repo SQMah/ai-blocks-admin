@@ -98,17 +98,33 @@ export const BatchCreateUsersResSchema = z.object({
   message:z.string()
 })
 
+export const UpdateUserContentSchema = UserMetadataSchema.extend({
+
+})
+
+export type UpdateUserContentType = z.infer<typeof UpdateUserContentSchema>
+
 export type BatchCreateUsersResType = z.infer<typeof BatchCreateUsersResSchema>
 
 export const PutUsersReqSchema = z.object({
-  userId: z.string().trim().nonempty(),
-  content:UserMetadataSchema.extend({
-  })
+  email:emailSchema,
+  content: UpdateUserContentSchema 
 })
 export type PutUsersReqType = z.infer<typeof PutUsersReqSchema>
 
+export const  UpdateUserByEmailReqSechema =  z.object({
+  email:emailSchema,
+  content: UpdateUserContentSchema 
+})
+
+export type UpdateUserByEmailReqType = z.infer<typeof UpdateUserByEmailReqSechema>
+
 export const DeleteUsersByEmailReqSchema = z.object({
   email:emailSchema
+})
+
+export const DeleteUsersByUserIdReqSchema = z.object({
+  userId: z.string().trim().nonempty(),
 })
 
 export const GetClassesReqSchema= z.object({
@@ -128,7 +144,7 @@ export type GetClassesResType = z.infer<typeof GetClassesResSchema>
 
 export const PostClassesReqSchema=z.object({
   class_name:z.string().trim().nonempty({message:"Required"}),
-  teacher_ids:emailSchema,
+  teacher_ids:z.array(emailSchema),
   capacity:z.number().min(1,{message:"Capacity must greater than 0"}),
   available_modules:z.array(z.string().trim().nonempty())
 })

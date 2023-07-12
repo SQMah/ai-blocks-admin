@@ -13,7 +13,7 @@ import {
   checkRole,
 } from "@/lib/auth0_user_management";
 
-import { DeleteUsersByEmailReqSchema, PostUsersReqSchema, PutUsersReqSchema, SearchUsersReqSchema, emailSchema } from "@/models/api_schemas";
+import { DeleteUsersByEmailReqSchema, DeleteUsersByUserIdReqSchema, PostUsersReqSchema, PutUsersReqSchema, SearchUsersReqSchema, emailSchema } from "@/models/api_schemas";
 import { delay , zodErrorMessage} from "@/lib/utils";
 import { APIError, adminCheck, ServerErrorHandler } from "@/lib/api_utils";
 import { classUpdatable,  updateClass } from "@/lib/class_management";
@@ -160,80 +160,62 @@ const handlePost = async (
 //   }
 // }
 
-// const handlePut = async (
-//   req: NextApiRequest,
-//   res: NextApiResponse
-// ) => {
-//   try {
-//     const parsing = PutUsersReqSchema.safeParse(req.body)
-//     if(!parsing.success){
-//       throw new APIError("Invalid Request Body",zodErrorMessage(parsing.error.issues))
-//     }
-//     const payload = parsing.data;
-//     const token = await getAccessToken();
-//     const user = await getUserByID(token,payload.userId)
+const handlePut = async (
+  req: NextApiRequest,
+  res: NextApiResponse
+) => {
+  try {
+    const parsing = PutUsersReqSchema.safeParse(req.body)
+    if(!parsing.success){
+      throw new APIError("Invalid Request Body",zodErrorMessage(parsing.error.issues))
+    }
+    const {email,content} = parsing.data;
+    // const token = await getAccessToken();
+    // const user = await getUserByID(token,payload.userId)
     
-//     // console.log(payload)
-//     const roles = user.roles
-//     //will check for the avldiity of class changes, then perform actual class change and role change
-//     await handleClassChange(token,user,payload.content.enrolled_class_id,payload.content.teaching_class_ids)
-//     //update the actual user data
-//     const data = await updateUser(token, payload, roles);
-//     const newRoles = await checkRole(token,data.user_id)
-//     // console.log(data)
-//     res.status(200).json({...data,roles:newRoles});
-//     return;
-//   } catch (error: any) {
-//     const handler = new ServerErrorHandler(error)
-//     handler.log()
-//     handler.sendResponse(req,res)
-//   }
-// };
+    // // console.log(payload)
+    // const roles = user.roles
+    // //will check for the avldiity of class changes, then perform actual class change and role change
+    // await handleClassChange(token,user,payload.content.enrolled_class_id,payload.content.teaching_class_ids)
+    // //update the actual user data
+    // const data = await updateUser(token, payload, roles);
+    // const newRoles = await checkRole(token,data.user_id)
+    // // console.log(data)
+    // res.status(200).json({...data,roles:newRoles});
+    const taskHandler = new TaskHandler()
+    taskHandler.logic.updateUserByEmail(email,content)
+    await taskHandler.start()
+    const user =taskHandler.getSingleUser(email)
+    res.status(200).json(user)
+    return;
+  } catch (error: any) {
+    const handler = new ServerErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
+  }
+};
 
-// const handleDelete = async (
-//   req: NextApiRequest,
-//   res: NextApiResponse
-// ) => {
-//   try {
-//     const parsing = DeleteUsersByEmailReqSchema.safeParse(req.query)
-//     if (!parsing.success) {
-//       throw new APIError("Invalid Request Params","Please provide one and only one non-empty userId")
-//     }
-//     const {userId} = parsing.data
-//     const token = await getAccessToken();
-//     const user = await getUserByID(token,userId)
-//     //update the classes,check for validity for class IDs
-//     //IMPORTANT:will stop deletion if the removal is unsuccess
-//     if(user.roles.includes("teacher")){
-//       //handle teaching classes
-//       const toRemove = user.user_metadata?.teaching_class_ids??[]
-//       for (const class_id of toRemove){
-//         await updateClass({
-//           class_id,
-//           removeTeachers:[user.email]
-//         })
-//         await delay(300)
-//       }
-//     }
-//     if(user.roles.includes("managedStudent")){
-//       //handle enrolled class
-//       const class_id  = user.user_metadata?.enrolled_class_id
-//       if(!class_id) throw new APIError("Auth0 Error",`Enrolled class id undefined in managed student, email: ${user.email}`)
-//       await updateClass({
-//         class_id,
-//         removeStudents:[user.email]
-//       })
-//     }
-//     const data = await deleteUser(token, userId);
-//     console.log(`deleted user, user_id: ${userId}`);
-//     res.status(204).end();
-//     return;
-//   } catch (error: any) {
-//     const handler = new ServerErrorHandler(error)
-//     handler.log()
-//     handler.sendResponse(req,res)
-//   }
-// };
+const handleDelete = async (
+  req: NextApiRequest,
+  res: NextApiResponse
+) => {
+  try {
+    const parsing = DeleteUsersByUserIdReqSchema.safeParse(req.query)
+    if (!parsing.success) {
+      throw new APIError("Invalid Request Params","Please provide one and only one non-empty userId")
+    }
+    const {userId} = parsing.data
+    const taskHandler = new TaskHandler()
+    taskHandler.logic.deteleUserByID(userId)
+    await taskHandler.start()
+    res.status(204).end();
+    return;
+  } catch (error: any) {
+    const handler = new ServerErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
+  }
+};
 
 const handler = async (req: NextApiRequest,res: NextApiResponse) => {
   //configurate for authentication
@@ -248,12 +230,12 @@ const handler = async (req: NextApiRequest,res: NextApiResponse) => {
     case "POST":
       await handlePost(req, res);
       break;
-    // case "PUT":
-    //   await handlePut(req, res);
-    //   break;
-    // case "DELETE":
-    //   await handleDelete(req, res);
-    //   break;
+    case "PUT":
+      await handlePut(req, res);
+      break;
+    case "DELETE":
+      await handleDelete(req, res);
+      break;
     default:
       res.status(405).json({
         status:405,

@@ -1,16 +1,19 @@
-import { ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
-import  { AxiosError } from 'axios';
-import {z} from "zod"
+import { ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { AxiosError } from "axios";
+import { z } from "zod";
 import { DateTime } from "luxon";
-import { generateErrorMessage, ErrorMessageOptions, generateError } from 'zod-error';
+import {
+  generateErrorMessage,
+  ErrorMessageOptions,
+  generateError,
+} from "zod-error";
 
- 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
-export function getOrdinal(number:number):string {
+export function getOrdinal(number: number): string {
   const suffixes = ["th", "st", "nd", "rd"];
   const lastDigit = number % 10;
   const lastTwoDigits = number % 100;
@@ -22,33 +25,35 @@ export function getOrdinal(number:number):string {
   }
 }
 
-export function delay(time:number):Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, time));
+export function delay(time: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, time));
 }
 
 export function validDateString(str: string | undefined | null): boolean {
-  if(!str) return false
-  return !isNaN(Date.parse(`${str}T00:00:00`))
+  if (!str) return false;
+  return !isNaN(Date.parse(`${str}T00:00:00`));
 }
 
-export function expirated(str:string):boolean{
-  const tdy = new Date()
+export function expirated(str: string): boolean {
+  const tdy = new Date();
   const data = new Date(`${str}T00:00:00`);
-  return data < tdy
+  return data < tdy;
 }
 
-export function afterToday(str:string):boolean{
-  const tdy = new Date()
+export function afterToday(str: string): boolean {
+  const tdy = new Date();
   const data = new Date(`${str}T00:00:00`);
-  return data > tdy
+  return data > tdy;
 }
 
-export function futureDay(days:number,months:number,years:number){
-    return DateTime.now().plus({days,months,years}).toFormat("yyyy-MM-dd")
+export function futureDate(days: number, months: number, years: number) {
+  return DateTime.now().plus({ days, months, years }).toFormat("yyyy-MM-dd");
 }
 
-export function findEarliestDate(dates: (string | undefined|null)[]): string | undefined {
-  const validDates = dates.filter(date => date !== undefined) as string[];
+export function findEarliestDate(
+  dates: (string | undefined | null)[]
+): string | undefined {
+  const validDates = dates.filter((date) => date !== undefined) as string[];
 
   if (validDates.length === 0) {
     return undefined;
@@ -63,47 +68,44 @@ export function findEarliestDate(dates: (string | undefined|null)[]): string | u
   return sortedDates[0];
 }
 
-export function removeDuplicates<T>(arr:T[]){
-  const set = new Set(arr)
-  return Array.from(set)
+export function removeDuplicates<T>(arr: T[]) {
+  const set = new Set(arr);
+  return Array.from(set);
 }
-
 
 export class ClientErrorHandler {
-  public readonly message:string
-  constructor(error:any) {
-    if(error instanceof z.ZodError){
-      this.message = zodErrorMessage(error.issues)
-    }
-    else if(error instanceof AxiosError){
-      this.message = error.response?.data?.message??"Axios Error"
-    }else if(error instanceof Error){
-      this.message = error.message??"Unknown Error"
-    }else{
-      this.message = "Unknown Error"
+  public readonly message: string;
+  constructor(error: any) {
+    if (error instanceof z.ZodError) {
+      this.message = zodErrorMessage(error.issues);
+    } else if (error instanceof AxiosError) {
+      this.message = error.response?.data?.message ?? "Axios Error";
+    } else if (error instanceof Error) {
+      this.message = error.message ?? "Unknown Error";
+    } else {
+      this.message = "Unknown Error";
     }
   }
-  log(){
-    console.error(this.message)
+  log() {
+    console.error(this.message);
   }
 }
 
+export const stringToBoolean = (str: string | undefined) => {
+  if (str?.toLowerCase() === "true") return true;
+  else if (str?.toLowerCase() === "false") return false;
+  return undefined;
+};
 
-export const stringToBoolean =(str:string|undefined)=>{
-  if (str?.toLowerCase() === "true") return true
-  else if (str?.toLowerCase() === "false") return false
-  return undefined
-}
-
-
-const zodErrorOptions: ErrorMessageOptions ={
+const zodErrorOptions: ErrorMessageOptions = {
   delimiter: {
-    error: ' ||',
+    error: " ||",
   },
-  transform: ({ errorMessage, index }) => `Error #${index + 1}: ${errorMessage}`,
-}
+  transform: ({ errorMessage, index }) =>
+    `Error #${index + 1}: ${errorMessage}`,
+};
 
-export const zodErrorMessage = (issues: z.ZodIssue[])=>{
-  const errorMessage = generateErrorMessage(issues,  zodErrorOptions);
+export const zodErrorMessage = (issues: z.ZodIssue[]) => {
+  const errorMessage = generateErrorMessage(issues, zodErrorOptions);
   return Error(errorMessage).message;
-}
+};
