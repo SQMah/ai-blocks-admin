@@ -58,7 +58,7 @@ export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,
     setIsLoading(true);
     try {
       const payload: PutUsersReqType = {
-        userId: user.user_id,
+        email:user.email,
         content:{
           account_expiration_date: values.account_expiration_date,
         }
@@ -160,7 +160,7 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
       setUpdating(prev=>prev+1)
       try {
         const payload: PutUsersReqType = {
-          userId: user.user_id,
+          email:user.email,
           content:{
             account_expiration_date: values.account_expiration_date,
           }

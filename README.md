@@ -21,8 +21,8 @@ This is an admin panel for managing user and class information using Auth0 authe
     - [x] send invitation by email
 - [x] change api schemas (use email as user index, changed search user schema)
 - [x] implement actual api using task handler
-- [ ] check front end
-- [ ] testing using framework
+- [x] check front end
+- [ ] testing using Jest 
 
 ## Features
 - Create classes 

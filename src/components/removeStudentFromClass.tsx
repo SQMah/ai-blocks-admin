@@ -38,7 +38,7 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})
         setIsLoading(true)
         try {
             const paylaod:PutUsersReqType={
-              userId :student.user_id,
+              email:student.email,
               content:{
                 enrolled_class_id:null
               }

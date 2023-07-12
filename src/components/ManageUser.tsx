@@ -216,7 +216,7 @@ const TeacherOption:FC<TeacherOptionProps>=({teacher,reload,isLoading,setIsLoadi
       setIsLoading(true)
       try {
         const payload:PutUsersReqType={
-          userId :teacher.user_id,
+          email:teacher.email,
           content:{
             teaching_class_ids:displayClasses
           }

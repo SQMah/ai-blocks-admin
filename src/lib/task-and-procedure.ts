@@ -32,10 +32,7 @@ import {
   updateUser,
 } from "./auth0_user_management";
 import { RoledUserType, UserRoleType } from "@/models/auth0_schemas";
-import {
-  PostUsersReqType,
-  UpdateUserContentType,
-} from "@/models/api_schemas";
+import { PostUsersReqType, UpdateUserContentType } from "@/models/api_schemas";
 import { ClassType, ClassUpdatePaylod } from "@/models/dynamoDB_schemas";
 import {
   classUpdatable,
@@ -127,7 +124,7 @@ export class Auth0Procedure<A extends Auth0Action<Data>> extends Procedure<A> {
         //return if no error
         console.log(`${this.name} done.`);
         return data as Proccessed<A>;
-      } catch (error) {
+      } catch (error:any) {
         if (tried >= TRY_LIMIT) {
           throw error;
         }
@@ -138,7 +135,13 @@ export class Auth0Procedure<A extends Auth0Action<Data>> extends Procedure<A> {
         ) {
           throw error;
         }
+        console.log(
+          `${this.name} failed at trial ${tried}, message:${
+            error.mesage ?? "Unknown"
+          }. `
+        );
       }
+      
       await wait();
     }
     throw new APIError("Internal Server Error", "Try Limit Exceeded");
@@ -164,7 +167,7 @@ export class DynamoDBProcedure<A extends Action<Data>> extends Procedure<A> {
         //return if no error
         console.log(`${this.name} done.`);
         return data as Proccessed<A>;
-      } catch (error) {
+      } catch (error:any) {
         if (tried >= TRY_LIMIT) {
           throw error;
         }
@@ -175,6 +178,11 @@ export class DynamoDBProcedure<A extends Action<Data>> extends Procedure<A> {
         ) {
           throw error;
         }
+        console.log(
+          `${this.name} failed at trial ${tried}, message:${
+            error.mesage ?? "Unknown"
+          }. `
+        );
       }
       await wait();
     }
@@ -651,7 +659,7 @@ export class CheckClassUpdatableAndUpdateTask extends Task<ClassType> {
       `Check Class Updatatble ID:${payload.class_id}`,
       classUpdatable,
       [payload],
-      ["Resource Not Found","Conflict"]
+      ["Resource Not Found", "Conflict"]
     );
     this.dataHandler = instance.handleClassData;
     this.postCheck.push(
@@ -693,7 +701,7 @@ export class UpdateClassTask extends Task<ClassType> {
         revertPayload,
       ])
     );
-    this.dataHandler = instance.handleClassData
+    this.dataHandler = instance.handleClassData;
     this.postCheck.push(
       new CheckFn(instance.haveClassData, [payload.class_id])
     );
@@ -769,7 +777,9 @@ export class AddStudentsForClassUpdateTask extends Task<RoledUserType[]> {
         .map((user) => {
           return { user, update: { enrolled_class_id: class_id } };
         });
-      return add.map((data) => new UpdateUserTask(instance, data.update, data.user))
+      return add.map(
+        (data) => new UpdateUserTask(instance, data.update, data.user)
+      );
     };
   }
 }
@@ -797,7 +807,9 @@ export class RemoveStudentsForClassUpdateTask extends Task<RoledUserType[]> {
         .map((user) => {
           return { user, update: { enrolled_class_id: null } };
         });
-      return remove.map((data) => new UpdateUserTask(instance, data.update, data.user))
+      return remove.map(
+        (data) => new UpdateUserTask(instance, data.update, data.user)
+      );
     };
   }
 }
@@ -901,16 +913,14 @@ export class DeleteClassByClassIDTask extends Task<ClassType> {
     this.dataHandler = instance.handleClassData;
     this.postCheck.push(new CheckFn(instance.haveClassData, [class_id]));
     this.createEnqueue = (data) => {
-      const tasks:Task<any>[] = [
-        new DeleteClassTask(instance, data),
-      ];
-      if(data.student_ids?.size){
-        tasks.unshift( new UpdateStudentsForClassDeleteTask(instance, data))
+      const tasks: Task<any>[] = [new DeleteClassTask(instance, data)];
+      if (data.student_ids?.size) {
+        tasks.unshift(new UpdateStudentsForClassDeleteTask(instance, data));
       }
-      if(data.teacher_ids?.size){
-        tasks.unshift(new UpdateTeachersForClassDeleteTask(instance, data))
+      if (data.teacher_ids?.size) {
+        tasks.unshift(new UpdateTeachersForClassDeleteTask(instance, data));
       }
-      return tasks
-    }
+      return tasks;
+    };
   }
 }

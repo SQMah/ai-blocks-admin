@@ -80,7 +80,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
             try {
                 //class will be updated by the api
                 const payload:PutUsersReqType={
-                  userId :student.user_id,
+                  email:student.email,
                   content:{
                     enrolled_class_id:id
                   }
@@ -183,7 +183,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
       setIsLoading(true)
       try {
         const paylaod:PutUsersReqType={
-          userId :student.user_id,
+          email:student.email,
           content:{
             available_modules:availableModules,
           }
@@ -241,7 +241,7 @@ export const ManagedStudentOption:FC<ManagedStudentOptionProps> = ({student,relo
         }
         try {
           const payload:PutUsersReqType={
-            userId :student.user_id,
+            email:student.email,
             content:{
               enrolled_class_id:newClassId
             }

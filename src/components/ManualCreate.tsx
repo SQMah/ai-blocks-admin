@@ -164,7 +164,7 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
 
   return (
     <>
-      {isLoading?1:0}
+      {/* {isLoading?1:0} */}
       <Form {...form}>
         <form
           // onSubmit={form.handleSubmit(onSubmitManual)}

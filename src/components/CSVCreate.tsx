@@ -257,7 +257,7 @@ const Create: FC<formProps> = ({isLoading,setIsLoading,users}) => {
         form.reset()
         toast({
           title: "Creation status",
-          description: data.message,
+          description: `${data.length} users created`
         })
       } catch (error: any) {
         const handler = new ClientErrorHandler(error)

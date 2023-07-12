@@ -35,7 +35,7 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
     const handleRemove =async () => {
         setIsLoading(true)
         try {
-            const response =await  axios.delete(`/api/v1/users?userId=${user.user_id}`)
+            const response =await  axios.delete(`/api/v1/users/${user.email}`)
             toast({
               title:"Deleted"
             })

@@ -90,13 +90,7 @@ export const  BatchCreateUsersReqSchema = z.object({
 
 export type BatchCreateUserReqType = z.infer<typeof BatchCreateUsersReqSchema>
 
-export const BatchCreateUsersResSchema = z.object({
-  created: z.array(RoledUserSchema),
-  failed: z.array(UserCreateCSVSchema.extend({
-    reason:z.string()
-  })),
-  message:z.string()
-})
+export const BatchCreateUsersResSchema = RoledUserArraySchema
 
 export const UpdateUserContentSchema = UserMetadataSchema.extend({
 
@@ -153,7 +147,7 @@ export const BatchGetClassesReqSchema = z.object({
   class_id:z.string().nonempty().or(z.array(z.string().nonempty())).transform(input=>Array.isArray(input)?input:[input])
 })
 
-export const BatchGetClassesResSchema = classArraySchema
+export const BatchGetClassesResSchema = z.array(GetClassesResSchema)
 export type BatchGetClassesType = z.infer<typeof BatchGetClassesResSchema>
 
 export type  PostClassesReqType = z.infer<typeof  PostClassesReqSchema>

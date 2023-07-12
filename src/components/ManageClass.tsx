@@ -93,8 +93,18 @@ const SearchTeacher: FC<Props> = ({ isLoading,setIsLoading,handleChangeClass}) =
       setTeacher(data);
       const teachingIds = data.user_metadata?.teaching_class_ids?.filter(id=>id.length)
       if(teachingIds?.length){
-        const {data:classes} = await axios.get('/api/v1/classes?'+teachingIds.map(id=>`class_id=${id}`).join("&"))
-        setTeaching(BatchGetClassesResSchema.parse(classes))
+        try {
+          const {data:classes} = await axios.get('/api/v1/classes?'+teachingIds.map(id=>`class_id=${id}`).join("&"))
+          setTeaching(BatchGetClassesResSchema.parse(classes))
+        } catch (error) {
+          const handler = new ClientErrorHandler(error)
+          handler.log()
+          toast({
+            variant:"destructive",
+            title: "Search error",
+            description: handler.message,
+          })
+        }
       }
     } catch (error: any) {
       if(error instanceof AxiosError && error.response?.status===404){
