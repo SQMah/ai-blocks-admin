@@ -465,7 +465,8 @@ export const getUserByID = async (access_token: string, userId: string) => {
 
 export const revertUpdateUser =async (access_token:string,old:RoledUserType,updated:RoledUserType) => {
   //update if there is other changes
-  const extra = Object.keys(updated.user_metadata??{}).filter(key=> Object.keys(old??{}).includes(key))
+  const extra = Object.keys(updated.user_metadata??{}).filter(key=>! Object.keys(old.user_metadata??{}).includes(key))
+  // console.log(extra,updated.user_metadata,old)
   const newMeta_data = {...old.user_metadata}
   extra.forEach(key=>newMeta_data[key]=null)
   const body:PutUserBodyType = {user_metadata:newMeta_data}

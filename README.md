@@ -7,22 +7,22 @@ This is an admin panel for managing user and class information using Auth0 authe
 
 - [x] Fix oauth issue agn
 - [x] better check fn -> hv args
-- [ ] complete task handler
+- [x] complete task handler
     - [x] create user
-    - [ ] batch create users
+    - [x] batch create users
     - [x] search users
     - [x] update users by email
     - [x] delete user by email
     - [x] create class
     - [x] get class by id
     - [x] batch get class by ids
-    - [ ] update class by id (maybe almost done)
-    - [ ] delete class by id
+    - [x] update class by id (maybe almost done)
+    - [x] delete class by id
     - [x] send invitation by email
-- [ ] change api schemas (use email as user index, changed search user schema)
-- [ ] implement actual api using task handler
+- [x] change api schemas (use email as user index, changed search user schema)
+- [x] implement actual api using task handler
 - [ ] check front end
-- [ ] testing
+- [ ] testing using framework
 
 ## Features
 - Create classes 

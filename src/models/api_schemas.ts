@@ -1,7 +1,8 @@
 import {z}from "zod"
 import { RoledUserArraySchema, RoledUserSchema, UserMetadataSchema, UserRoleSchema, UserSchema } from "./auth0_schemas"
 import { validDateString,afterToday} from "@/lib/utils"
-import { classArraySchema } from "./dynamoDB_schemas"
+import { ClassUpdateSchema, classArraySchema } from "./dynamoDB_schemas"
+import { emailSchema } from "@/lib/utils"
 
 export const SetExpriationSchema = z.string().trim().nonempty({message:"Required"}).refine(str=>{
     if(str) return validDateString(str)
@@ -13,7 +14,6 @@ export const SetExpriationSchema = z.string().trim().nonempty({message:"Required
   return true
 },{message:"Expiration date is required to be set after today"})
 
-export const emailSchema = z.string().trim().email({message:"Please provide a valid email"})
 
 export const UserCreateCSVSchema = z.object({
   email: emailSchema,
@@ -146,7 +146,7 @@ export const PostClassesReqSchema=z.object({
   class_name:z.string().trim().nonempty({message:"Required"}),
   teacher_ids:z.array(emailSchema),
   capacity:z.number().min(1,{message:"Capacity must greater than 0"}),
-  available_modules:z.array(z.string().trim().nonempty())
+  available_modules:z.array(z.string().trim().nonempty()).optional()
 })
 
 export const BatchGetClassesReqSchema = z.object({
@@ -161,14 +161,7 @@ export type  PostClassesReqType = z.infer<typeof  PostClassesReqSchema>
 export const PostClassesResSchema = GetClassesResSchema
 export type PostClassesResType = z.infer<typeof PostClassesResSchema>
 
-export const PutClassesReqSchema=z.object({
-  class_id:z.string().trim().nonempty({message:"Required"}),
-  class_name:z.string().nonempty().optional(),
-  capacity:z.number().min(1,{message:"Capacity must greater than 0"}).optional(),
-  available_modules:z.array(z.string().trim().nonempty()).optional(),
-})
-
-
+export const PutClassesReqSchema = ClassUpdateSchema
 
 export type  PutClassesReqType = z.infer<typeof  PutClassesReqSchema>
 

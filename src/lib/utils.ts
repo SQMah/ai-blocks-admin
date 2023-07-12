@@ -21,6 +21,7 @@ export function getOrdinal(number: number): string {
   if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
     return number + "th";
   } else {
+    // @ts-expect-error
     return number + suffixes[lastDigit] || suffixes[0];
   }
 }
@@ -109,3 +110,16 @@ export const zodErrorMessage = (issues: z.ZodIssue[]) => {
   const errorMessage = generateErrorMessage(issues, zodErrorOptions);
   return Error(errorMessage).message;
 };
+
+export type TupleSplit<
+  T,
+  N extends number,
+  O extends readonly any[] = readonly []
+> = O["length"] extends N
+  ? [O, T]
+  : T extends readonly [infer F, ...infer R]
+  ? TupleSplit<readonly [...R], N, readonly [...O, F]>
+  : [O, T];
+
+
+export const emailSchema = z.string().trim().email({message:"Please provide a valid email"})

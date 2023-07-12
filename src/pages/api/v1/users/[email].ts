@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getAccessToken, getUserByEmail } from "@/lib/auth0_user_management";
 
 import { APIError, adminCheck, ServerErrorHandler } from "@/lib/api_utils";
 import { DeleteUsersByEmailReqSchema, GetUsersReqSchema, UpdateUserByEmailReqSechema } from "@/models/api_schemas";

@@ -5,9 +5,8 @@ import { stringToBoolean, zodErrorMessage } from "./utils";
 import { string, z } from "zod";
 import { AxiosError } from "axios";
 import { GetClassesResType,BatchCreateUserReqType,PostUsersReqType, UpdateUserContentType } from "@/models/api_schemas";
-import { ClassType } from "@/models/dynamoDB_schemas";
+import { ClassType,ClassUpdatePaylod } from "@/models/dynamoDB_schemas";
 import { UserRoleType ,RoledUserType} from "@/models/auth0_schemas";
-import { ClassUpdatePaylod, createClass } from "./class_management";
 
 const requireAdminCheck = stringToBoolean(process.env.REQUIRE_ADMIN) ?? true;
 
@@ -268,4 +267,20 @@ export function userUpdatePayloadFromClassCreation(users:RoledUserType[],class_i
     const teaching =[ ...(user_metadata?.teaching_class_ids??[]),class_id]
     return{user,content:{teaching_class_ids:teaching}}
   })
+}
+
+
+export function willUpdateTeachersWhenClassUpdate(update:ClassUpdatePaylod):boolean{
+  const {addTeachers,removeTeachers} = update
+  return ((addTeachers??[]).concat(removeTeachers??[])).length>0
+}
+
+export function willAddStudentsWhenClassUpdate(update:ClassUpdatePaylod):boolean{
+  const {addStudents} = update
+  return (addStudents??[]).length>0
+}
+
+export function willRemoveStudentsWhenClassUpdate(update:ClassUpdatePaylod):boolean{
+  const {removeStudents} = update
+  return (removeStudents??[]).length>0
 }

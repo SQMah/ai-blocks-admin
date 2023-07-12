@@ -3,18 +3,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { v1 as uuidv1 } from "uuid";
 
 import {
-  scanClass,
-  createClass,
-  updateClass,
-  classUpdatable,
-} from "@/lib/class_management";
-
-import {
   BatchGetClassesReqSchema,
   PostClassesReqSchema,
   PutClassesReqSchema,
+  DeleteClassesReqSchema,
 } from "@/models/api_schemas";
-import { removeDuplicates, delay, zodErrorMessage } from "@/lib/utils";
+import {  zodErrorMessage } from "@/lib/utils";
 
 import {
   adminCheck,
@@ -22,11 +16,6 @@ import {
   ServerErrorHandler,
   dbToJSON,
 } from "@/lib/api_utils";
-import {
-  getAccessToken,
-  searchUser,
-  updateUser,
-} from "@/lib/auth0_user_management";
 import { TaskHandler } from "@/lib/task-handler";
 
 const handleGet = async (req: NextApiRequest, res: NextApiResponse) => {
@@ -105,9 +94,13 @@ const handlePut = async (req: NextApiRequest, res: NextApiResponse) => {
       );
     }
     const payload = PutClassesReqSchema.parse(req.body);
-    //will check for vlaid id and capacity,throw error if invalid
-    await classUpdatable(payload);
-    const data = await updateClass(payload);
+    // //will check for vlaid id and capacity,throw error if invalid
+    // await classUpdatable(payload);
+    // const data = await updateClass(payload);
+    const th = new TaskHandler()
+    th.logic.updateClass(payload)
+    await th.start()
+    const data = th.getSingleClass(payload.class_id)
     res.status(200).json(dbToJSON(data));
   } catch (error: any) {
     const handler = new ServerErrorHandler(error);
@@ -115,6 +108,24 @@ const handlePut = async (req: NextApiRequest, res: NextApiResponse) => {
     handler.sendResponse(req, res);
   }
 };
+
+const handleDelete =async (req: NextApiRequest,res: NextApiResponse) => {
+  try {
+      const parsing =  DeleteClassesReqSchema.safeParse(req.query)
+      if(!parsing.success){
+        throw new APIError("Invalid Request Params","Please provide one and only one class ID.")
+      }
+      const {class_id} = parsing.data
+      const th = new TaskHandler()
+      th.logic.deleteClassbyID(class_id)
+      await th.start()
+      res.status(204).end()
+  } catch (error:any) {
+    const handler = new ServerErrorHandler(error)
+    handler.log()
+    handler.sendResponse(req,res)
+  }
+}
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   //configurate for authentication
@@ -131,6 +142,9 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       break;
     case "PUT":
       await handlePut(req, res);
+      break;
+    case "DELETE":
+      await handleDelete(req,res);
       break;
     default:
       res.status(405).json({

@@ -2,10 +2,11 @@ import { PutCommand,GetCommand ,UpdateCommand,DeleteCommand,ScanCommand} from "@
 import { ddbDocClient } from "@/lib/ddbDocClient";
 
 import {  PostClassesReqType,} from "@/models/api_schemas";
-import { ClassType, classSchema } from "@/models/dynamoDB_schemas";
+import { ClassType, classSchema ,ClassUpdatePaylod} from "@/models/dynamoDB_schemas";
 import { z } from "zod";
 import { APIError } from "./api_utils";
 import { zodErrorMessage } from "./utils";
+import { defaultModules } from "@/models/auth0_schemas";
 
 const table_name = process.env.CLASS_TABLE_NAME
 if(!table_name) throw new Error("Class table undefined")
@@ -46,7 +47,7 @@ export const createClass = async (payload:PostClassesReqType,class_id:string) =>
       class_id,
       ...(teacher_ids.length&& {teacher_ids:new Set(teacher_ids)}),
       capacity,
-     ...(available_modules.length&& {available_modules:new Set(available_modules)})
+      available_modules:new Set(available_modules??defaultModules)
     }
     const params = {
       TableName: table_name,
@@ -69,16 +70,6 @@ export const createClass = async (payload:PostClassesReqType,class_id:string) =>
 };
 
 
-export type ClassUpdatePaylod={
-  class_id:string
-  class_name?:string
-  capacity?:number
-  available_modules?:string[]
-  addStudents?:string[]
-  addTeachers?:string[]
-  removeStudents?:string[]
-  removeTeachers?:string[]
-}
 
 //checking class id validity, capacity
 export  const classUpdatable =async (payload:ClassUpdatePaylod):Promise<ClassType> => {
@@ -214,7 +205,7 @@ export const deleteClass = async (class_id:string) =>{
   try {
     const data = await ddbDocClient.send(new DeleteCommand(params));
     // console.log("Success - item deleted");
-    return data;
+    return undefined;
   } catch (error:any) {
     if(error.name == "ConditionalCheckFailedException"){
       //class id not exist
