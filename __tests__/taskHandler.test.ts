@@ -1092,7 +1092,7 @@ test(
 
 //un -> mangaed
 test(
-  "Reverting for Managed Stuendent Removed From Class",
+  "Reverting for Unmanaged Student enrolled in class",
   async () => {
     //arrange
     const email = emails[0];

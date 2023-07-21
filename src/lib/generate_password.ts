@@ -19,7 +19,7 @@ const generatePassword = (length:number=12):string=>{
         
         for (let i = 0; i < length; i++) {
         const randomIndex = Math.floor(Math.random() * pool.length);
-        const char = pool[randomIndex];
+        const char = pool[randomIndex] as string;
         pwd += char;
 
         if (!hasDigit && /[0-9]/.test(char)) {
