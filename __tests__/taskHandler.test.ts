@@ -44,9 +44,9 @@ const TIME_OUT = 1 * 60 * 1000; //time out limit for each test
 
 const TEST_DATA = {
   emails: [
-    "ching.chit@gmail.com",
-    "tommy07201@gmail.com",
-    "scarpcat@gmail.com",
+    "aiblocks_test_one@gmail.com",
+    "aiblocks_test_two@gmail.com",
+    "aiblocks_test_three@gmail.com",
   ],
   first_name: "test",
   last_name: "user",

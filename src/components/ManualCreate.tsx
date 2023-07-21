@@ -307,7 +307,6 @@ const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
               />
             </>
           ) : null}
-          <Button>test</Button>
           <div className="flex justify-end">
           {form.watch("role")?<Button type="submit" disabled={isLoading}>{isLoading?"Loading...":"Submit"}</Button>:null}
           </div>
