@@ -5,9 +5,7 @@ import {
   ServerErrorHandler,
   classUpdatePaylaodsFromCreateUser,
   classUpdatePayloadsFromBatchCreate,
-  willAddStudentsWhenClassUpdate,
-  willRemoveStudentsWhenClassUpdate,
-  willUpdateTeachersWhenClassUpdate,
+  willUpdateUsersWhenClassUpdate,
 } from "./api_utils";
 import { SerachQuery } from "./auth0_user_management";
 import { createClass } from "./class_management";
@@ -20,7 +18,6 @@ import {
   UpdateUserContentType,
 } from "@/models/api_schemas";
 import {
-  AddStudentsForClassUpdateTask,
   BatchGetClassTask,
   CheckClassUpdatableAndUpdateTask,
   CreateClassTask,
@@ -32,14 +29,14 @@ import {
   GetAuthTokenProcedure,
   GetUserByEmailTask,
   Procedure,
-  RemoveStudentsForClassUpdateTask,
   ResendInvitationTask,
   ScearchUsersTask,
   Task,
   UpdateTeachersForClassCreateTask,
-  UpdateTeachersForClassUpdateTask,
   UpdateUserByEmailTask,
+  UpdateUsersForClassUpdateTask,
 } from "./task-and-procedure";
+import { putLogEvent } from "./cloud_watch";
 
 export const TRY_LIMIT = 3; //error hitting limit
 
@@ -48,8 +45,6 @@ const DEFAULT_WAITING_TIME = 300; //in ms
 export function wait(time: number | undefined = undefined) {
   return delay(time ?? DEFAULT_WAITING_TIME);
 }
-
-
 
 //awaited return type of actions
 export type Data =
@@ -74,37 +69,62 @@ export type Proccessed<A extends Action<Data>> = Awaited<ReturnType<A>>;
 
 export type DataHandler<D extends Data> = (data: D) => void;
 
-
 export class TaskHandler {
-  private require_token = false;
-  private auth0_token: string | undefined;
-  private readonly task_queue: Task<any>[] = [];
-  private readonly revert_stack: Procedure<Action<Data>>[] = [];
-  private error_status_text: ERROR_STATUS_TEXT | undefined; //!undefined -> error occurs -> stop process and revert changes
-  private readonly error_messages: string[] = [];
+  protected require_token = false;
+  protected auth0_token: string | undefined;
+  protected readonly task_queue: Task<any>[] = [];
+  protected readonly revert_stack: Procedure<Action<Data>>[] = [];
+  protected error_status_text: ERROR_STATUS_TEXT | undefined; //* undefined -> error occurs -> stop process and revert changes
+  protected readonly error_messages: string[] = [];
 
   /**
    * email -> user data
    */
-  private users = new Map<string, RoledUserType>();
+  protected users = new Map<string, RoledUserType>();
   /**
    * class_id -> class data
    */
-  private classes = new Map<string, ClassType>();
-
+  protected classes = new Map<string, ClassType>();
 
   logic = {
     createSingleUser: (payload: PostUsersReqType) => {
       const classPayloads = classUpdatePaylaodsFromCreateUser(payload);
       // console.log(classPayloads)
-      this.addQueue(classPayloads.map(data=>new CheckClassUpdatableAndUpdateTask(this,data)))
+      this.addQueue(
+        classPayloads.map(
+          (data) => new CheckClassUpdatableAndUpdateTask(this, data)
+        )
+      );
       this.addQueue(new CreateUserTask(this, payload));
     },
-    barchCreateUsers:(payload:BatchCreateUserReqType)=>{
-      const {users,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date,role} = payload
-      const classPayloads = classUpdatePayloadsFromBatchCreate(payload)
-      this.addQueue(classPayloads.map(data=>new CheckClassUpdatableAndUpdateTask(this,data)))
-      this.addQueue(users.map(user=>new CreateUserTask(this,{...user,enrolled_class_id,teaching_class_ids,available_modules,account_expiration_date,role})))
+    barchCreateUsers: (payload: BatchCreateUserReqType) => {
+      const {
+        users,
+        enrolled_class_id,
+        teaching_class_ids,
+        available_modules,
+        account_expiration_date,
+        role,
+      } = payload;
+      const classPayloads = classUpdatePayloadsFromBatchCreate(payload);
+      this.addQueue(
+        classPayloads.map(
+          (data) => new CheckClassUpdatableAndUpdateTask(this, data)
+        )
+      );
+      this.addQueue(
+        users.map(
+          (user) =>
+            new CreateUserTask(this, {
+              ...user,
+              enrolled_class_id,
+              teaching_class_ids,
+              available_modules,
+              account_expiration_date,
+              role,
+            })
+        )
+      );
     },
     findUserByEmail: (email: string) => {
       this.addQueue(new GetUserByEmailTask(this, email));
@@ -125,9 +145,12 @@ export class TaskHandler {
       data: Parameters<typeof createClass>[0],
       class_id: string
     ) => {
-      this.addQueue(
-        new UpdateTeachersForClassCreateTask(this, data.teacher_ids, class_id)
-      ).addQueue(new CreateClassTask(this, data, class_id));
+      if (data.teacher_ids.length) {
+        this.addQueue(
+          new UpdateTeachersForClassCreateTask(this, data.teacher_ids, class_id)
+        );
+      }
+      this.addQueue(new CreateClassTask(this, data, class_id));
     },
     getClassByID: (class_id: string) => {
       this.addQueue(new FindClassByIDTask(this, class_id));
@@ -135,20 +158,16 @@ export class TaskHandler {
     batchGetClass: (class_ids: string[]) => {
       this.addQueue(new BatchGetClassTask(this, class_ids));
     },
-    updateClass:(payload:PutClassesReqType)=>{
-      this.addQueue(new CheckClassUpdatableAndUpdateTask(this,payload))
-      if(willUpdateTeachersWhenClassUpdate(payload)){
-        this.addQueue(new UpdateTeachersForClassUpdateTask(this,payload))
-      }
-      if(willAddStudentsWhenClassUpdate(payload)){
-        this.addQueue(new AddStudentsForClassUpdateTask(this,payload))
-      }
-      if(willRemoveStudentsWhenClassUpdate(payload)){
-        this.addQueue(new RemoveStudentsForClassUpdateTask(this,payload))
+    updateClass: (payload: PutClassesReqType) => {
+      const { addStudents, addTeachers, removeStudents, removeTeachers } =
+        payload;
+      this.addQueue(new CheckClassUpdatableAndUpdateTask(this, payload));
+      if (willUpdateUsersWhenClassUpdate(payload)) {
+        this.addQueue(new UpdateUsersForClassUpdateTask(this, payload));
       }
     },
-    deleteClassbyID:(class_id:string)=>{
-      this.addQueue(new DeleteClassByClassIDTask(this,class_id))
+    deleteClassbyID: (class_id: string) => {
+      this.addQueue(new DeleteClassByClassIDTask(this, class_id));
     },
     resendInvitation: (email: string) => {
       this.addQueue(new ResendInvitationTask(this, email));
@@ -169,13 +188,13 @@ export class TaskHandler {
     return this;
   }
 
-  addRevert(proccdure: Procedure<any> | Procedure<any>[]) {
-    if (Array.isArray(proccdure)) {
-      for (const entry of proccdure) {
+  addRevert(procedure: Procedure<any> | Procedure<any>[]) {
+    if (Array.isArray(procedure)) {
+      for (const entry of procedure) {
         this.revert_stack.push(entry);
       }
     } else {
-      this.revert_stack.push(proccdure);
+      this.revert_stack.push(procedure);
     }
     return this;
   }
@@ -273,6 +292,99 @@ export class TaskHandler {
     return this;
   }
 
+  isStudentInClass(email: string, class_id: string) {
+    const student = this.users.get(email);
+    if (!student || !student.roles.includes("managedStudent"))
+      throw new APIError(
+        "Resource Not Found",
+        `${email} is not valid student.`
+      );
+    const enrolled = student.user_metadata?.enrolled_class_id;
+    if (!enrolled || enrolled !== class_id)
+      throw new APIError(
+        "Bad Request",
+        `${email} is not student of ${class_id}`
+      );
+    return this;
+  }
+
+  areStudentsInClass(emails: string[], class_id: string) {
+    const data: RoledUserType[] = [];
+    const missing: string[] = [];
+    emails.forEach((key) => {
+      const user = this.users.get(key);
+      if (user?.roles.includes("managedStudent")) {
+        data.push(user);
+      } else {
+        missing.push(key);
+      }
+    });
+    if (missing.length)
+      throw new APIError(
+        "Resource Not Found",
+        `${missing.join(", ")} are not valid students`
+      );
+    const notInClass = data.filter((user) => {
+      const enrolled = user.user_metadata?.enrolled_class_id;
+      return !enrolled || enrolled !== class_id;
+    });
+    if (notInClass.length) {
+      throw new APIError(
+        "Resource Not Found",
+        `${notInClass
+          .map((user) => user.email)
+          .join(", ")} are not valid students in ${class_id}`
+      );
+    }
+    return this;
+  }
+
+  isTeacherInClass(email: string, class_id: string) {
+    const teacher = this.users.get(email);
+    if (!teacher || !teacher.roles.includes("teacher"))
+      throw new APIError(
+        "Resource Not Found",
+        `${email} is not valid teacher.`
+      );
+    const teaching = teacher.user_metadata?.teaching_class_ids ?? [];
+    if (!teaching.includes(class_id))
+      throw new APIError(
+        "Bad Request",
+        `${email} is not teacher of ${class_id}`
+      );
+    return this;
+  }
+
+  areTeachersInClass(emails: string[], class_id: string) {
+    const data: RoledUserType[] = [];
+    const missing: string[] = [];
+    emails.forEach((key) => {
+      const user = this.users.get(key);
+      if (user?.roles.includes("teacher")) {
+        data.push(user);
+      } else {
+        missing.push(key);
+      }
+    });
+    if (missing.length)
+      throw new APIError(
+        "Resource Not Found",
+        `${missing.join(", ")} are not valid teachers`
+      );
+    const notInClass = data.filter((user) => {
+      const teaching = user.user_metadata?.teaching_class_ids ?? [];
+      return !teaching.includes(class_id);
+    });
+    if (notInClass.length) {
+      throw new APIError(
+        "Resource Not Found",
+        `${notInClass
+          .map((user) => user.email)
+          .join(", ")} are not valid teachers in ${class_id}`
+      );
+    }
+    return this;
+  }
 
   //some dummy task to add to queue
 
@@ -350,9 +462,24 @@ export class TaskHandler {
     }
     this.error_messages.push(`${name} Failed: ` + handler.message);
   };
+  
+  //handle error when reverting error
+  protected async handleRevertError(procedure:Procedure<Action<Data>>,error:any){
+    const errorHandler = new ServerErrorHandler(error)
+    const {status_text,status_code,message} = errorHandler
+    const {name,payload,action} = procedure
+    const cause = `Revert Error: ${name} failed with status ${status_code}:${status_text}, message:${message} , action:${action.name}, payload:${JSON.stringify(payload)}.`
+    const remaining = this.revert_stack.map(procedure=>{
+      return {...procedure,action:procedure.action.name}
+    })
+    const toLog:string = [cause,`Remaining Revert Procedures: ${JSON.stringify(remaining)}`].join("\n")
+    console.log(toLog)
+    //log to cloud watch
+    await putLogEvent("REVERT_ERROR",toLog)
+  }
 
   //revert from the end of stack
-  private async revertChanges(): Promise<void> {
+  protected async revertChanges(): Promise<void> {
     const procedure = this.revert_stack.pop();
     if (!procedure) {
       //empty revert stack
@@ -362,11 +489,12 @@ export class TaskHandler {
     //revert the changaes as much as it can
     try {
       await procedure.process(this);
+      await wait();
+      return await this.revertChanges();
     } catch (error) {
-      this.handleError(procedure.name, error);
+      await this.handleRevertError(procedure,error)
     }
-    await wait();
-    return await this.revertChanges();
+    return
   }
 
   async start(): Promise<void> {

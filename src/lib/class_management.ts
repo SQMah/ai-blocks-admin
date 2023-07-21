@@ -107,7 +107,7 @@ export  const classUpdatable =async (payload:ClassUpdatePaylod):Promise<ClassTyp
 export const updateClass = async (payload:ClassUpdatePaylod) => {
   try {
     const {class_id,class_name,capacity,available_modules,addStudents,addTeachers,removeStudents,removeTeachers} = payload
-    if(!(class_name||capacity||addStudents||addTeachers||removeStudents||removeTeachers||available_modules)) throw new APIError("Invalid Request Body","At least one update to be made.")
+    if(!(class_name||capacity||addStudents||addTeachers||removeStudents||removeTeachers||available_modules)) throw new APIError("Invalid Request Body","At least one update to be made")
     const names = new Map<string,string>()
     const values = new Map<string,string|number|Set<string>>([[":id",class_id]])
     const set = []
@@ -186,7 +186,7 @@ export const updateClass = async (payload:ClassUpdatePaylod) => {
     }else if(error instanceof z.ZodError){
       throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
     }else{
-      throw new APIError("Dynamo DB Error",`Connection Error In Craeting Class, message:${error.message??"unknown"}`)
+      throw new APIError("Dynamo DB Error",`Connection Error In Updating Class, message:${error.message??"unknown"}`)
     }
   };
 }
@@ -244,6 +244,37 @@ export const scanClass = async (classIds: string[])=>{
       throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
     }else{
       throw new APIError("Dynamo DB Error",`Connection Error In Scanning Class, message:${error.message??"unknown"}`)
+    }
+  }
+}
+
+
+export async function revertDeleteClass(payload:ClassType){
+  try {
+    const {teacher_ids,capacity,available_modules,class_name,student_ids,class_id} = payload
+    const obj = {
+      class_name,
+      class_id,
+      ...(teacher_ids&& {teacher_ids}),
+      ...(student_ids&& {student_ids}),
+      ...(available_modules&& {available_modules}),
+      capacity,
+    }
+    const params = {
+      TableName: table_name,
+      Item: obj,
+      ReturnValues:  "ALL_OLD",
+    };
+    const data = await ddbDocClient.send(new PutCommand(params));
+    // console.log("Success - item added or updated", data);
+    return classSchema.parse(obj);
+  } catch (error:any) {
+    if(error instanceof APIError){
+      throw error
+    }else if(error instanceof z.ZodError){
+      throw new APIError("Dynamo DB Error",zodErrorMessage(error.issues))
+    }else{
+      throw new APIError("Dynamo DB Error",`Connection Error In Revert Deleting Class, message:${error.message??"unknown"}`)
     }
   }
 }

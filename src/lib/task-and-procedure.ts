@@ -39,6 +39,7 @@ import {
   createClass,
   deleteClass,
   getClass,
+  revertDeleteClass,
   scanClass,
   updateClass,
 } from "./class_management";
@@ -88,6 +89,11 @@ export class GetAuthTokenProcedure extends Procedure<typeof getAccessToken> {
         console.log(`${this.name} done.`);
         return data as string;
       } catch (error: any) {
+        console.log(
+          `${this.name} failed at trial ${tried}, message:${
+            error.message ?? "Unknown"
+          }. `
+        );
         if (tried >= TRY_LIMIT) {
           throw error;
         }
@@ -98,11 +104,6 @@ export class GetAuthTokenProcedure extends Procedure<typeof getAccessToken> {
         ) {
           throw error;
         }
-        console.log(
-          `${this.name} failed at trial ${tried}, message:${
-            error.mesage ?? "Unknown"
-          }. `
-        );
       }
       await wait();
     }
@@ -119,12 +120,17 @@ export class Auth0Procedure<A extends Auth0Action<Data>> extends Procedure<A> {
       try {
         const data = await this.action.apply(instance, [
           token,
-          ...this.payload,
+          ...[...this.payload],
         ]);
         //return if no error
         console.log(`${this.name} done.`);
         return data as Proccessed<A>;
-      } catch (error:any) {
+      } catch (error: any) {
+        console.log(
+          `${this.name} failed at trial ${tried}, message:${
+            error.message ?? "Unknown"
+          }. `
+        );
         if (tried >= TRY_LIMIT) {
           throw error;
         }
@@ -135,13 +141,8 @@ export class Auth0Procedure<A extends Auth0Action<Data>> extends Procedure<A> {
         ) {
           throw error;
         }
-        console.log(
-          `${this.name} failed at trial ${tried}, message:${
-            error.mesage ?? "Unknown"
-          }. `
-        );
       }
-      
+
       await wait();
     }
     throw new APIError("Internal Server Error", "Try Limit Exceeded");
@@ -167,7 +168,10 @@ export class DynamoDBProcedure<A extends Action<Data>> extends Procedure<A> {
         //return if no error
         console.log(`${this.name} done.`);
         return data as Proccessed<A>;
-      } catch (error:any) {
+      } catch (error: any) {
+        `${this.name} failed at trial ${tried}, message:${
+          error.message ?? "Unknown"
+        }. `
         if (tried >= TRY_LIMIT) {
           throw error;
         }
@@ -178,11 +182,6 @@ export class DynamoDBProcedure<A extends Action<Data>> extends Procedure<A> {
         ) {
           throw error;
         }
-        console.log(
-          `${this.name} failed at trial ${tried}, message:${
-            error.mesage ?? "Unknown"
-          }. `
-        );
       }
       await wait();
     }
@@ -213,7 +212,7 @@ export abstract class Task<D extends Data> {
   readonly revertProcedures: Procedure<Action<Data>>[] = [];
   //check after data handle and forward process
   readonly postCheck: CheckFn<any>[] = [];
-  // //additional action after handle data
+  //additional action after handle data
   // enqueue: DataHandler<D> = (data: D) => {};
   //task to enqueue that depends on data returned
   createEnqueue: (data: D) => Task<any> | Task<any>[] = () => [];
@@ -281,7 +280,7 @@ export abstract class Task<D extends Data> {
 
 export class CreateUserTask extends Task<RoledUserType> {
   forward: Procedure<Action<RoledUserType>>;
-  constructor(instance: TaskHandler, payload: PostUsersReqType) {
+  constructor(instance: TaskHandler, payload: PostUsersReqType,invite:boolean = true) {
     instance.setRequireAuht0Token();
     super();
     this.forward = new Auth0Procedure(
@@ -301,10 +300,12 @@ export class CreateUserTask extends Task<RoledUserType> {
     };
     this.createEnqueue = (data) => {
       const { email, name, user_id } = data;
-      const tasks = [
-        new AssignRoleTask(instance, user_id, payload.role, false, data),
-        new SendInvitationTask(instance, name, email),
+      const tasks:Task<any>[] = [
+        new AssignRoleTask(instance, user_id, payload.role, false, data)
       ];
+      if(invite){
+        tasks.push(new SendInvitationTask(instance, name, email))
+      }
       // console.log(tasks)
       return tasks;
     };
@@ -421,10 +422,12 @@ export class UpdateUserTask extends Task<RoledUserType> {
   ) {
     instance.setRequireAuht0Token();
     super();
+    // console.log(user.email)
     this.forward = new Auth0Procedure(
       `Update User Email: ${user.email}`,
       updateUser,
-      [{ email: user.email, content: update }, user.user_id, user.roles]
+      [update, user.user_id, user.roles],
+      ["Resource Not Found"]
     );
     this.dataHandler = instance.handleUserData;
     this.createRevert = (updated) =>
@@ -455,7 +458,8 @@ export class UpdateUserByEmailTask extends Task<RoledUserType> {
     this.forward = new Auth0Procedure(
       `Find User For Update Email: ${email}`,
       getUserByEmail,
-      [email]
+      [email],
+      ["Resource Not Found"]
     );
     this.dataHandler = instance.handleUserData;
     this.createEnqueue = (data) => {
@@ -580,7 +584,7 @@ export class UpdateTeachersForClassCreateTask extends Task<RoledUserType[]> {
   constructor(instance: TaskHandler, emails: string[], class_id: string) {
     instance.setRequireAuht0Token();
     super();
-    this.forward = new Auth0Procedure(`Find Teachers`, searchUser, [
+    this.forward = new Auth0Procedure(`Find Teachers For Class Create`, searchUser, [
       { email: emails, type: "OR" },
     ]);
     this.dataHandler = instance.handleUserData;
@@ -708,151 +712,114 @@ export class UpdateClassTask extends Task<ClassType> {
   }
 }
 
-export class UpdateTeachersForClassUpdateTask extends Task<RoledUserType[]> {
+export class UpdateUsersForClassUpdateTask extends Task<RoledUserType[]> {
   forward: Procedure<Action<RoledUserType[]>>;
   constructor(instance: TaskHandler, payload: ClassUpdatePaylod) {
     super();
     instance.setRequireAuht0Token();
-    const { class_id, addTeachers, removeTeachers } = payload;
-    const teachers = (addTeachers ?? []).concat(removeTeachers ?? []);
-    const query: SerachQuery = { email: teachers, type: "OR" };
+    const {
+      class_id,
+      addTeachers,
+      removeTeachers,
+      addStudents,
+      removeStudents,
+    } = payload;
+    const teachersToAdd = addTeachers ?? [];
+    const teachersInClass = removeTeachers ?? [];
+    const unmanagedStudents = addStudents ?? [];
+    const studentsInClass = removeStudents ?? [];
+    const query: SerachQuery = {
+      email: teachersToAdd
+        .concat(teachersInClass)
+        .concat(unmanagedStudents)
+        .concat(studentsInClass),
+      type: "OR",
+    };
     this.forward = new Auth0Procedure(
-      `Check Teachers For Update Class ID:${class_id}`,
+      `Check Teachers and Students To Add or Remove For Update Class ID:${class_id}`,
       searchUser,
       [query]
     );
     this.dataHandler = instance.handleUserData;
+    //check all four result
     this.postCheck.push(
-      new CheckFn(instance.haveUsersData, [teachers, "teacher"])
+      new CheckFn(instance.haveUsersData, [teachersToAdd, "teacher"])
     );
+    this.postCheck.push(
+      new CheckFn(instance.areTeachersInClass, [teachersInClass, class_id])
+    );
+    this.postCheck.push(
+      new CheckFn(instance.haveUsersData, [
+        unmanagedStudents,
+        "unmanagedStudent",
+      ])
+    );
+    this.postCheck.push(
+      new CheckFn(instance.areStudentsInClass, [studentsInClass, class_id])
+    );
+
     this.createEnqueue = (users) => {
-      const add = users
-        .filter((user) => (addTeachers ?? []).includes(user.email))
+      // console.log(
+      //   "users:",
+      //   teachersToAdd,
+      //   teachersInClass,
+      //   unmanagedStudents,
+      //   studentsInClass
+      // );
+      const addTeachersTasks = users
+        .filter((user) => teachersToAdd.includes(user.email))
         .map((user) => {
-          const teaching = [
-            ...(user.user_metadata?.teaching_class_ids ?? []),
-            class_id,
-          ];
-          return { user, update: { teaching_class_ids: teaching } };
+          const teaching = user.user_metadata?.teaching_class_ids ?? [];
+          const updated = teaching.includes(class_id)
+            ? teaching
+            : [...teaching, class_id];
+          const updatePaylaod = { teaching_class_ids: updated };
+          return new UpdateUserTask(instance, updatePaylaod, user);
         });
-      const remove = users
-        .filter((user) => (removeTeachers ?? []).includes(user.email))
+      const removeTeachersTasks = users
+        .filter((user) => teachersInClass.includes(user.email))
         .map((user) => {
-          const teaching = (
-            user.user_metadata?.teaching_class_ids ?? []
-          ).filter((id) => id !== class_id);
-          return { user, update: { teaching_class_ids: teaching } };
+          const teaching = user.user_metadata?.teaching_class_ids ?? [];
+          const updated = teaching.filter((id) => id !== class_id);
+          return new UpdateUserTask(
+            instance,
+            { teaching_class_ids: updated },
+            user
+          );
         });
-      return add
-        .map((data) => new UpdateUserTask(instance, data.update, data.user))
-        .concat(
-          remove.map(
-            (data) => new UpdateUserTask(instance, data.update, data.user)
-          )
+      const addStudentsTasks = users
+        .filter((user) => unmanagedStudents.includes(user.email))
+        .map(
+          (user) =>
+            new UpdateUserTask(instance, { enrolled_class_id: class_id }, user)
         );
+      const removeStudentsTasks = users
+        .filter((user) => studentsInClass.includes(user.email))
+        .map(
+          (user) =>
+            new UpdateUserTask(instance, { enrolled_class_id: null }, user)
+        );
+      // console.log( addTeachersTasks.concat(removeTeachersTasks).concat(addStudentsTasks).concat(removeStudentsTasks))
+      return addTeachersTasks
+        .concat(removeTeachersTasks)
+        .concat(addStudentsTasks)
+        .concat(removeStudentsTasks);
     };
   }
 }
 
-export class AddStudentsForClassUpdateTask extends Task<RoledUserType[]> {
-  forward: Procedure<Action<RoledUserType[]>>;
-  constructor(instance: TaskHandler, payload: ClassUpdatePaylod) {
-    super();
-    instance.setRequireAuht0Token();
-    const { class_id, addStudents, removeStudents } = payload;
-    const students = (addStudents ?? []).concat(removeStudents ?? []);
-    const query: SerachQuery = { email: students, type: "OR" };
-    this.forward = new Auth0Procedure(
-      `Check Unmanaged Students For Update Class ID:${class_id}`,
-      searchUser,
-      [query]
-    );
-    this.dataHandler = instance.handleUserData;
-    this.postCheck.push(
-      new CheckFn(instance.haveUsersData, [students, "unmanagedStudent"])
-    );
-    this.createEnqueue = (users) => {
-      const add = users
-        .filter((user) => (addStudents ?? []).includes(user.email))
-        .map((user) => {
-          return { user, update: { enrolled_class_id: class_id } };
-        });
-      return add.map(
-        (data) => new UpdateUserTask(instance, data.update, data.user)
-      );
-    };
-  }
-}
-
-export class RemoveStudentsForClassUpdateTask extends Task<RoledUserType[]> {
-  forward: Procedure<Action<RoledUserType[]>>;
-  constructor(instance: TaskHandler, payload: ClassUpdatePaylod) {
-    super();
-    instance.setRequireAuht0Token();
-    const { class_id, addStudents, removeStudents } = payload;
-    const students = (addStudents ?? []).concat(removeStudents ?? []);
-    const query: SerachQuery = { email: students, type: "OR" };
-    this.forward = new Auth0Procedure(
-      `Check Managed Students For Update Class ID:${class_id}`,
-      searchUser,
-      [query]
-    );
-    this.dataHandler = instance.handleUserData;
-    this.postCheck.push(
-      new CheckFn(instance.haveUsersData, [students, "managedStudent"])
-    );
-    this.createEnqueue = (users) => {
-      const remove = users
-        .filter((user) => (removeStudents ?? []).includes(user.email))
-        .map((user) => {
-          return { user, update: { enrolled_class_id: null } };
-        });
-      return remove.map(
-        (data) => new UpdateUserTask(instance, data.update, data.user)
-      );
-    };
-  }
-}
-
-export class UpdateTeachersForClassDeleteTask extends Task<RoledUserType[]> {
+export class UpdateUsersForClassDeleteTask extends Task<RoledUserType[]> {
   forward: Procedure<Action<RoledUserType[]>>;
   constructor(instance: TaskHandler, target: ClassType) {
     super();
     instance.setRequireAuht0Token();
-    const { class_id, teacher_ids } = target;
-    const teachers = Array.from(teacher_ids ?? new Set<string>());
-    const query: SerachQuery = { email: teachers, type: "OR" };
-    this.forward = new Auth0Procedure(
-      `Check Teachers For Delete Class ID:${class_id}`,
-      searchUser,
-      [query]
-    );
-    this.dataHandler = instance.handleUserData;
-    this.postCheck.push(
-      new CheckFn(instance.haveUsersData, [teachers, "teacher"])
-    );
-    this.createEnqueue = (users) => {
-      const remove = users.map((user) => {
-        const teaching = (user.user_metadata?.teaching_class_ids ?? []).filter(
-          (id) => id !== class_id
-        );
-        return { user, update: { teaching_class_ids: teaching } };
-      });
-      return remove.map(
-        (data) => new UpdateUserTask(instance, data.update, data.user)
-      );
+    const { class_id, student_ids, teacher_ids } = target;
+    const studentsInClass = Array.from(student_ids ?? new Set<string>());
+    const teachersInClass = Array.from(teacher_ids ?? new Set<string>());
+    const query: SerachQuery = {
+      email: studentsInClass.concat(teachersInClass),
+      type: "OR",
     };
-  }
-}
-
-export class UpdateStudentsForClassDeleteTask extends Task<RoledUserType[]> {
-  forward: Procedure<Action<RoledUserType[]>>;
-  constructor(instance: TaskHandler, target: ClassType) {
-    super();
-    instance.setRequireAuht0Token();
-    const { class_id, student_ids } = target;
-    const students = Array.from(student_ids ?? new Set<string>());
-    const query: SerachQuery = { email: students, type: "OR" };
     this.forward = new Auth0Procedure(
       `Check Students For Delete Class ID:${class_id}`,
       searchUser,
@@ -860,15 +827,31 @@ export class UpdateStudentsForClassDeleteTask extends Task<RoledUserType[]> {
     );
     this.dataHandler = instance.handleUserData;
     this.postCheck.push(
-      new CheckFn(instance.haveUsersData, [students, "managedStudent"])
+      new CheckFn(instance.areStudentsInClass, [studentsInClass, class_id])
+    );
+    this.postCheck.push(
+      new CheckFn(instance.areTeachersInClass, [teachersInClass, class_id])
     );
     this.createEnqueue = (users) => {
-      const remove = users.map((user) => {
-        return { user, update: { enrolled_class_id: null } };
-      });
-      return remove.map(
-        (data) => new UpdateUserTask(instance, data.update, data.user)
-      );
+      const removeTeachersTasks = users
+        .filter((user) => teachersInClass.includes(user.email))
+        .map((user) => {
+          const teaching = user.user_metadata?.teaching_class_ids ?? [];
+          const updated = teaching.filter((id) => id !== class_id);
+          return new UpdateUserTask(
+            instance,
+            { teaching_class_ids: updated },
+            user
+          );
+        });
+      const removeStudentsTasks = users
+        .filter((user) => studentsInClass.includes(user.email))
+        .map(
+          (user) =>
+            new UpdateUserTask(instance, { enrolled_class_id: null }, user)
+        );
+      // console.log(removeStudentsTasks,removeTeachersTasks)
+      return removeTeachersTasks.concat(removeStudentsTasks);
     };
   }
 }
@@ -877,24 +860,16 @@ export class DeleteClassTask extends Task<undefined> {
   forward: Procedure<Action<undefined>>;
   constructor(instance: TaskHandler, target: ClassType) {
     super();
-    const { class_id, class_name, available_modules, teacher_ids, capacity } =
-      target;
     this.forward = new DynamoDBProcedure(
       `Delete Class ID:${target.class_id}`,
       deleteClass,
       [target.class_id]
     );
-    const revertPayload: Parameters<typeof createClass>[0] = {
-      class_name,
-      capacity,
-      available_modules: Array.from(available_modules ?? new Set()),
-      teacher_ids: Array.from(teacher_ids ?? new Set()),
-    };
     this.revertProcedures.push(
       new DynamoDBProcedure(
         `Revert Delete Class ID:${target.class_id}`,
-        createClass,
-        [revertPayload, class_id]
+        revertDeleteClass,
+        [target],
       )
     );
   }
@@ -914,13 +889,12 @@ export class DeleteClassByClassIDTask extends Task<ClassType> {
     this.postCheck.push(new CheckFn(instance.haveClassData, [class_id]));
     this.createEnqueue = (data) => {
       const tasks: Task<any>[] = [new DeleteClassTask(instance, data)];
-      if (data.student_ids?.size) {
-        tasks.unshift(new UpdateStudentsForClassDeleteTask(instance, data));
-      }
-      if (data.teacher_ids?.size) {
-        tasks.unshift(new UpdateTeachersForClassDeleteTask(instance, data));
+      if (data.student_ids?.size || data.teacher_ids?.size) {
+        tasks.unshift(new UpdateUsersForClassDeleteTask(instance, data));
       }
       return tasks;
     };
   }
 }
+
+

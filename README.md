@@ -23,6 +23,17 @@ This is an admin panel for managing user and class information using Auth0 authe
 - [x] implement actual api using task handler
 - [x] check front end
 - [ ] testing using Jest 
+    - [x] create user
+    - [ ] batch create users
+    - [ ] search users
+    - [ ] update users by email
+    - [ ] delete user by email
+    - [ ] create class
+    - [ ] get class by id
+    - [ ] batch get class by ids
+    - [ ] update class by id (maybe almost done)
+    - [ ] delete class by id
+    - [ ] send invitation by email
 
 ## Features
 - Create classes 
@@ -95,6 +106,11 @@ This is an admin panel for managing user and class information using Auth0 authe
     <li>access key ID 
     <li>secret access key
     </ol>
+
+### CloudWatch
+- Create a log group
+- Log stream names can be configurate  in `src/lib/cloud_watch.ts`.
+
 ### Email service (OAuth)
 - Follow  [this tutorial](https://www.youtube.com/watch?v=-rcRf7yswfM&t=747s&ab_channel=MafiaCodes) to set up OAuth on Google Clould
     - These information is needed:
@@ -108,9 +124,9 @@ This is an admin panel for managing user and class information using Auth0 authe
     - ref: <https://github.com/googleapis/google-api-nodejs-client#readme>
     
 ### Application setting
-- Create a `.env.local` file in the current directory
+- Create a `.env` file with same content in the current directory
     ```ini
-    # Auth 0 
+   # Auth 0 
     AUTH0_SECRET = use [openssl rand -hex 32] to generate a 32 bytes value
     AUTH0_BASE_URL= base url of the app e.g. http://localhost:3000 
     AUTH0_ISSUER_BASE_URL=  'https://{Auth0 regular web app domain}' 
@@ -129,12 +145,16 @@ This is an admin panel for managing user and class information using Auth0 authe
     OAUTH_REDIRECT_URL= OAuth redirect URl, usually "https://developers.google.com/oauthplayground"
     OAUTH_REFRESH_TOKEN= OAuth refresh token"1//04oP7X2DVPRyvCgYIARAAGAQSNwF-L9IrjpxZVOu3IfVs125zhl6kbnMGuuQXjuo16rOfKbMkoEPq1322Q_ovz5mSbhu10far1pY"
 
-    #DynamoDb
-    DYNAMODB_REGION = aws region, e.g.  ap-northeast-1
+    #AWS
+    AWS_REGION = aws region, e.g.  ap-northeast-1
     AWS_ACCESS_KEY_ID= Access key ID of IAM user
     AWS_SECRET_ACCESS_KEY= Access secret key of IAM user
 
+    #Dynamo DB
     CLASS_TABLE_NAME = table name of the class table in DynamoDB
+
+    #CloudWatch
+    CW_LOG_GROUP =  log group name in CloudWatch
 
     #Configurated for require admin user to access api, default to be True if not set
     REQUIRE_ADMIN = TRUE/FALSE
@@ -144,7 +164,11 @@ This is an admin panel for managing user and class information using Auth0 authe
     npm install
     ```
 - In src/models/auth0_schemas, update the variable `roleMapping` by the correct role id in the Auth0 dash board
-- Requries for admin user is on by default, you can either create an a/c and assign it to admin role in the Auth0 dash board, or the admin check can be turned off in `.env.local` by setting `REQUIRE_ADMIN` to `FALSE` (default `TRUE`)
+- Requries for admin user is on by default, you can either create an a/c and assign it to admin role in the Auth0 dash board, or the admin check can be turned off in `.env` by setting `REQUIRE_ADMIN` to `FALSE` (default `TRUE`)
+- Testing with Jest
+    ```bash
+    npm test
+    ```
 - Start for development
     ```bash
     npm run dev

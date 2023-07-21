@@ -123,3 +123,17 @@ export type TupleSplit<
 
 
 export const emailSchema = z.string().trim().email({message:"Please provide a valid email"})
+
+export function sameList<T>(arr1:T[]|Set<T>|null|undefined,arr2:T[]|Set<T>|null|undefined){
+  // console.log(arr1,arr2)
+  if(!arr1||!arr2)return false
+  if(!Array.isArray(arr1)){
+    arr1 = Array.from(arr1)
+  }
+  if(!Array.isArray(arr2)){
+    arr2 = Array.from(arr2)
+  }
+  return arr1.sort().toString() === arr2.sort().toString()
+}
+
+export type Nullable<T> = T | undefined | null;

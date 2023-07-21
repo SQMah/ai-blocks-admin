@@ -40,13 +40,14 @@ const APIErrorStatus = {
   "Bad Request": 400,
   "Invalid Request Body": 400,
   "Invalid Request Params": 400,
-  Unauthorized: 401,
-  Forbidden: 403,
+  "Unauthorized": 401,
+  "Forbidden": 403,
   "Resource Not Found": 404,
   "Not Found": 404,
-  Conflict: 409,
+  "Conflict": 409,
   "Auth0 Error": 500,
   "Dynamo DB Error": 500,
+  "Cloud Watch Error":500,
   "Implementation Error": 500,
   "Internal Server Error": 500,
 } as const;
@@ -87,7 +88,7 @@ export class APIError extends Error {
 export class ServerErrorHandler {
   public readonly message: string;
   public readonly status_text: ERROR_STATUS_TEXT;
-  private status_code: number;
+  public readonly status_code: number;
   constructor(error: any) {
     if (error instanceof APIError) {
       this.status_code = error.code;
@@ -242,10 +243,10 @@ export function classUpdatePayloadsFromUpdateUserContetnt(updateContent:UpdateUs
   }else if(user.roles.includes('teacher')&&teaching_class_ids){
     //change teaching
     const remove = (user.user_metadata?.teaching_class_ids??[]).map(class_id=>{
-      return {class_id,removeTeacher:[email]}
+      return {class_id,removeTeachers:[email]}
     })
     const add = teaching_class_ids.map(class_id=>{
-     return{ class_id,addTeacher:[email]}
+     return{ class_id,addTeachers:[email]}
     })
     return [...remove,...add]
   }
@@ -269,18 +270,7 @@ export function userUpdatePayloadFromClassCreation(users:RoledUserType[],class_i
   })
 }
 
-
-export function willUpdateTeachersWhenClassUpdate(update:ClassUpdatePaylod):boolean{
-  const {addTeachers,removeTeachers} = update
-  return ((addTeachers??[]).concat(removeTeachers??[])).length>0
-}
-
-export function willAddStudentsWhenClassUpdate(update:ClassUpdatePaylod):boolean{
-  const {addStudents} = update
-  return (addStudents??[]).length>0
-}
-
-export function willRemoveStudentsWhenClassUpdate(update:ClassUpdatePaylod):boolean{
-  const {removeStudents} = update
-  return (removeStudents??[]).length>0
+export function willUpdateUsersWhenClassUpdate(payload:ClassUpdatePaylod):boolean{
+  const {addStudents,addTeachers,removeStudents,removeTeachers} = payload
+  return [...addStudents??[],...addTeachers??[],...removeStudents??[],removeTeachers??[]].length>0
 }

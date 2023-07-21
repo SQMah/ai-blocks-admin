@@ -21,7 +21,7 @@ import {
   UserType,
   RoledUserSchema,
 } from "@/models/auth0_schemas";
-import { PutUsersReqType, PostUsersReqType } from "@/models/api_schemas";
+import { PutUsersReqType, PostUsersReqType, UpdateUserContentType } from "@/models/api_schemas";
 
 import { futureDate, removeDuplicates, zodErrorMessage } from "./utils";
 import { APIError } from "./api_utils";
@@ -98,7 +98,7 @@ export async function createUser(
       ...(role === "teacher" && {
         teaching_class_ids: teaching_class_ids
           ? removeDuplicates(teaching_class_ids)
-          : teaching_class_ids,
+          : [],
       }),
       ...((role === "unmanagedStudent" || role === "managedStudent") && {
         available_modules: available_modules
@@ -378,17 +378,16 @@ type PutUserBodyType = z.infer<typeof PutUserBodySchema>;
 
 export const updateUser = async (
   access_token: string,
-  payload: PutUsersReqType,
+  payload: UpdateUserContentType,
   userId:string,
   roles: RoleArrayType
 ):Promise<RoledUserType> => {
-  const {  content } = payload;
   const {
     available_modules,
     enrolled_class_id,
     teaching_class_ids,
     account_expiration_date,
-  } = content;
+  } = payload;
   const body: PutUserBodyType = {};
   const isStudent =
     roles.includes("managedStudent") || roles.includes("unmanagedStudent");
@@ -411,8 +410,10 @@ export const updateUser = async (
     ...(!isAdmin && account_expiration_date!==undefined&& { account_expiration_date }),
   };
   // console.log("body:",body)
-  if (Object.keys(body).length===0||Object.keys(body.user_metadata).length===0)
+  if (Object.keys(body).length===0||Object.keys(body.user_metadata).length===0){
+    console.log("content",payload)
     throw new APIError("Invalid Request Body", "Invalid update content, maybe fields are ignored");
+  }
   try {
     const { data } = await axios.patch(
       `${auth0BaseUrl}/api/v2/users/${userId}`,
@@ -424,7 +425,7 @@ export const updateUser = async (
         },
       }
     );
-    return RoledUserSchema.parse(data);
+    return RoledUserSchema.parse({...data,roles});
   } catch (error: any) {
     throw handleAuth0Error(error);
   }
