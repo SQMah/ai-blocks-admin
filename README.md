@@ -3,7 +3,7 @@
 This is an admin panel for managing user and class information using Auth0 authentication and DynamoDB for class databse.
 
 
-## TODO
+<!-- ## TODO
 
 - [x] Fix oauth issue agn
 - [x] better check fn -> hv args
@@ -33,7 +33,7 @@ This is an admin panel for managing user and class information using Auth0 authe
     - [ ] batch get class by ids
     - [ ] update class by id (maybe almost done)
     - [ ] delete class by id
-    - [ ] send invitation by email
+    - [ ] send invitation by email -->
 
 ## Features
 - Create classes 
