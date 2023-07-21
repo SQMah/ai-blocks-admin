@@ -148,18 +148,8 @@ class TestTaskHandler extends TaskHandler {
   }
 
   //overide to post log to test stream
-  protected async handleRevertError(procedure:Procedure<Action<Data>>,error:any){
-    const errorHandler = new ServerErrorHandler(error)
-    const {status_text,status_code,message} = errorHandler
-    const {name,payload,action} = procedure
-    const cause = `Revert Error: ${name} failed with status ${status_code}:${status_text}, message:${message} , action:${action.name}, payload:${JSON.stringify(payload)}.`
-    const remaining = this.revert_stack.map(procedure=>{
-      return {...procedure,action:procedure.action.name}
-    })
-    const toLog:string = [cause,`Remaining Revert Procedures: ${JSON.stringify(remaining)}`].join("\n")
-    console.log(toLog)
-    //log to cloud watch
-    await putLogEvent("TEST_REVERT_ERROR",toLog)
+  protected async postingRevertError(message:string) {
+    putLogEvent("TEST_REVERT_ERROR",message)
   }
   constructor() {
     super();
@@ -1320,7 +1310,7 @@ test("Handling Revert Error",async()=>{
   //act
   await createClass()
   await testHandler.start()
-  console.log(testHandler.getRevertStack())
+  // console.log(testHandler.getRevertStack())
   testHandler.setRevertError()
   await testHandler.testRevert()
 
