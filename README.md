@@ -126,13 +126,14 @@ This is an admin panel for managing user and class information using Auth0 authe
 ### Application setting
 - Create a `.env` file with same content in the current directory
     ```ini
-   # Auth 0 
+    # Auth 0 
+    ##Client
     AUTH0_SECRET = use [openssl rand -hex 32] to generate a 32 bytes value
     AUTH0_BASE_URL= base url of the app e.g. http://localhost:3000 
     AUTH0_ISSUER_BASE_URL=  'https://{Auth0 regular web app domain}' 
     AUTH0_CLIENT_ID= client id of the web app
     AUTH0_CLIENT_SECRET=the client secret of the regular web app
-
+    ##API
     AUTH0_API_CLIENT_ID= client id of the machine to machine app
     AUTH0_API_CLIENT_SECRET= client secrect of the m2m app
     AUTH0_API_BASE_URL='https://{Auth0 m2m app domain}/api/v2/'
