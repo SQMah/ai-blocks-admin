@@ -1,52 +1,48 @@
-import type { NextApiRequest, NextApiResponse } from "next";
+import { ServerErrorHandler, adminCheck } from "@/lib/api_utils";
+import {
+  deleteUser,
+  findSingleUser,
+  updateUser,
+} from "@/lib/db";
 
-import { APIError, adminCheck, ServerErrorHandler } from "@/lib/api_utils";
-import { DeleteUsersByEmailReqSchema, GetUsersReqSchema, UpdateUserByEmailReqSechema } from "@/models/api_schemas";
+import type { NextApiRequest, NextApiResponse } from "next";
+import {  deleteUserReqSchema, getUsersReqSchema, putUsersReqSchema } from "@/models/api_schemas";
 import { TaskHandler } from "@/lib/task-handler";
-import { zodErrorMessage } from "@/lib/utils";
+
 
 const handleGet = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    // console.log(req.query)
-    // const  { email} = req.query;
-    const parsing = GetUsersReqSchema.safeParse(req.query);
-    if (!parsing.success) {
-      throw new APIError(
-        "Invalid Request Params",
-        "Please provide one and only one email."
-      );
-    }
-    const { email } = parsing.data;
-    const taskHandler = new TaskHandler();
-    taskHandler.logic.findUserByEmail(email);
-    await taskHandler.start();
-    const user = taskHandler.getSingleUser(email);
+    const {email,roles}  = getUsersReqSchema.parse(req.query)
+    const user =  await findSingleUser(email,roles)
+    // console.log(user)
     res.status(200).json(user);
-    return;
-  } catch (error: any) {
+  } catch (error) {
     const handler = new ServerErrorHandler(error);
     handler.log();
     handler.sendResponse(req, res);
   }
 };
 
+// const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
+//   try {
+//     const payload = postUsersReqSchema.parse(req.body)
+//     const result = await createUser(payload);
+//     // const user = UserSchema.parse(data)
+//     res.status(201).json(result);
+//   } catch (error) {
+//     const handler = new ServerErrorHandler(error);
+//     handler.log();
+//     handler.sendResponse(req, res);
+//   }
+// };
+
 const handlePut = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const parsing = UpdateUserByEmailReqSechema.safeParse({...req.query,...req.body});
-    if (!parsing.success) {
-      throw new APIError(
-        "Invalid Request Body",
-        zodErrorMessage(parsing.error.issues)
-      );
-    }
-    const { email,content } = parsing.data;
-    const taskHandler = new TaskHandler();
-    taskHandler.logic.updateUserByEmail(email,content)
-    await taskHandler.start();
-    const data = taskHandler.getSingleUser(email)
+    const payload = putUsersReqSchema.parse({...req.query,...req.body})
+    const {email,...update} = payload
+    const data = await updateUser(email,update)
     res.status(200).json(data);
-    return;
-  } catch (error: any) {
+  } catch (error) {
     const handler = new ServerErrorHandler(error);
     handler.log();
     handler.sendResponse(req, res);
@@ -55,20 +51,12 @@ const handlePut = async (req: NextApiRequest, res: NextApiResponse) => {
 
 const handleDelete = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    const parsing = DeleteUsersByEmailReqSchema.safeParse(req.query);
-    if (!parsing.success) {
-      throw new APIError(
-        "Invalid Request Params",
-        "Please provide one and only one email."
-      );
-    }
-    const { email } = parsing.data;
-    const taskHandler = new TaskHandler();
-    taskHandler.logic.deleteUserByEmail(email)
-    await taskHandler.start();
+    const {email} = deleteUserReqSchema.parse({...req.query,...req.body})
+    const th = new TaskHandler()
+    th.logic.deleteUser(email)
+    const data  = await th.run()
     res.status(204).end();
-    return;
-  } catch (error: any) {
+  } catch (error) {
     const handler = new ServerErrorHandler(error);
     handler.log();
     handler.sendResponse(req, res);
@@ -76,7 +64,6 @@ const handleDelete = async (req: NextApiRequest, res: NextApiResponse) => {
 };
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
-  // console.log(req.method)
   //configurate for authentication
   if (!(await adminCheck(req, res))) {
     return;
@@ -86,11 +73,14 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     case "GET":
       await handleGet(req, res);
       break;
+    // case "POST":
+    //   await handlePost(req, res);
+    //   break;
     case "PUT":
-      await handlePut(req,res)
+      await handlePut(req, res);
       break;
     case "DELETE":
-      await handleDelete(req,res);
+      await handleDelete(req, res);
       break;
     default:
       res.status(405).json({
