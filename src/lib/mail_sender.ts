@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import {google} from "googleapis"
 import { htmlContent,textContent } from './email_template';
+import { APIError } from './api_utils';
 
 const sender_mail = process.env.SENDER_MAIL
 if(!sender_mail) throw new Error("Mail address of sender is not set")
@@ -16,8 +17,12 @@ const oAuth2Client = new google.auth.OAuth2(client_id,client_secret,redirect_url
 oAuth2Client.setCredentials({refresh_token:refresh_token})
 
 
-export const sendMail = async (subject:string,sender_name:string,
-    receiver_name:string,reciever_mail:string,url:string,signig_name:string) =>{
+const signing_name = "SQ";
+const sender_name = "AI Blocks";
+const subject = "Invitation to AI Blocks";
+
+
+export const sendMail = async (receiver_name:string,reciever_mail:string,url:string) =>{
         // console.log("creating connection")
     try {
         // throw new Error("random error") //for testing
@@ -40,8 +45,8 @@ export const sendMail = async (subject:string,sender_name:string,
             from: `${sender_name} <${sender_mail}>`,
             to: `${receiver_name} <${reciever_mail}>`, // list of receivers
             subject: subject, // Subject line
-            text: textContent(receiver_name,url,signig_name), // plain text body
-            html: htmlContent(receiver_name,url,signig_name), // html body
+            text: textContent(receiver_name,url,signing_name), // plain text body
+            html: htmlContent(receiver_name,url,signing_name), // html body
             attachments: [{
                 filename: 'robot.png',
                 path:"public/email_images/robot.png",
@@ -55,7 +60,7 @@ export const sendMail = async (subject:string,sender_name:string,
         
     } catch (error:any) {
         // console.error("OAuth problem")
-        throw new Error(error.message??"Mailing Service Connection Failure")
+        throw new APIError("Mailing Error",error.message??"Mailing Service Connection Failure")
     }
 }
 

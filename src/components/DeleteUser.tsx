@@ -1,7 +1,6 @@
 import { FC,Dispatch,SetStateAction, useState, } from "react";
 import axios from "axios";
-
-import { RoledUserType } from "@/models/auth0_schemas";
+import {User} from "@/models/db_schemas"
 import { Button } from "./ui/button";
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "./ui/use-toast";
@@ -19,9 +18,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { ClientErrorHandler,  } from "@/lib/utils";
+import { requestAPI } from "@/lib/request";
 
 interface props{
-  user:RoledUserType,
+  user:User,
   reload:()=>Promise<void>,
   isLoading:boolean,
   setIsLoading:Dispatch<SetStateAction<boolean>>
@@ -35,7 +35,7 @@ const DeleteUser:FC<props>=({user,reload,isLoading,setIsLoading})=>{
     const handleRemove =async () => {
         setIsLoading(true)
         try {
-            const response =await  axios.delete(`/api/v1/users/${user.email}`)
+            const data = await requestAPI("users","DELETE",{},{},user.email)
             toast({
               title:"Deleted"
             })

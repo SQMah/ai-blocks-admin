@@ -41,7 +41,7 @@ This is an admin panel for managing user and class information using Auth0 authe
 - Manage classes 
     - manage students enrolled
     - update class capacity and class name
-    - update avaiables modules
+    - update availables modules
     - delete class
 - Manage users
     - tecahers: update teaching class IDs
@@ -77,7 +77,7 @@ This is an admin panel for managing user and class information using Auth0 authe
          - Example:
             ```js
             exports.onExecutePostLogin = async (event, api) => {
-            const expiration = event.user.user_metadata?.account_expiration_date
+            const expiration = event.user.user_metadata?.expiration_date
             if(expiration == undefined) return
             if(isNaN(Date.parse(`${expiration}T00:00:00`))){
                 api.redirect.sendUserTo("https://{Auth0 m2m app domain}/v2/logout")
