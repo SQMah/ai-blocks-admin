@@ -2,6 +2,7 @@ import { FC,Dispatch,SetStateAction} from "react";
 import axios from "axios";
 import { X } from "lucide-react";
 
+import { RoledUserType } from "@/models/auth0_schemas";
 import { Button } from "./ui/button";
 
 import {
@@ -15,42 +16,37 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { PutUsersReqType} from "@/models/api_schemas";
 import { useToast } from "./ui/use-toast";
 import { ClientErrorHandler} from "@/lib/utils";
-import { User,Group } from "@/models/db_schemas";
-import { requestAPI } from "@/lib/request";
-import { getGroupsResSechema } from "@/models/api_schemas";
 
 interface props{
-  student:User,
-  group_name:string,
-  reload?:()=>Promise<void>,
-  handleChangeGroup?: (data: Group | undefined) => Promise<void>;
+  student:RoledUserType,
+  reload:()=>Promise<void>,
   isLoading:boolean,
   setIsLoading:Dispatch<SetStateAction<boolean>>
-  display?:string
 }
 
 
 
-const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading,group_name,display,handleChangeGroup})=>{
+const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading})=>{
     const {toast} = useToast()
     
     const handleRemove =async () => {
-        const class_id = student.enrolled
+        const class_id = student.user_metadata?.enrolled_class_id
         if(!class_id) return 
         setIsLoading(true)
         try {
+            const paylaod:PutUsersReqType={
+              email:student.email,
+              content:{
+                enrolled_class_id:null
+              }
+            }
             // console.log(paylaod)
             //update user data and class data by single api call
-            const response =await requestAPI("enrolls","DELETE",{email:student.email,group_id:class_id},{})
-            if(reload){
-              await reload()
-            }else if(handleChangeGroup){
-              const res = await requestAPI("groups","GET",{},{},class_id)
-              const data = getGroupsResSechema.parse(res)
-              await handleChangeGroup(data);
-            }
+            const response =await  axios.put("/api/v1/users",paylaod)
+            await reload()
         } catch (error:any) {
           const handler = new ClientErrorHandler(error)
           handler.log()
@@ -66,13 +62,13 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading,g
     return <>
     <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant={"ghost"}>{display?<a className=" text-red-500">{display}</a>:<X color="red"/>}</Button>
+                <Button variant={"ghost"}><X color="red"/></Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure to remove {student.name} from {group_name} ?</AlertDialogTitle>
+                  <AlertDialogTitle>Are you absolutely sure to remove {student.name} from {student.user_metadata?.enrolled_class_id} ?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently remove {student.name} from {group_name}.
+                    This action cannot be undone. This will permanently remove {student.name} from {student.user_metadata?.enrolled_class_id}. {student.name} will become an unmanaged student.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

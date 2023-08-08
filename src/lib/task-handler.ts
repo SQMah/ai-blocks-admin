@@ -1,12 +1,42 @@
-import { APIError, ERROR_STATUS_TEXT, ServerErrorHandler } from "./api_utils";
+import { RoledUserType, UserRoleType } from "@/models/auth0_schemas";
+import {
+  APIError,
+  ERROR_STATUS_TEXT,
+  ServerErrorHandler,
+  classUpdatePaylaodsFromCreateUser,
+  classUpdatePayloadsFromBatchCreate,
+  willUpdateUsersWhenClassUpdate,
+} from "./api_utils";
+import { SerachQuery } from "./auth0_user_management";
+import { createClass } from "./class_management";
+import { ClassType } from "@/models/dynamoDB_schemas";
 import { delay } from "./utils";
-
-import { Auth0Task, DBTask, DeleteAuth0AccountTask, GetAuthTokenProcedure, Procedure, Task, CreateAuth0AccountTask, createSignleUserTask, DeleteUserTask, GetInvitationParamsTask, BatchCreateUserTask } from "./task-and-procedure";
+import {
+  BatchCreateUserReqType,
+  PostUsersReqType,
+  PutClassesReqType,
+  UpdateUserContentType,
+} from "@/models/api_schemas";
+import {
+  BatchGetClassTask,
+  CheckClassUpdatableAndUpdateTask,
+  CreateClassTask,
+  CreateUserTask,
+  DeleteClassByClassIDTask,
+  DeleteUserByEmailTask,
+  DeleteUserByIDTask,
+  FindClassByIDTask,
+  GetAuthTokenProcedure,
+  GetUserByEmailTask,
+  Procedure,
+  ResendInvitationTask,
+  ScearchUsersTask,
+  Task,
+  UpdateTeachersForClassCreateTask,
+  UpdateUserByEmailTask,
+  UpdateUsersForClassUpdateTask,
+} from "./task-and-procedure";
 import { putLogEvent } from "./cloud_watch";
-import { Group, User } from "@/models/db_schemas";
-import { Auth0User } from "@/models/auth0_schemas";
-import { sendMail } from "./mail_sender";
-import { PostBatchCreateUsersReq, PostUsersReq } from "@/models/api_schemas";
 
 export const TRY_LIMIT = 3; //error hitting limit
 
@@ -17,18 +47,14 @@ export function wait(time: number | undefined = undefined) {
 }
 
 //awaited return type of actions
-
 export type Data =
-  | User
-  | User[]
-  | Group
-  | Group[]
+  | RoledUserType
+  | RoledUserType[]
+  | ClassType
+  | ClassType[]
   | string
-  | Auth0User
-  |EmailParam
   | void
   | undefined;
-
 /**
  * fuction to call with payload
  */
@@ -41,75 +67,135 @@ export type Auth0Action<D extends Data> = (
 
 export type Proccessed<A extends Action<Data>> = Awaited<ReturnType<A>>;
 
-export type DataHandler<D extends Data> = (data: D[]|D) => void;
-
-export type DB_Data =Exclude<Data,Auth0User|EmailParam>
-export type Auth0_Data = Exclude<Data,User|Group>
-
-export interface EmailParam {
-  email: string;
-  name: string;
-  url: string;
-}
+export type DataHandler<D extends Data> = (data: D) => void;
 
 export class TaskHandler {
+  protected require_token = false;
   protected auth0_token: string | undefined;
-  protected readonly auth0_tasks: Auth0Task<any>[] = [];
-  protected readonly db_tasks: DBTask<any>[] = [];
+  protected readonly task_queue: Task<any>[] = [];
   protected readonly revert_stack: Procedure<Action<Data>>[] = [];
-  protected readonly emailsToSent: EmailParam[] = [];
   protected error_status_text: ERROR_STATUS_TEXT | undefined; //* undefined -> error occurs -> stop process and revert changes
   protected readonly error_messages: string[] = [];
 
   /**
    * email -> user data
    */
-  protected users = new Map<string, User>();
+  protected users = new Map<string, RoledUserType>();
   /**
    * class_id -> class data
    */
-  protected groups = new Map<string, Group>();
+  protected classes = new Map<string, ClassType>();
 
   logic = {
-    createSingleUser:(payload:PostUsersReq)=>{
-      this
-      .addAuth0Tasks(new CreateAuth0AccountTask(this,payload.email))
-      .addDBTasks(new createSignleUserTask(this,payload))
-      .addAuth0Tasks(new GetInvitationParamsTask(this,payload.email,payload.name))
+    createSingleUser: (payload: PostUsersReqType) => {
+      const classPayloads = classUpdatePaylaodsFromCreateUser(payload);
+      // console.log(classPayloads)
+      this.addQueue(
+        classPayloads.map(
+          (data) => new CheckClassUpdatableAndUpdateTask(this, data)
+        )
+      );
+      this.addQueue(new CreateUserTask(this, payload));
     },
-    deleteUser:(email:string)=>{
-      this.addAuth0Tasks(new DeleteAuth0AccountTask(this,email))
-      .addDBTasks(new DeleteUserTask(this,email))
+    barchCreateUsers: (payload: BatchCreateUserReqType) => {
+      const {
+        users,
+        enrolled_class_id,
+        teaching_class_ids,
+        available_modules,
+        account_expiration_date,
+        role,
+      } = payload;
+      const classPayloads = classUpdatePayloadsFromBatchCreate(payload);
+      this.addQueue(
+        classPayloads.map(
+          (data) => new CheckClassUpdatableAndUpdateTask(this, data)
+        )
+      );
+      this.addQueue(
+        users.map(
+          (user) =>
+            new CreateUserTask(this, {
+              ...user,
+              enrolled_class_id,
+              teaching_class_ids,
+              available_modules,
+              account_expiration_date,
+              role,
+            })
+        )
+      );
     },
-    batchCreateUser:(payload:PostBatchCreateUsersReq)=>{
-      payload.users.forEach(user=>{
-      const {email,name} = user
-      this
-      .addAuth0Tasks(new CreateAuth0AccountTask(this,email))
-      .addAuth0Tasks(new GetInvitationParamsTask(this,email,name))
-      })
-      this.addDBTasks(new BatchCreateUserTask(this,payload))
-    }
+    findUserByEmail: (email: string) => {
+      this.addQueue(new GetUserByEmailTask(this, email));
+    },
+    searchUser: (query: SerachQuery) => {
+      this.addQueue(new ScearchUsersTask(this, query));
+    },
+    updateUserByEmail: (email: string, update: UpdateUserContentType) => {
+      this.addQueue(new UpdateUserByEmailTask(this, update, email));
+    },
+    deleteUserByEmail: (email: string) => {
+      this.addQueue(new DeleteUserByEmailTask(this, email));
+    },
+    deteleUserByID: (user_id: string) => {
+      this.addQueue(new DeleteUserByIDTask(this, user_id));
+    },
+    createClass: (
+      data: Parameters<typeof createClass>[0],
+      class_id: string
+    ) => {
+      if (data.teacher_ids.length) {
+        this.addQueue(
+          new UpdateTeachersForClassCreateTask(this, data.teacher_ids, class_id)
+        );
+      }
+      this.addQueue(new CreateClassTask(this, data, class_id));
+    },
+    getClassByID: (class_id: string) => {
+      this.addQueue(new FindClassByIDTask(this, class_id));
+    },
+    batchGetClass: (class_ids: string[]) => {
+      this.addQueue(new BatchGetClassTask(this, class_ids));
+    },
+    updateClass: (payload: PutClassesReqType) => {
+      const { addStudents, addTeachers, removeStudents, removeTeachers } =
+        payload;
+      this.addQueue(new CheckClassUpdatableAndUpdateTask(this, payload));
+      if (willUpdateUsersWhenClassUpdate(payload)) {
+        this.addQueue(new UpdateUsersForClassUpdateTask(this, payload));
+      }
+    },
+    deleteClassbyID: (class_id: string) => {
+      this.addQueue(new DeleteClassByClassIDTask(this, class_id));
+    },
+    resendInvitation: (email: string) => {
+      this.addQueue(new ResendInvitationTask(this, email));
+    },
   };
 
   //utlis
 
-  addAuth0Tasks(...tasks: Auth0Task<any>[]) {
+  addQueue(task: Task<any> | Task<any>[]) {
     // console.log("tasks to add",task)
-    this.auth0_tasks.splice(this.auth0_tasks.length, 0, ...tasks);
-    // console.log(this.auth0_tasks);
+    if (Array.isArray(task)) {
+      for (const entry of task) {
+        this.task_queue.push(entry);
+      }
+    } else {
+      this.task_queue.push(task);
+    }
     return this;
   }
 
-  addDBTasks(...tasks: DBTask<any>[]) {
-    // console.log("tasks to add",task)
-    this.db_tasks.splice(this.db_tasks.length, 0, ...tasks);
-    // console.log(this.db_tasks);
-    return this;
-  }
-
-  addRevert(...procedures: Procedure<any>[]) {
-    this.revert_stack.splice(this.revert_stack.length, 0, ...procedures);
+  addRevert(procedure: Procedure<any> | Procedure<any>[]) {
+    if (Array.isArray(procedure)) {
+      for (const entry of procedure) {
+        this.revert_stack.push(entry);
+      }
+    } else {
+      this.revert_stack.push(procedure);
+    }
     return this;
   }
 
@@ -117,43 +203,254 @@ export class TaskHandler {
     return Boolean(this.error_status_text);
   }
 
-  // setRequireAuht0Token() {
-  //   this.require_token = true;
-  //   return this.require_token;
-  // }
+  setRequireAuht0Token() {
+    this.require_token = true;
+    return this.require_token;
+  }
 
   //handle data
-  handleUserData(data: User[]|User) {
-    if(!Array.isArray(data)){
-      this.users.set(data.email,data)
-      return
+  handleUserData(data: RoledUserType | RoledUserType[] | undefined) {
+    if (data === undefined) return;
+    if (!Array.isArray(data)) {
+      data = [data];
     }
     data.forEach((entry) => this.users.set(entry.email, entry));
   }
-
-
-  handleClassData(data: Group[]|Group) {
-    if(!Array.isArray(data)){
-      this.groups.set(data.group_id,data)
-      return
+  handleClassData(data: ClassType | ClassType[] | undefined) {
+    if (data === undefined) return;
+    if (!Array.isArray(data)) {
+      data = [data];
     }
-    data.forEach((entry) => this.groups.set(entry.group_id, entry));
-  }
-
-  handleEmailParam(data:EmailParam|EmailParam[]){
-    // console.log(data)
-    const array = Array.isArray(data)?data:[data]
-    this.emailsToSent.splice(this.emailsToSent.length,0,...array)
-    // console.log(this.emailsToSent)
+    data.forEach((entry) => this.classes.set(entry.class_id, entry));
   }
 
   //checking fn s,throw error if check fail
 
+  /**
+   * check if handler have all required user
+   * @param emails
+   * @param role
+   */
+  haveUsersData(emails: string[], role: UserRoleType | undefined = undefined) {
+    const data: RoledUserType[] = [];
+    const missing: string[] = [];
+    emails.forEach((key) => {
+      const user = this.users.get(key);
+      //true if user hv the requred role || role is not defined || user is not defined
+      const satisfyRole = role ? user?.roles.includes(role) : true;
+      //user is not undefined && (user has role || role is not defined)
+      if (user && satisfyRole) {
+        data.push(user);
+      } else {
+        missing.push(key);
+      }
+    });
+    if (missing.length)
+      throw new APIError(
+        "Resource Not Found",
+        `${missing.join(", ")} are not valid ${role ?? "user"}s`
+      );
+    return this;
+  }
+
+  haveUserData(email: string, role: UserRoleType | undefined = undefined) {
+    const data = this.users.get(email);
+    //true if user hv the requred role || role is not defined || user is not defined
+    const satisfyRole = role ? data?.roles.includes(role) : true;
+    //user is  undefined  || user is not the  role
+    if (!data || !satisfyRole)
+      throw new APIError(
+        "Resource Not Found",
+        `Required ${role ?? "user"} not found`
+      );
+    return this;
+  }
+
+  /**
+   * check if hanlder contains the required class
+   * @param class_id
+   */
+  haveClassData(class_id: string) {
+    const data = this.classes.get(class_id);
+    if (!data)
+      throw new APIError("Resource Not Found", "Required class not found");
+    return this;
+  }
+
+  haveClassesData(class_ids: string[]) {
+    const missing: string[] = [];
+    class_ids.forEach((id) => {
+      const data = this.classes.get(id);
+      if (!data) missing.push(id);
+    });
+    if (missing.length) {
+      throw new APIError(
+        "Resource Not Found",
+        `${missing.join(", ")} are not valid class IDs.`
+      );
+    }
+    return this;
+  }
+
+  isStudentInClass(email: string, class_id: string) {
+    const student = this.users.get(email);
+    if (!student || !student.roles.includes("managedStudent"))
+      throw new APIError(
+        "Resource Not Found",
+        `${email} is not valid student.`
+      );
+    const enrolled = student.user_metadata?.enrolled_class_id;
+    if (!enrolled || enrolled !== class_id)
+      throw new APIError(
+        "Bad Request",
+        `${email} is not student of ${class_id}`
+      );
+    return this;
+  }
+
+  areStudentsInClass(emails: string[], class_id: string) {
+    const data: RoledUserType[] = [];
+    const missing: string[] = [];
+    emails.forEach((key) => {
+      const user = this.users.get(key);
+      if (user?.roles.includes("managedStudent")) {
+        data.push(user);
+      } else {
+        missing.push(key);
+      }
+    });
+    if (missing.length)
+      throw new APIError(
+        "Resource Not Found",
+        `${missing.join(", ")} are not valid students`
+      );
+    const notInClass = data.filter((user) => {
+      const enrolled = user.user_metadata?.enrolled_class_id;
+      return !enrolled || enrolled !== class_id;
+    });
+    if (notInClass.length) {
+      throw new APIError(
+        "Resource Not Found",
+        `${notInClass
+          .map((user) => user.email)
+          .join(", ")} are not valid students in ${class_id}`
+      );
+    }
+    return this;
+  }
+
+  isTeacherInClass(email: string, class_id: string) {
+    const teacher = this.users.get(email);
+    if (!teacher || !teacher.roles.includes("teacher"))
+      throw new APIError(
+        "Resource Not Found",
+        `${email} is not valid teacher.`
+      );
+    const teaching = teacher.user_metadata?.teaching_class_ids ?? [];
+    if (!teaching.includes(class_id))
+      throw new APIError(
+        "Bad Request",
+        `${email} is not teacher of ${class_id}`
+      );
+    return this;
+  }
+
+  areTeachersInClass(emails: string[], class_id: string) {
+    const data: RoledUserType[] = [];
+    const missing: string[] = [];
+    emails.forEach((key) => {
+      const user = this.users.get(key);
+      if (user?.roles.includes("teacher")) {
+        data.push(user);
+      } else {
+        missing.push(key);
+      }
+    });
+    if (missing.length)
+      throw new APIError(
+        "Resource Not Found",
+        `${missing.join(", ")} are not valid teachers`
+      );
+    const notInClass = data.filter((user) => {
+      const teaching = user.user_metadata?.teaching_class_ids ?? [];
+      return !teaching.includes(class_id);
+    });
+    if (notInClass.length) {
+      throw new APIError(
+        "Resource Not Found",
+        `${notInClass
+          .map((user) => user.email)
+          .join(", ")} are not valid teachers in ${class_id}`
+      );
+    }
+    return this;
+  }
+
+  //some dummy task to add to queue
+
+  //get data from property
+  getSingleUser(email: string, role?: UserRoleType) {
+    const user = this.users.get(email);
+    const satistfy = user && (role ? user.roles.includes(role) : true);
+    if (!satistfy)
+      throw new APIError(
+        "Resource Not Found",
+        `${email} is not a valid ${role ?? "user"}`
+      );
+    return user;
+  }
+
+  getUsers(emails: string[], role?: UserRoleType) {
+    const missing: string[] = [];
+    const users: RoledUserType[] = [];
+    emails.forEach((email) => {
+      const data = this.users.get(email);
+      const saftisfy = data && (role ? data.roles.includes(role) : true);
+      if (!saftisfy) missing.push(email);
+      else users.push(data);
+    });
+    if (missing.length)
+      throw new APIError(
+        "Resource Not Found",
+        `${missing.join(", ")} are not present ${role ?? "user"}s in handler`
+      );
+    return users;
+  }
+
+  getAllUsers(): RoledUserType[] {
+    return Array.from(this.users.values());
+  }
+
+  getSingleClass(class_id: string) {
+    const data = this.classes.get(class_id);
+    if (!data)
+      throw new APIError(
+        "Resource Not Found",
+        `Class id ID: ${class_id} not found`
+      );
+    return data;
+  }
+
+  getClasses(class_ids: string[]) {
+    const classes: ClassType[] = [];
+    const missing: string[] = [];
+    class_ids.forEach((id) => {
+      const data = this.classes.get(id);
+      if (!data) missing.push(id);
+      else classes.push(data);
+    });
+    if (missing.length)
+      throw new APIError(
+        "Resource Not Found",
+        `${missing.join(", ")} are not valid class IDs `
+      );
+    return classes;
+  }
+
   getAuth0Token() {
-    const token = this.auth0_token;
-    if (!token)
+    if (!this.auth0_token)
       throw new APIError("Internal Server Error", "Access Token is not set");
-    return token;
+    return this.auth0_token;
   }
 
   //handler error when over try limit
@@ -165,31 +462,23 @@ export class TaskHandler {
     }
     this.error_messages.push(`${name} Failed: ` + handler.message);
   };
-
-  protected async postingRevertError(message: string) {
-    putLogEvent("REVERT_ERROR", message);
+  
+  protected async postingRevertError(message:string) {
+    putLogEvent("REVERT_ERROR",message)
   }
 
   //handle error when reverting error
-  protected async handleRevertError(
-    procedure: Procedure<Action<Data>>,
-    error: any
-  ) {
-    const errorHandler = new ServerErrorHandler(error);
-    const { status_text, status_code, message } = errorHandler;
-    const cause = `Revert failed with status ${status_code}:${status_text}, message:${message}, failed procedure:${JSON.stringify(
-      { ...procedure, action: procedure.action.name }
-    )}.`;
-    const remaining = this.revert_stack.map((procedure) => {
-      return { ...procedure, action: procedure.action.name };
-    });
-    const toLog: string = [
-      cause,
-      `Remaining Revert Procedures: ${JSON.stringify(remaining)}`,
-    ].join("\n");
-    console.log(toLog);
+  protected async handleRevertError(procedure:Procedure<Action<Data>>,error:any){
+    const errorHandler = new ServerErrorHandler(error)
+    const {status_text,status_code,message} = errorHandler
+    const cause = `Revert failed with status ${status_code}:${status_text}, message:${message}, failed procedure:${JSON.stringify({...procedure,action:procedure.action.name})}.`
+    const remaining = this.revert_stack.map(procedure=>{
+      return {...procedure,action:procedure.action.name}
+    })
+    const toLog:string = [cause,`Remaining Revert Procedures: ${JSON.stringify(remaining)}`].join("\n")
+    console.log(toLog)
     //log to cloud watch
-    await this.postingRevertError(toLog);
+    await this.postingRevertError(toLog)
   }
 
   //revert from the end of stack
@@ -206,94 +495,13 @@ export class TaskHandler {
       await wait();
       return await this.revertChanges();
     } catch (error) {
-      await this.handleRevertError(procedure, error);
+      await this.handleRevertError(procedure,error)
     }
-    return;
+    return
   }
 
-  async processAuth0Tasks(): Promise<void> {
-    if (this.haveError()) {
-      return;
-    }
-    const task = this.auth0_tasks.shift(); //deque the first task from queue
-    // console.log(task)
-    if (!task) {
-      //no task remain
-      console.log("All Auth0 tasks completed.");
-      //clear revert stack?
-      //this.revert_stack = [];
-      return;
-    }
-    await task.run(this);
-    // console.log(this.task_queue,this.revert_stack)
-    await wait();
-    return await this.processAuth0Tasks();
-  }
-
-  async processDBTasks(): Promise<void> {
-    if (this.haveError()) {
-      return;
-    }
-    const task = this.db_tasks.shift(); //deque the first task from queue
-    // console.log(task)
-    if (!task) {
-      //no task remain
-      console.log("All DB tasks completed.");
-      //clear revert stack?
-      //this.revert_stack = [];
-      return;
-    }
-    await task.run(this);
-    // console.log(this.task_queue,this.revert_stack)
-    // await wait();
-    return await this.processDBTasks();
-  }
-  async proccessSendingEmails():Promise<void> {
-    if (this.haveError()) {
-      return;
-    }
-    const params = this.emailsToSent.shift(); //deque the first task from queue
-    // console.log(task)
-    if (!params) {
-      console.log("All emails sent.");
-      return;
-    }
-    const {email,name,url} = params
-    try {
-      await sendMail(name,email,url)
-      // console.log(this.task_queue,this.revert_stack)
-      console.log(`Invitation sent to ${email}`)
-      // await wait();
-    } catch (error) {
-      this.handleError(`Sending Email to ${email}`,error)
-    }
-    return await this.proccessSendingEmails()
-  }
-
-  async run(): Promise<{
-    users: Map<string, User>;
-    groups: Map<string, Group>;
-  }> {
-    //get token first before continue to process tasks
-    if (this.auth0_tasks.length && !this.auth0_token) {
-      const procedure = new GetAuthTokenProcedure();
-      try {
-        this.auth0_token = await procedure.process(this);
-      } catch (error) {
-        //exceed try limit, failing checking or unexpected error
-        this.handleError(procedure.name, error);
-      }
-    }
-
-    //process auth0 and db tasks
-    await Promise.allSettled([this.processAuth0Tasks(),this.processDBTasks()])
-
-    //send the emails
-    if(this.emailsToSent.length){
-      await this.proccessSendingEmails()
-    }
-
-    //handle errors
+  async start(): Promise<void> {
+    //stop  when error occurs
     if (this.haveError()) {
       //revert the changes
       if (this.revert_stack.length) {
@@ -306,8 +514,35 @@ export class TaskHandler {
         this.error_messages.join(", ")
       );
     }
-    console.log("All Tasks Completed")
-    return { users: this.users, groups: this.groups };
+
+    //get token first before continue to process tasks
+    if (this.require_token && !this.auth0_token) {
+      const procedure = new GetAuthTokenProcedure();
+      try {
+        this.auth0_token = await procedure.process(this);
+      } catch (error) {
+        //exceed try limit, failing checking or unexpected error
+        this.handleError(procedure.name, error);
+      }
+      return await this.start();
+    }
+
+    //deque the task and handle it as the handler
+
+    const task = this.task_queue.shift(); //deque the first task from queue
+    // console.log(task)
+    if (!task) {
+      //no task remain
+      console.log("All tasks completed.");
+      //clear revert stack?
+      //this.revert_stack = [];
+      return;
+    }
+
+    await task.run(this);
+    // console.log(this.task_queue,this.revert_stack)
+    await wait();
+    return await this.start();
   }
 }
 

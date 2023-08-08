@@ -1,10 +1,4 @@
-import {
-  expirated,
-  futureDate,
-  hasIntersection,
-  sameList,
-  validDateString,
-} from "@/lib/utils";
+import { expirated, futureDate, sameList, validDateString } from "@/lib/utils";
 
 const VALID_PAST_DATE_STR = "1900-01-01";
 
@@ -28,6 +22,7 @@ test("Valid Date String", () => {
   expect(validDateString(INVALID_DATE_STR)).toBe(false);
 });
 
+
 test("Expirated Date", () => {
   const expire = expirated(VALID_PAST_DATE_STR);
   expect(expire).toBe(true);
@@ -35,24 +30,19 @@ test("Expirated Date", () => {
 
 test("Futrue Date", () => {
   const future = futureDate(0, 1, 0);
-  expect(expirated(future.toJSDate())).toBe(false);
+  expect(expirated(future)).toBe(false);
 });
 
-test("Same List", () => {
-  const arr1 = ["a", "b", "c"];
-  const arr2 = ["b", "c", "a"];
-  const arr3 = ["c", "c", "b"];
-  const arr4 = ["c", "c", "b", "d"];
+test("Same List",()=>{
+  const arr1 = ["a","b","c"]
+  const arr2 = ["b","c","a"]
+  const arr3 = ["c","c","b"]
+  const arr4 = ["c","c","b","d"]
 
-  expect(sameList(arr1, arr2)).toBeTruthy();
-  expect(sameList(arr1, arr3)).not.toBeTruthy();
-  expect(sameList(arr1, undefined)).not.toBeTruthy();
-  expect(sameList(undefined, arr3)).not.toBeTruthy();
-  expect(sameList(arr4, arr2)).not.toBeTruthy();
-});
+  expect(sameList(arr1,arr2)).toBeTruthy()
+  expect(sameList(arr1,arr3)).not.toBeTruthy()
+  expect(sameList(arr1,undefined)).not.toBeTruthy()
+  expect(sameList(undefined,arr3)).not.toBeTruthy()
+  expect(sameList(arr4,arr2)).not.toBeTruthy()
+})
 
-test("has intersaction", () => {
-  expect(hasIntersection([], [])).not.toBeTruthy();
-  expect(hasIntersection([1, 2], [3, 4])).not.toBeTruthy();
-  expect(hasIntersection([1, 2], [2, 3, 4])).toBeTruthy();
-});

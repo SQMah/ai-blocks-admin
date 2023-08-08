@@ -1,6 +1,6 @@
-import { FC, Dispatch, SetStateAction, useState, useEffect } from "react";
+import { FC, Dispatch,SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast"
 import {
   Form,
   FormControl,
@@ -20,243 +20,146 @@ import {
 import { Input } from "./ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AxiosError } from "axios";
-import { z } from "zod";
+import axios, { AxiosError } from "axios";
+import {z} from "zod"
 
-import { ClientErrorHandler } from "@/lib/utils";
-import { Module, userRoleSchema } from "@/models/db_schemas";
-import {
-  emailSchema,
-  expirationDateStrSchema,
-  trimedNonEmptyString,
-} from "@/models/utlis_schemas";
-import { requestAPI } from "@/lib/request";
-import {
-  getGroupsResSechema,
-  getModulesResSchema,
-  postUsersResSchema,
-} from "@/models/api_schemas";
-import { X, Check } from "lucide-react";
+import {  roleMapping} from "@/models/auth0_schemas";
+import {GetClassesResSchema, PostUsersResSchema,SetExpriationSchema,
+  PostUsersReqType,BatchGetClassesResSchema } from "@/models/api_schemas";
+import { UserRoleSchema } from "@/models/auth0_schemas";
+import {  ClientErrorHandler} from "@/lib/utils";
 
-interface ManualCreateProps {
-  isLoading: boolean;
-  setIsLoading: Dispatch<SetStateAction<boolean>>;
+interface ManualCreateProps{
+  isLoading:boolean,
+  setIsLoading:Dispatch<SetStateAction<boolean>>
 }
 
-const UserCreateFormSchema = z
-  .object({
-    role: userRoleSchema,
-    email: emailSchema,
-    name: trimedNonEmptyString,
-    enrolled: z.string().trim(),
-    managing_str: z.string().trim(),
-    families_str: z.string().trim(),
-    expiration_date: expirationDateStrSchema.or(z.literal("")),
-  })
-  .refine(
-    (input) => {
-      if (input.role !== "admin") {
-        return input.expiration_date?.length;
-      } else return true;
-    },
-    { path: ["expiration_date"], message: `Expiration date is required` }
-  );
+const UserCreateFormSchema = z.object({
+  role: UserRoleSchema ,
+  email: z.string().trim().email({message:"Please provide a valid email"}),
+  first_name: z.string().trim().nonempty({message:"Required"}),
+  last_name: z.string().trim().nonempty({message:"Required"}),
+  enrolled_class_id: z.string().trim().optional(),
+  teaching_class_ids_str:z.string().trim().optional(),  
+  available_modules:z.array(z.string().trim().nonempty()).optional(),
+  account_expiration_date: SetExpriationSchema.or(z.literal("")).optional(),
+})
+.refine((input)=>{
+  if(input.role==="managedStudent"){
+    return input.enrolled_class_id?.length
+  }else return true
+},{path:["enrolled_class_id"],message:"Enrolled class ID is required for student account"}
+)
+.refine(input=>{
+  if(input.role!=="admin"){
+    return input.account_expiration_date?.length
+  }else return true
+},{path:["account_expiration_date"],message:`Expiration date is required`})
 
-type UserCreateFormType = z.infer<typeof UserCreateFormSchema>;
+type UserCreateFormType = z.infer<typeof UserCreateFormSchema>
 
-const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
-  const [allModules, setAllModules] = useState<Module[]>([]);
-  const [seletcedModules, setSelectedModules] = useState<Module[]>([]);
-  const modulesToAdd = allModules.filter(
-    (m) => !seletcedModules.map((s) => s.module_id).includes(m.module_id)
-  );
+const ManualCreate: FC<ManualCreateProps> = ({isLoading,setIsLoading}) => {
+  const { toast } = useToast()
 
-  const { toast } = useToast();
-  //get modules
-  useEffect(() => {
-    requestAPI("modules", "GET", { module_id: [] }, {})
-      .then((data) => getModulesResSchema.parse(data))
-      .then((modules) => setAllModules(modules));
-    setSelectedModules([]);
-  }, []);
-
-  const handleAddModule = (module: Module) => {
-    setSelectedModules((prev) => [...prev, module]);
-  };
-  const handleRemoveModule = (target: Module) => {
-    setSelectedModules((prev) =>
-      prev.filter((m) => m.module_id !== target.module_id)
-    );
-  };
-
-  const handleResetModules = () => {
-    setSelectedModules([]);
-  };
 
   const form = useForm<UserCreateFormType>({
     resolver: zodResolver(UserCreateFormSchema),
     defaultValues: {
       email: "",
-      name: "",
-      enrolled: "",
-      managing_str: "",
-      families_str: "",
-      expiration_date: "",
+      first_name: "",
+      last_name: "",
+      enrolled_class_id:"",
+      teaching_class_ids_str:"",
+      account_expiration_date:"",
     },
   });
 
   const onSubmitManual = async (values: UserCreateFormType) => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      const {
-        role,
-        email,
-        name,
-        enrolled,
-        managing_str,
-        families_str,
-        expiration_date,
-      } = values;
-      const isStudent = role == "student";
-      const canManage = role === "parent" || role === "teacher";
-      const isAdmin = role === "admin";
-      const toEnroll =
-        isStudent && enrolled.length ? enrolled.trim() : undefined;
-      const managing = canManage
-        ? managing_str
-            .split(",")
-            .map((id) => id.trim())
-            .filter((id) => id.length)
-        : null;
-      const families = isStudent
-        ? families_str
-            .split(",")
-            .map((id) => id.trim())
-            .filter((id) => id.length)
-        : null;
-      if (managing?.length) {
+      const {role,email,first_name,last_name,enrolled_class_id,teaching_class_ids_str,available_modules,account_expiration_date} = values
+      const teaching = teaching_class_ids_str?.split(",").map(id=>id.trim()).filter(id=>id.length)??[]
+      if(role==="teacher"&&teaching.length){
         try {
           //class id valiadation will also be done in api
-          const groups = await requestAPI(
-            "groups",
-            "GET",
-            {
-              group_ids: managing,
-              type: role === "parent" ? "family" : "class",
-            },
-            {}
-          );
-        } catch (error: any) {
-          const handler = new ClientErrorHandler(error);
-          if (handler.isAxiosError && handler.status_code === 404) {
-            form.setError("managing_str", {
-              message: handler.message.split(":")[1],
-            });
-            setIsLoading(false);
-            return;
+          const {data} = await axios.get('/api/v1/classes?'+teaching.map(id=>`class_id=${id}`).join('&'))
+          const present = BatchGetClassesResSchema.parse(data).map(entry=>entry.class_id)
+          const missing = teaching.filter(id=>!present.includes(id))
+          if(missing.length){
+            const message = `${missing.join(", ")} are not valid class IDs.`
+            form.setError("teaching_class_ids_str",{message})
+            setIsLoading(false)
+            return
           }
-          handler.log();
+        } catch (error:any) {
+          const handler = new ClientErrorHandler(error)
+          handler.log()
           toast({
-            title: "Search error",
-            description: handler.message,
-          });
-          setIsLoading(false);
-          return;
+            title:"Search error",
+            description:handler.message
+          })
+          setIsLoading(false)
+          return
         }
       }
-      if (toEnroll) {
+      const enrolled  = enrolled_class_id?.trim()
+      if(enrolled&&role==="managedStudent"){
         try {
           //class id will also be done on api
-          const group = await requestAPI("groups", "GET", {}, {}, toEnroll);
-          const target = getGroupsResSechema.parse(group);
+          const {data:classData}=await axios.get('/api/v1/classes/'+enrolled)
+          const target = GetClassesResSchema.parse(classData)
           //capacity check will also be done on api
-          if (target.students.length + 1 >= target.capacity) {
-            form.setError("enrolled", { message: "Class is full." });
-            setIsLoading(false);
-            return;
+          if(target.student_ids.length>=target.capacity){
+            form.setError("enrolled_class_id",{message:"Class is full."})
+            setIsLoading(false)
+            return
           }
-        } catch (error: any) {
-          if (error instanceof AxiosError && error.response?.status === 404) {
-            form.setError("enrolled", {
-              message: `${enrolled} is not a valid class ID`,
-            });
-          } else {
-            const handler = new ClientErrorHandler(error);
-            handler.log();
+        } catch (error:any) {
+          if(error instanceof AxiosError&&error.response?.status===404){
+            form.setError("enrolled_class_id",{message:`${enrolled} is not a valid class ID`})
+          }
+          else{
+            const handler = new ClientErrorHandler(error)
+            handler.log()
             toast({
-              variant: "destructive",
-              title: "Search Class Error",
-              description: handler.message,
-            });
+              variant:'destructive',
+              title:"Search Class Error",
+              description:handler.message,
+            })
           }
-          setIsLoading(false);
-          return;
+          setIsLoading(false)
+          return
         }
       }
-      if (families?.length) {
-        try {
-          //class id valiadation will also be done in api
-          const groups = await requestAPI(
-            "groups",
-            "GET",
-            {
-              group_ids: families,
-              type: "family",
-            },
-            {}
-          );
-        } catch (error: any) {
-          const handler = new ClientErrorHandler(error);
-          if (handler.isAxiosError && handler.status_code === 404) {
-            form.setError("families_str", {
-              message: handler.message.split(":")[1],
-            });
-            setIsLoading(false);
-            return;
-          }
-          handler.log();
-          toast({
-            title: "Search error",
-            description: handler.message,
-          });
-          setIsLoading(false);
-          return;
-        }
-      }
-      const userData = {
+      const userData:PostUsersReqType = {
         role,
         email,
-        name,
-        expiration_date: isAdmin ? null : expiration_date,
-        enrolled: toEnroll,
-        families,
-        managing,
-        available_modules: isStudent
-          ? seletcedModules.map((m) => m.module_id) ?? []
-          : null,
-      };
+        first_name,
+        last_name,
+        ...(role === "managedStudent" && { enrolled_class_id:enrolled }),
+        ...(role==="unmanagedStudent"&&{available_modules}),
+        ...(role==="teacher"&&{teaching_class_ids:teaching}),
+        ...(role !== "admin" && { account_expiration_date }),
+      };      
       // console.log(userData)
       //class update will be handled by api
-      const data = postUsersResSchema.parse(
-        await requestAPI("users", "POST", {}, userData)
-      );
-      // console.log(data)
-      form.reset();
-      handleResetModules();
+      const response = await axios.post("/api/v1/users", userData);
+      const data = PostUsersResSchema.parse(response.data)
+      form.reset()
       toast({
         title: "Created",
-      });
+      })
       // console.log(data.messages);
     } catch (error: any) {
-      const handler = new ClientErrorHandler(error);
-      handler.log();
+      const handler = new ClientErrorHandler(error)
+      handler.log()
       toast({
-        variant: "destructive",
+        variant:"destructive",
         title: "Creation error",
-        description: handler.message,
-      });
+        description: handler.message
+      })
     }
-    setIsLoading(false);
+    setIsLoading(false)
   };
 
   return (
@@ -285,8 +188,12 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="teacher">Teacher account</SelectItem>
-                    <SelectItem value="student">Student account</SelectItem>
-                    <SelectItem value="parent">Parent account</SelectItem>
+                    <SelectItem value="managedStudent">
+                      Student account
+                    </SelectItem>
+                    <SelectItem value="unmanagedStudent">
+                      Unmanaged student account
+                    </SelectItem>
                     <SelectItem value="admin">Admin account</SelectItem>
                   </SelectContent>
                 </Select>
@@ -301,7 +208,10 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email {`(${form.watch("role")} ID)`}</FormLabel>
+                    <FormLabel>
+                      Email{" "}
+                      {`(${roleMapping[form.watch("role")]?.name} ID)`}
+                    </FormLabel>
                     <FormControl>
                       <Input placeholder="Email..." type="email" {...field} />
                     </FormControl>
@@ -312,12 +222,25 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
               <div className="grid grid-cols-2 gap-5">
                 <FormField
                   control={form.control}
-                  name="name"
+                  name="first_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>First Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Name" {...field} />
+                        <Input placeholder="First name..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="last_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Last name..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -326,14 +249,15 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
               </div>
             </>
           ) : null}
-          {form.watch("role") && form.watch("role") === "student" ? (
+          {form.watch("role") &&
+          form.watch("role") === "managedStudent" ? (
             <>
               <FormField
                 control={form.control}
-                name="enrolled"
+                name="enrolled_class_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Enrolled Class ID</FormLabel>
+                    <FormLabel>Class ID</FormLabel>
                     <FormControl>
                       <Input placeholder="Class ID..." {...field} />
                     </FormControl>
@@ -341,84 +265,21 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="families_str"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Families</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Groups IDs..." {...field} />
-                    </FormControl>
-                    <FormDescription>{`Seperate group IDs by "," .`}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-1 space-y-5 md:grid-cols-2 md:space-y-0 md:gap-4">
-                <div className="space-y-5">
-                  <p>Modules to add </p>
-                  <ul className="max-h-64 min-h-8 overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
-                    {modulesToAdd.map((module, index) => {
-                      return (
-                        <li
-                          key={`${module.module_id}-${index}`}
-                          className="flex items-center gap-2"
-                        >
-                          <div className="flex-grow">{module.module_name}</div>
-                          <Button
-                            type="button"
-                            variant={"ghost"}
-                            className="p-0"
-                            onClick={() => handleAddModule(module)}
-                          >
-                            <Check color="green" />
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-                <div className="space-y-5">
-                  <p>Modules selected </p>
-                  <ul className="max-h-64 min-h-8 overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
-                    {seletcedModules.map((module, index) => {
-                      return (
-                        <li
-                          key={`${module.module_id}-${index}`}
-                          className="flex items-center gap-2"
-                        >
-                          <div className="flex-grow">{module.module_name}</div>
-                          <Button
-                            type="button"
-                            variant={"ghost"}
-                            className="p-0"
-                            onClick={() => handleRemoveModule(module)}
-                          >
-                            <X color="red" />
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              </div>
             </>
           ) : null}
           {form.watch("role") &&
-          (form.watch("role") === "teacher" ||
-            form.watch("role") === "parent") ? (
+          form.watch("role") === "teacher" ? (
             <>
               <FormField
                 control={form.control}
-                name="managing_str"
+                name="teaching_class_ids_str"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Managing groups</FormLabel>
+                    <FormLabel>Teaching classes</FormLabel>
                     <FormControl>
-                      <Input placeholder="group IDs..." {...field} />
+                      <Input placeholder="Class IDs..." {...field} />
                     </FormControl>
-                    <FormDescription>{`Seperate group IDs by "," .`}</FormDescription>
+                    <FormDescription>{`Seperate class IDs by "," .`}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -429,7 +290,7 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
             <>
               <FormField
                 control={form.control}
-                name="expiration_date"
+                name="account_expiration_date"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Account expiration</FormLabel>
@@ -447,11 +308,7 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
             </>
           ) : null}
           <div className="flex justify-end">
-            {form.watch("role") ? (
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Loading..." : "Submit"}
-              </Button>
-            ) : null}
+          {form.watch("role")?<Button type="submit" disabled={isLoading}>{isLoading?"Loading...":"Submit"}</Button>:null}
           </div>
         </form>
       </Form>

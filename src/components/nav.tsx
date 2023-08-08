@@ -5,11 +5,10 @@ import Link from "next/link";
 
 interface props {
   active?:
-    | "create_group"
-    | "manage_group"
+    | "craete_class"
+    | "manage_class"
     | "manage_user"
-    | "create_account"
-    | "manage_module";
+    | "create_account";
 }
 
 const Navbar: FC<props> = ({ active }) => {
@@ -18,24 +17,21 @@ const Navbar: FC<props> = ({ active }) => {
   return (
     <>
       <div className="w-full flex justify-around my-2 items-center">
-        <Button variant={active === "create_group" ? undefined : "outline"}>
-          <Link href="/create-group"> Create group</Link>
+        <Button variant={active === "craete_class" ? undefined : "outline"}>
+         <Link href="/CreateClass"> Create class</Link>
         </Button>
-        <Button variant={active === "manage_group" ? undefined : "outline"}>
-          <Link href="/manage-group"> Manage group</Link>
+        <Button variant={active === "manage_class" ? undefined : "outline"}>
+        <Link href="/ManageClass"> Manage class</Link>
         </Button>
         <Button variant={active === "manage_user" ? undefined : "outline"}>
-          <Link href="/manage-user">Manage user</Link>
+          <Link href="/ManageUser">Manage user</Link>
         </Button>
         <Button variant={active === "create_account" ? undefined : "outline"}>
-          <Link href="/create-account">Create account</Link>
-        </Button>
-        <Button variant={active === "manage_module" ? undefined : "outline"}>
-          <Link href="/manage-module">Manage Module</Link>
+        <Link href="/CreateAccount">Create account</Link>
         </Button>
         {user ? (
           <>
-            <div className=" truncate">{user.email}</div>
+            <div className=" truncate">{user.name}</div>
             <Button variant={"link"}>
               <Link href="/api/auth/logout">Logout</Link>
             </Button>

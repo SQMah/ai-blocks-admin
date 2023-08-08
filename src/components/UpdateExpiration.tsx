@@ -1,4 +1,5 @@
 import { FC, Dispatch, SetStateAction, useState } from "react";
+import axios from "axios";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,44 +27,43 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { useToast } from "./ui/use-toast";
 
-
-import {findEarliestDate, ClientErrorHandler, parseDateStr} from "@/lib/utils"
+import { PutUsersReqType, SetExpriationSchema } from "@/models/api_schemas";
+import { RoledUserType,RoledUserArrayType } from "@/models/auth0_schemas";
+import {findEarliestDate,delay, ClientErrorHandler} from "@/lib/utils"
 import ShowExpiration from "./ShowExpiration";
-import { User } from "@/models/db_schemas";
-import { expirationDateStrSchema } from "@/models/utlis_schemas";
-import { BatchPutUsersReq, PutUsersReq } from "@/models/api_schemas";
-import { requestAPI } from "@/lib/request";
-import { UserRole } from "@prisma/client";
 
 
 interface props {
   isLoading: boolean;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   reload: () => Promise<void>;
-  user: User;
+  user: RoledUserType;
 }
 
 const formSchema = z.object({
-  expiration_date: expirationDateStrSchema,
+  account_expiration_date: SetExpriationSchema,
 });
 
 export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,}) => {
   const {toast} = useToast()
 
-  const expiration = user.expiration_date
+  const expiration = user.user_metadata?.account_expiration_date
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      expiration_date:"",
+      account_expiration_date:"",
     },
   });
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
     try {
-      const payload={
-        expiration_date:values.expiration_date
-      }
-      const response =await  requestAPI("users","PUT",{},payload,user.email)
+      const payload: PutUsersReqType = {
+        email:user.email,
+        content:{
+          account_expiration_date: values.account_expiration_date,
+        }
+      };
+      const response =await  axios.put("/api/v1/users",payload)
       toast({
         title:"Updated"
       })
@@ -80,7 +80,7 @@ export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,
     }
     setIsLoading(false);
   };
-  const isSame = expiration === parseDateStr(form.watch("expiration_date"))||form.watch("expiration_date")===""
+  const isSame = expiration === form.watch("account_expiration_date")||form.watch("account_expiration_date")===""
   return (
     <>
       <Dialog>
@@ -100,7 +100,7 @@ export const UpdateExpiration: FC<props> = ({isLoading,setIsLoading,reload,user,
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <FormField
             control={form.control}
-            name="expiration_date"
+            name="account_expiration_date"
             render={({ field }) => (
               <FormItem>
                 <FormLabel htmlFor="date update">
@@ -138,44 +138,53 @@ interface AllProps{
   isLoading: boolean;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   reload: () => Promise<void> | ((id: string) => Promise<void>);
-  users: User[];
-  role:UserRole
+  users: RoledUserArrayType;
 }
 
-export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload,users,role}) => {
+export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload,users,}) => {
+  const [updating,setUpdating] = useState<number>(0)
   const {toast} = useToast()
 
-  const   eariliestExpiration = findEarliestDate(users.map(user=>user.expiration_date))
+  const   eariliestExpiration = findEarliestDate(users.map(user=>user.user_metadata?.account_expiration_date))
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      expiration_date:"",
+      account_expiration_date:"",
     },
   });
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if(isLoading||form.watch("expiration_date").length===0)return
-    
-    try {
-      const data = {
-        emails:users.map(user=>user.email),
-        expiration_date:values.expiration_date
+    if(isLoading||form.watch("account_expiration_date").length===0)return
+    let success = 0
+    for(const user of users){
+      setUpdating(prev=>prev+1)
+      try {
+        const payload: PutUsersReqType = {
+          email:user.email,
+          content:{
+            account_expiration_date: values.account_expiration_date,
+          }
+        };
+        const response =await  axios.put("/api/v1/users",payload)
+        await delay(500)
+        success+=1
+      } catch (error: any) {
+        const handler = new ClientErrorHandler(error)
+        handler.log()
+        toast({
+          variant:"destructive",
+          title: "Update error for "+user.email,
+          description: handler.message ,
+        })
+        continue
       }
-      const update = await requestAPI("users","PUT",{},data)
-    } catch (error) {
-      const handler = new ClientErrorHandler(error)
-      handler.log()
-      toast({
-        variant:"destructive",
-        title: "Update error",
-        description: handler.message,
-      })
     }
     toast({
       title:"Updated",
-      description:`Updated expiration date for ${users.length} students`
+      description:`Updated expiration date for ${success} students`
     })
     await reload()
+    setUpdating(0)
   };
 
 
@@ -185,7 +194,7 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
       <Dialog>
         <DialogTrigger asChild>
           <Button disabled={isLoading||users.length===0} className="">
-            {isLoading ? "loading..." : `Edit ${role}s' expirations`}
+            {isLoading ? "loading..." : "Edit students' expirations"}
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
@@ -199,7 +208,7 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <FormField
             control={form.control}
-            name="expiration_date"
+            name="account_expiration_date"
             render={({ field }) => (
               <FormItem>
                 <FormLabel htmlFor="date update">
@@ -219,8 +228,8 @@ export const UpdateAllExpiration: FC<AllProps> = ({isLoading,setIsLoading,reload
           />
             <DialogFooter>
               <FormControl>
-              <Button type="submit" disabled={isLoading} >
-                {isLoading ? "Loading..." : "Save changes"}
+              <Button type="submit" disabled={isLoading||updating>0} >
+                {updating>0?`Updating ${updating}/${users.length} students`:isLoading ? "Loading..." : "Save changes"}
               </Button>
               </FormControl>
             </DialogFooter>
