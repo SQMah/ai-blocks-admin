@@ -3,7 +3,6 @@ import { X, Check, Lock, Unlock } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import axios from "axios";
 
 import { Input } from "./ui/input";
 import { Button } from "@/components/ui/button";
@@ -214,7 +213,7 @@ const CreateGroup: FC = () => {
       const body = {
         type:type,
         group_name,
-        capacity:isClass?Number(capacity):-1,
+        capacity:isClass?Number(capacity):null,
         manager_emails:manager,
         children_emails:children,
         student_emails:students,

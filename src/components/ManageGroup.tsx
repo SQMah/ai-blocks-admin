@@ -638,7 +638,7 @@ const UpdateName: FC<NameProps> = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel htmlFor="update name">
-                      Update {capitalizeFirstLetter(data.group_name)}'s Name
+                      Update {capitalizeFirstLetter(data.group_name)}{"'"}s Name
                     </FormLabel>
                     <Input id="update name" {...field} />
                     <FormDescription>

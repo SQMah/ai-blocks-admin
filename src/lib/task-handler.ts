@@ -292,7 +292,6 @@ export class TaskHandler {
     if(this.emailsToSent.length){
       await this.proccessSendingEmails()
     }
-
     //handle errors
     if (this.haveError()) {
       //revert the changes

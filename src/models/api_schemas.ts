@@ -17,7 +17,7 @@ export type APIRoute =
   | "users"
   | "groups"
   | "modules"
-  | "invtations"
+  | "invitation"
   | "batch-create-users"
   | "batch-manages"
   | "batch-enrolls"

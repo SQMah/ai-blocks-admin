@@ -1,8 +1,8 @@
-import { FC, useState, Dispatch, SetStateAction} from "react";
+import { FC, useState, Dispatch, SetStateAction } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {z}from "zod";
-import { X, Search,Check } from "lucide-react";
+import { z } from "zod";
+import { X, Search, Check } from "lucide-react";
 import axios, { AxiosError } from "axios";
 
 import { Button } from "@/components/ui/button";
@@ -13,37 +13,24 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription
+  FormDescription,
 } from "@/components/ui/form";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import { Input } from "./ui/input";
 import { useToast } from "./ui/use-toast";
 
-
-import {ManageStudent}from "./ManageStudent";
-import {UpdateExpiration} from "./UpdateExpiration";
+import { ManageStudent } from "./ManageStudent";
+import { UpdateExpiration } from "./UpdateExpiration";
 import DeleteUser from "./DeleteUser";
 import ShowExpiration from "./ShowExpiration";
-import { delay, ClientErrorHandler} from "@/lib/utils";
+import { delay, ClientErrorHandler } from "@/lib/utils";
 import { User } from "@/models/db_schemas";
 import { requestAPI } from "@/lib/request";
 import { emailSchema } from "@/models/utlis_schemas";
 import { getUsersResSchema } from "@/models/api_schemas";
 import { ManageManger } from "./ManageManager";
 
-
 const formSchema = z.object({
-  email:emailSchema
+  email: emailSchema,
 });
 
 interface searchProps {
@@ -52,8 +39,8 @@ interface searchProps {
   setUser: Dispatch<SetStateAction<User | undefined>>;
 }
 
-const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
-  const { toast } = useToast()
+const SearchUser: FC<searchProps> = ({ isLoading, setIsLoading, setUser }) => {
+  const { toast } = useToast();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -65,20 +52,21 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
     setIsLoading(true);
     try {
       // console.log(values);
-      const data = await requestAPI("users","GET",{},{},values.email)
-      const user = getUsersResSchema.parse(data)
+      const data = await requestAPI("users", "GET", {}, {}, values.email);
+      const user = getUsersResSchema.parse(data);
       setUser(user);
     } catch (error: any) {
-      if(error instanceof AxiosError&& error.response?.status===404){
-        form.setError("email",{message:"Invalid email!"})
-      }else{
-        const handler = new ClientErrorHandler(error)
-        handler.log()
+      // throw error
+      if (error instanceof AxiosError && error.response?.status === 404) {
+        form.setError("email", { message: "Invalid email!" });
+      } else {
+        const handler = new ClientErrorHandler(error);
+        handler.log();
         toast({
-          variant:"destructive",
+          variant: "destructive",
           title: "Search User Error",
           description: handler.message,
-        })
+        });
       }
     }
     setIsLoading(false);
@@ -104,14 +92,14 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
                     type="email"
                   ></Input>
                   <FormControl>
-                  <Button
-                    onClick={() => form.reset()}
-                    variant={"ghost"}
-                    className="p-1"
-                    type="reset"
-                  >
-                    <X size={30} />
-                  </Button>
+                    <Button
+                      onClick={() => form.reset()}
+                      variant={"ghost"}
+                      className="p-1"
+                      type="reset"
+                    >
+                      <X size={30} />
+                    </Button>
                   </FormControl>
                   <FormControl>
                     <Button
@@ -123,7 +111,7 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
                     </Button>
                   </FormControl>
                 </div>
-                <FormMessage/>
+                <FormMessage />
               </FormItem>
             )}
           />
@@ -133,67 +121,110 @@ const SearchUser: FC<searchProps> = ({ isLoading,setIsLoading,setUser }) => {
   );
 };
 
+interface InvitationProps {
+  isLoading: boolean;
+  setIsLoading: Dispatch<SetStateAction<boolean>>;
+  email: string;
+}
 
+const SendInvitation: FC<InvitationProps> = (props) => {
+  const { isLoading, setIsLoading ,email} = props;
+  const { toast } = useToast();
 
+  const submit = async () => {
+    setIsLoading(true);
+    try {
+      // console.log(values);
+      const data = await requestAPI("invitation", "POST", {email}, {});
+      toast({
+        variant:'default',
+        title:"Invitation Sent"
+      })
+    } catch (error: any) {
+      // throw error
+      const handler = new ClientErrorHandler(error);
+      handler.log();
+      toast({
+        variant: "destructive",
+        title: "Send Invitation Error",
+        description: handler.message,
+      });
+    }
+    setIsLoading(false);
+  };
 
-
+  return (
+    <Button variant={"default"} disabled={isLoading} onClick={submit}>
+      {isLoading ? "loading..." :"Send Invitation"}
+    </Button>
+  );
+};
 
 const ManageUser: FC = () => {
   const [user, setUser] = useState<User | undefined>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const {toast} = useToast()
-  const reload = async()=>{
-    if(!user||isLoading) return
+  const { toast } = useToast();
+  const reload = async () => {
+    if (!user || isLoading) return;
     setIsLoading(true);
     const email = user.email;
-    setUser(undefined)
+    setUser(undefined);
     try {
-      const data = await requestAPI("users","GET",{},{},user.email)
-      const updated = getUsersResSchema.parse(data)
+      const data = await requestAPI("users", "GET", {}, {}, user.email);
+      const updated = getUsersResSchema.parse(data);
       setUser(updated);
-
     } catch (error: any) {
-      if(error instanceof AxiosError && error.response?.status===404){
+      if (error instanceof AxiosError && error.response?.status === 404) {
         //deleted user
-        setUser(undefined)
-      }else{
-        const handler = new ClientErrorHandler(error)
-        handler.log()
+        setUser(undefined);
+      } else {
+        const handler = new ClientErrorHandler(error);
+        handler.log();
         toast({
-          variant:"destructive",
+          variant: "destructive",
           title: "Search error",
           description: handler.message,
-        })
+        });
       }
     }
     setIsLoading(false);
-  }
-
-  
+  };
 
   return (
     <>
-    <SearchUser {...{isLoading,setIsLoading,setUser}} />
-        {user ? 
-          
-          <div className="my-2 space-y-3">
-            <p>Name: {user.name}</p>
-            <p>Role:{user.role}</p>
-            {user.role==="parent"||user.role==="student"||user.role==="teacher"  ?
+      <SearchUser {...{ isLoading, setIsLoading, setUser }} />
+      {user ? (
+        <div className="my-2 space-y-3">
+          <p>Name: {user.name}</p>
+          <p>Role:{user.role}</p>
+          {user.role === "parent" ||
+          user.role === "student" ||
+          user.role === "teacher" ? (
             <div className=" space-x-3">
-            <ShowExpiration expiration={user.expiration_date}/>
-            <span><UpdateExpiration {...{user,reload,isLoading,setIsLoading}}/></span>
+              <ShowExpiration expiration={user.expiration_date} />
+              <span>
+                <UpdateExpiration
+                  {...{ user, reload, isLoading, setIsLoading }}
+                />
+              </span>
             </div>
-            :null}
-            {user.role ==="student" ?<ManageStudent {...{student:user,reload,isLoading,setIsLoading}}/>:
-           ( user.role ==="parent"||user.role==="teacher")?<ManageManger{...{manager:user,reload,isLoading,setIsLoading}}/>:
-            //user.roles.includes("teacher")?<TeacherOption {...{teacher:user,reload,isLoading,setIsLoading}}/>:
-            null}
-            <div className=" flex justify-end">
-            <DeleteUser {...{user,reload,isLoading,setIsLoading}}/>
-            </div>
+          ) : null}
+          {user.role === "student" ? (
+            <ManageStudent
+              {...{ student: user, reload, isLoading, setIsLoading }}
+            />
+          ) : user.role === "parent" || user.role === "teacher" ? (
+            <ManageManger
+              {...{ manager: user, reload, isLoading, setIsLoading }}
+            />
+          ) : //user.roles.includes("teacher")?<TeacherOption {...{teacher:user,reload,isLoading,setIsLoading}}/>:
+          null}
+          <div className=" flex justify-end space-x-4">
+            <SendInvitation  {...{email:user.email, isLoading, setIsLoading }}/>
+            <DeleteUser {...{ user, reload, isLoading, setIsLoading }} />
           </div>
-         :null}
+        </div>
+      ) : null}
     </>
   );
 };

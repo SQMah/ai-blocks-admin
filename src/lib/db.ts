@@ -160,8 +160,22 @@ async function findUserByTx(
     PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
     "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
   >,
+  email:string[]
+) :Promise<PopoulatedUser[]>
+async function findUserByTx(
+  tx: Omit<
+    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+  >,
+  email: string 
+) :Promise<PopoulatedUser>
+async function findUserByTx(
+  tx: Omit<
+    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+  >,
   email: string | string[]
-) {
+) :Promise<PopoulatedUser[]|PopoulatedUser>{
   if (Array.isArray(email)) {
     const users = await tx.user.findMany({
       where: {
@@ -195,8 +209,22 @@ async function findGroupByTx(
     PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
     "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
   >,
+  group_id: string
+):Promise<PopulatedGroup>
+async function findGroupByTx(
+  tx: Omit<
+    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+  >,
+  group_id: string[]
+):Promise<PopulatedGroup[]>
+async function findGroupByTx(
+  tx: Omit<
+    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+  >,
   group_id: string | string[]
-) {
+):Promise<PopulatedGroup|PopulatedGroup[]> {
   if (Array.isArray(group_id)) {
     const groups = await tx.group.findMany({
       where: {
@@ -381,11 +409,11 @@ export async function batchCreateUsers(
   const usersData = users.map(({ email, name }) => ({
     email,
     name,
-    available_modules: isStudent ? available_modules ?? [] : undefined,
     role,
     expiration_date: haveExpiration ? expiration_date : undefined,
   }));
   // console.log(usersData)
+  // console.log("modules:",modules)
   try {
     const data = await prisma.$transaction(async (tx) => {
       await tx.user.createMany({
@@ -420,7 +448,7 @@ export async function batchCreateUsers(
           });
         }
         if (modules.length) {
-          await tx.student_available_module.createMany({
+          const {count}= await tx.student_available_module.createMany({
             data: users.flatMap((user) =>
               modules.map((module_id) => ({
                 module_id,
@@ -428,6 +456,7 @@ export async function batchCreateUsers(
               }))
             ),
           });
+          // console.log(count)
         }
       }
       return await findUserByTx(tx,emails);
@@ -861,6 +890,10 @@ export async function createGroup(payload: CreateGroupPayload) {
           status: "Resource Not Found",
           message: "Users or modules not exist",
         },
+        "Unique Constraint Failed":{
+          status:"Conflict",
+          message:`${group_name} is an existing group`
+        }
       });
     }
   } catch (error) {
@@ -1794,7 +1827,7 @@ export async function batchManage(emails:string[],group_id:string) {
       const managers = await findManyUsers({
         email: emails,
         exact: true,
-        roles: ["student"],
+        roles: [role],
       });
       const ids = managers.map(m=>m.user_id)
       if(hasIntersection(group.managers,ids)){

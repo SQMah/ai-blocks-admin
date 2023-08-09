@@ -35,10 +35,13 @@ export function validDateString(str: string | undefined | null): boolean {
   if (!str) return false;
   return !isNaN(Date.parse(`${str}T00:00:00`));
 }
-export function parseDateStr(str:string | undefined | null){
+export function  parseDateStr(str:string):Date
+export function  parseDateStr(str:undefined | null):undefined
+export function parseDateStr(str:string | undefined | null):Date| undefined {
   if(!validDateString(str)) return undefined
   return new Date(`${str}T00:00:00`)
 }
+
 
 export function expirated(data: string|Date): boolean {
   const tdy = new Date();

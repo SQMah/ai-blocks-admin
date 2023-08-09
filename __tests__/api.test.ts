@@ -4,7 +4,7 @@ import {
   ServerErrorHandler,
 } from "@/lib/api_utils";
 import { Action, Data, TaskHandler } from "../src/lib/task-handler";
-import { futureDate, sameList } from "@/lib/utils";
+import { delay, futureDate, parseDateStr, sameList } from "@/lib/utils";
 import {
   DBProcedure,
   GetAuthTokenProcedure,
@@ -13,23 +13,27 @@ import {
 } from "@/lib/task-and-procedure";
 import { GroupType, UserRole } from "@prisma/client";
 import { putLogEvent } from "@/lib/cloud_watch";
-import { createUser } from "@/lib/db";
-import { postUsersReqSchema, putUsersReqSchema } from "@/models/api_schemas";
+import { createGroup, createModule, createUser, deleteGroup, deleteModule, deleteUser, findGroupByName, findManyGroups, findManyUsers, findSingleGroup, findSingleUser, getModules, updateClassAvailableModules } from "@/lib/db";
+import { PostGroupsReq, PutClassesModulesReq, postBatchCreateUsersReqSchema, postUsersReqSchema, putUsersReqSchema } from "@/models/api_schemas";
+import { deleteAuth0Account, getAccessToken, getAuth0UserByEmail } from "@/lib/auth0_user_management";
 
 const TIME_OUT = 1 * 60 * 1000; //time out limit for each test
 
 const TEST_DATA = {
   emails: [
-    "ching.chit@gmail.com",
-    "tommy07201@gmail.com",
-    // "aiblocks_test_three@gmail.com",
+    "aiblocks_test_one@gmail.com",
+    "aiblocks_test_two@gmail.com",
+    "aiblocks_test_three@gmail.com",
   ],
-  name: "test",
-  expiration_date:futureDate(0,1,0).toString(),
-  class_id: "TEST-CLASS",
-  class_name: "FOR TESTING ONLY",
+  module_names:["TEST MODULE 1","TEST MODULE 2","TEST MODULE 3"],
+  expiration_date:futureDate(0,1,0).toFormat("yyyy-MM-dd"),
+  family_names:["TEST FAMILY 1","TEST FAMILY 2","TEST FAMILY 3"],
+  class_names:["TEST CLASS 1","TEST CLASS 2","TEST CLASS 3"],
   capacity: 30,
 } as const;
+
+//emails for test users
+// const TEST_USERS_EMAILS = ["user1@example.com","user2@example.com","user3@example.com"] as const
 
 async function errorAction(...args: any) {
   throw new APIError("Internal Server Error", "Error Testing");
@@ -51,6 +55,7 @@ class TestTaskHandler extends TaskHandler {
   clearTasks() {
     this.auth0_tasks.splice(0, this.auth0_tasks.length);
     this.db_tasks.splice(0, this.db_tasks.length);
+    this.emailsToSent.splice(0, this.emailsToSent.length);
     return;
   }
   clearRevert() {
@@ -83,6 +88,7 @@ class TestTaskHandler extends TaskHandler {
       [123, "test payload", { first: "revert", second: "error", third: 321 }]
     );
     this.revert_stack.splice(index, 0, procedure);
+    // console.log(this.revert_stack)
   }
   getRevertStack() {
     return this.revert_stack;
@@ -96,7 +102,7 @@ class TestTaskHandler extends TaskHandler {
   }
 }
 
-async function testError(fn: () => Promise<any>, status?: ERROR_STATUS_TEXT) {
+async function expectError(fn: () => Promise<any>, status?: ERROR_STATUS_TEXT) {
   try {
     await fn();
     expect("Reached").not.toBeDefined();
@@ -111,6 +117,14 @@ async function testError(fn: () => Promise<any>, status?: ERROR_STATUS_TEXT) {
     }
   }
 }
+const {
+  emails,
+  expiration_date,
+  family_names,
+  class_names,
+  module_names,
+  capacity,
+} = TEST_DATA;
 
 async function createTestUser(
   email: string,
@@ -119,16 +133,16 @@ async function createTestUser(
     managing?: string[];
     enrolled?: string;
     families?: string[];
-    available_modules: string[];
+    available_modules?: string[];
   }
 ) {
-  const { managing, enrolled, families } = info ?? {};
+  const { managing, enrolled, families,available_modules } = info ?? {};
   let payload;
   const data = {
     email,
     name: `test ${role}`,
   };
-  const defaultDate = futureDate(0,0,1).toString()
+  const defaultDate = expiration_date
   if (role === "admin") {
     payload = {
       ...data,
@@ -143,6 +157,7 @@ async function createTestUser(
       expiration_date: defaultDate,
       enrolled: enrolled,
       families: families,
+      available_modules:available_modules??[]
     };
   } else if (role === "parent" || role === "teacher") {
     payload = {
@@ -165,1014 +180,588 @@ async function createTestUser(
   return user;
 }
 
-async function createtestGroup(
+async function createTestGroup(
   type: GroupType,
+  name:string,
   info?: {
     manager_emails?: string[];
-    student_emails?: string;
-    children_email?: string[];
-    available_modules: string[];
+    student_emails?: string[];
+    children_emails?: string[];
+    available_modules?: string[];
+    unlocked_modules?:string[]
   }
-) {}
-
-// //having error
-// const {
-//   emails,
-//   first_name,
-//   last_name,
-//   expiration_date,
-//   role,
-//   class_id,
-//   class_name,
-//   capacity,
-//   available_modules,
-// } = TEST_DATA;
-
-// //init
-// const testHandler = new TestTaskHandler();
-
-// beforeEach(async () => {
-//   const name = expect.getState().currentTestName ?? "Task";
-//   await cleanUpDB(name);
-//   testHandler.resetProperties();
-//   // console.log(testHandler)
-//   console.log(`Testing ${name} start.`);
-//   console.time(name);
-// }, TIME_OUT * emails.length);
-
-// afterEach(async () => {
-//   //clean up
-//   const name = expect.getState().currentTestName;
-//   // console.timeLog(name, "Task Complete");
-//   testHandler.resetProperties();
-//   console.log(`Testing ${name} done.`);
-//   console.timeEnd(name);
-// }, TIME_OUT);
-
-// afterAll(async () => {
-//   await cleanUpDB("Fianl Clean Up ");
-// }, TIME_OUT * emails.length);
-
-// test(
-//   "Get Auth0 Access Token",
-//   async () => {
-//     //arrage
-//     const procedure = new GetAuthTokenProcedure();
-
-//     //act
-//     const token = await procedure.process(testHandler);
-
-//     //assert
-//     expect(typeof token).toBe("string");
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Create User Function",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-//     const createPayload = {
-//       email,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role,
-//     };
-//     const parsing = PostUsersReqSchema.parse(createPayload);
-//     testHandler.logic.createSingleUser(parsing);
-
-//     //act
-//     await testHandler.start();
-
-//     //assert
-//     const user = testHandler.getSingleUser(email);
-//     testUser(user, {
-//       email,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role,
-//       available_modules: defaultModules,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Get Unexisting User",
-//   async () => {
-//     //arrange
-//     const email = "ching.chit@gmail.com";
-
-//     //act
-//     await testError(async () => {
-//       await fetchSingleUser(email);
-//     }, "Resource Not Found");
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Create And Find User By Email",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-
-//     //act
-//     await createUser(email, role);
-//     const user = await fetchSingleUser(email);
-
-//     //assert
-//     testUser(user, {
-//       email,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role,
-//       available_modules: defaultModules,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Batch Create Users",
-//   async () => {
-//     //arrange
-//     const payload: BatchCreateUserReqType = {
-//       users: emails.map((email) => {
-//         return {
-//           email,
-//           first_name,
-//           last_name,
-//         };
-//       }),
-//       expiration_date,
-//       role,
-//     };
-//     testHandler.logic.barchCreateUsers(payload);
-
-//     //act
-//     await testHandler.start();
-
-//     //assert
-//     emails.forEach((email) => {
-//       const user = testHandler.getSingleUser(email);
-//       testUser(user, {
-//         email,
-//         first_name,
-//         last_name,
-//         expiration_date,
-//         role,
-//         available_modules: defaultModules,
-//       });
-//     });
-//   },
-//   TIME_OUT * emails.length
-// );
-
-// test(
-//   "Batch Create Users And Search Users",
-//   async () => {
-//     //arrange
-//     const payload: BatchCreateUserReqType = {
-//       users: emails.map((email) => {
-//         return {
-//           email,
-//           first_name,
-//           last_name,
-//         };
-//       }),
-//       expiration_date,
-//       role,
-//     };
-//     testHandler.logic.barchCreateUsers(payload);
-
-//     //act
-//     await testHandler.start();
-//     testHandler.clearUsers();
-//     testHandler.logic.searchUser({ email: [...emails], type: "OR" });
-//     await testHandler.start();
-//     //assert
-//     emails.forEach((email) => {
-//       const user = testHandler.getSingleUser(email);
-//       testUser(user, {
-//         email,
-//         first_name,
-//         last_name,
-//         expiration_date,
-//         role,
-//         available_modules: defaultModules,
-//       });
-//     });
-//   },
-//   TIME_OUT * emails.length
-// );
-
-// test(
-//   "Update User",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-//     const updatedExpiration = futureDateStr(0, 10, 0);
-
-//     //act
-//     await createUser(email, "teacher");
-//     await createClass();
-//     testHandler.logic.updateUserByEmail(email, {
-//       expiration_date: updatedExpiration,
-//       teaching_class_ids: [class_id],
-//     });
-//     await testHandler.start();
-
-//     //assert
-//     const user = testHandler.getSingleUser(email);
-//     const classD = testHandler.getSingleClass(class_id);
-//     testUser(user, {
-//       email,
-//       first_name,
-//       last_name,
-//       expiration_date: updatedExpiration,
-//       role: "teacher",
-//       teaching_class_ids: [class_id],
-//     });
-//     testClass(classD, {
-//       class_id,
-//       available_modules,
-//       class_name,
-//       capacity,
-//       teacher_ids: [email],
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Updating user modules",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-
-//     //act
-//     await createUser(email, "unmanagedStudent");
-//     testHandler.logic.updateUserByEmail(email, {
-//       available_modules: [],
-//     });
-//     await testHandler.start();
-
-//     //assert
-//     const user = testHandler.getSingleUser(email);
-//     testUser(user, {
-//       email,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role: "unmanagedStudent",
-//       available_modules: [],
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Unmanaged student enrolled in class",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-
-//     //act
-//     await createUser(email, "unmanagedStudent");
-//     await createClass();
-//     testHandler.logic.updateUserByEmail(email, {
-//       enrolled_class_id: class_id,
-//     });
-//     await testHandler.start();
-
-//     //assert
-//     const user = testHandler.getSingleUser(email);
-//     const classD = testHandler.getSingleClass(class_id);
-//     testUser(user, {
-//       email,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role: "managedStudent",
-//       enrolled_class_id: class_id,
-//     });
-//     testClass(classD, {
-//       class_id,
-//       class_name,
-//       capacity,
-//       available_modules,
-//       student_ids: [email],
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Managed Student creation and removal from class",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-
-//     //act
-//     await createClass();
-//     await createUser(email, "managedStudent", { enrolled: class_id });
-//     testHandler.logic.updateUserByEmail(email, {
-//       enrolled_class_id: null,
-//     });
-//     await testHandler.start();
-
-//     //assert
-//     const user = testHandler.getSingleUser(email);
-//     const classD = testHandler.getSingleClass(class_id);
-//     testUser(user, {
-//       email,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role: "unmanagedStudent",
-//       enrolled_class_id: undefined,
-//     });
-//     testClass(classD, {
-//       class_id,
-//       class_name,
-//       capacity,
-//       available_modules,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Update Unexisting User",
-//   async () => {
-//     //act
-//     await createClass();
-
-//     //assert
-//     testHandler.logic.updateUserByEmail(emails[0], {
-//       enrolled_class_id: class_id,
-//     });
-//     await testError(async () => {
-//       await testHandler.start();
-//     }, "Resource Not Found");
-//     const data = await fetchSingleClass(class_id);
-//     testClass(data, {
-//       class_id,
-//       class_name,
-//       capacity,
-//       available_modules,
-//       student_ids: undefined,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Deleting Student ",
-//   async () => {
-//     //arange
-//     const email = emails[0];
-
-//     //act
-//     await createClass();
-//     await createUser(email, "managedStudent", { enrolled: class_id });
-//     testHandler.logic.deleteUserByEmail(email);
-//     await testHandler.start();
-
-//     //assert
-//     const classD = testHandler.getSingleClass(class_id);
-//     testClass(classD, {
-//       class_id,
-//       class_name,
-//       capacity,
-//       available_modules,
-//     });
-
-//     await testError(async () => {
-//       await fetchSingleUser(email);
-//     }, "Resource Not Found");
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Deleting Teacher ",
-//   async () => {
-//     //arange
-//     const email = emails[0];
-
-//     //act
-//     await createClass();
-//     await createUser(email, "teacher", { teaching: [class_id] });
-//     testHandler.logic.deleteUserByEmail(email);
-//     await testHandler.start();
-
-//     //assert
-//     const classD = testHandler.getSingleClass(class_id);
-//     testClass(classD, {
-//       class_id,
-//       class_name,
-//       capacity,
-//       available_modules,
-//     });
-
-//     await testError(async () => {
-//       await fetchSingleUser(email);
-//     }, "Resource Not Found");
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Create Class Function",
-//   async () => {
-//     //arrange
-//     const payload: PostClassesReqType = {
-//       class_name,
-//       teacher_ids: [],
-//       capacity,
-//       available_modules,
-//     };
-//     testHandler.logic.createClass(payload, class_id);
-//     //act
-//     await testHandler.start();
-
-//     //assert
-//     const classD = testHandler.getSingleClass(class_id);
-//     testClass(classD, {
-//       class_id,
-//       class_name,
-//       capacity,
-//       available_modules,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Create Class With Teacher",
-//   async () => {
-//     //arange
-//     const email = emails[0];
-//     testHandler.logic.createClass(
-//       { class_name, teacher_ids: [email], capacity, available_modules },
-//       class_id
-//     );
-
-//     //act
-//     await createUser(email, "teacher");
-//     await testHandler.start();
-//     //assert
-//     const user = testHandler.getSingleUser(email);
-//     const classD = testHandler.getSingleClass(class_id);
-//     testUser(user, {
-//       email,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role: "teacher",
-//       teaching_class_ids: [class_id],
-//     });
-//     testClass(classD, {
-//       class_id,
-//       class_name,
-//       available_modules,
-//       capacity,
-//       teacher_ids: [email],
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Fetching unexisting class",
-//   async () => {
-//     await testError(async () => {
-//       await fetchSingleClass(class_id);
-//     }, "Resource Not Found");
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Get Class By ID",
-//   async () => {
-//     //arrange
-//     testHandler.logic.getClassByID(class_id);
-
-//     //act
-//     await createClass();
-//     await testHandler.start();
-
-//     //assert
-//     const classD = testHandler.getSingleClass(class_id);
-//     testClass(classD, {
-//       class_id,
-//       class_name,
-//       capacity,
-//       available_modules,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Batch Get Class By ID",
-//   async () => {
-//     //arrange
-//     testHandler.logic.batchGetClass([class_id]);
-
-//     //act
-//     await createClass();
-//     await testHandler.start();
-
-//     //assert
-//     const classD = testHandler.getSingleClass(class_id);
-//     testClass(classD, {
-//       class_id,
-//       class_name,
-//       capacity,
-//       available_modules,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Update Class Function",
-//   async () => {
-//     //arrange
-//     const teacherEmail = emails[0];
-//     const studentEmail = emails[1];
-//     const update: ClassUpdatePaylod = {
-//       class_id,
-//       addStudents: [studentEmail],
-//       addTeachers: [teacherEmail],
-//       class_name: "Updated",
-//       capacity: capacity + 10,
-//     };
-
-//     //act
-//     await createClass();
-//     await createUser(teacherEmail, "teacher");
-//     await createUser(studentEmail, "unmanagedStudent");
-//     testHandler.logic.updateClass(update);
-//     await testHandler.start();
-
-//     //assert
-//     const student = testHandler.getSingleUser(studentEmail);
-//     const teacher = testHandler.getSingleUser(teacherEmail);
-
-//     const classD = testHandler.getSingleClass(class_id);
-//     testUser(teacher, {
-//       email: teacherEmail,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role: "teacher",
-//       teaching_class_ids: [class_id],
-//     });
-
-//     testUser(student, {
-//       email: studentEmail,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role: "managedStudent",
-//       enrolled_class_id: class_id,
-//     });
-
-//     testClass(classD, {
-//       class_id,
-//       class_name: "Updated",
-//       capacity: capacity + 10,
-//       available_modules,
-//       teacher_ids: [teacherEmail],
-//       student_ids: [studentEmail],
-//     });
-//   },
-//   TIME_OUT * emails.length
-// );
-
-// test(
-//   "Update Unexisting Class",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-
-//     //act
-//     await createUser(email, "unmanagedStudent");
-//     testHandler.logic.updateClass({ class_id, addStudents: [email] });
-
-//     //assert
-//     await testError(async () => {
-//       await testHandler.start();
-//     }, "Resource Not Found");
-//     const data = await fetchSingleUser(email);
-//     testUser(data, {
-//       email,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role: "unmanagedStudent",
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// test(
-//   "Class Delete",
-//   async () => {
-//     //arrange
-//     const studentEmail = emails[0];
-//     const teacherEmail = emails[1];
-
-//     //act
-//     await createUser(studentEmail, "unmanagedStudent");
-//     await createUser(teacherEmail, "teacher");
-//     await createClass([teacherEmail]);
-//     testHandler.logic.updateClass({ class_id, addStudents: [studentEmail] });
-//     await testHandler.start();
-//     testHandler.logic.deleteClassbyID(class_id);
-//     await testHandler.start();
-
-//     //assert
-//     await testError(async () => {
-//       await fetchSingleClass(class_id);
-//     }, "Resource Not Found");
-//     const student = testHandler.getSingleUser(studentEmail);
-//     const teacher = testHandler.getSingleUser(teacherEmail);
-//     testUser(student, {
-//       email: studentEmail,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role: "unmanagedStudent",
-//     });
-//     testUser(teacher, {
-//       email: teacherEmail,
-//       first_name,
-//       last_name,
-//       expiration_date,
-//       role: "teacher",
-//       teaching_class_ids: [],
-//     });
-//   },
-//   TIME_OUT * emails.length
-// );
-
-// //test reverts
-
-// //revert create single user
-// test(
-//   "Revert Create Single User",
-//   async () => {
-//     //arrange
-//     const email = emails[0]
-//     testHandler.logic.createSingleUser({role:"managedStudent",email,first_name,last_name,enrolled_class_id:class_id})
-
-//     //act
-//     await createClass();
-//     // await createUser(scuessEmail,"managedStudent",{enrolled:class_id})
-//     await testHandler.start();
-//     await testHandler.testRevert();
-
-//     //assert
-//     const classData = await fetchSingleClass(class_id);
-//     testClass(classData, {
-//       class_id,
-//       class_name,
-//       available_modules,
-//       teacher_ids: undefined,
-//       capacity,
-//       student_ids: undefined,
-//     });
-//     await testError(async () => {
-//       const searched = await fetchSingleUser(email)
-//     }, "Resource Not Found");
-//   },
-//   TIME_OUT * emails.length
-// );
-
-// //batch create user one fial , all not created
-// test(
-//   "No User Created if one fail",
-//   async () => {
-//     //arrange
-//     const targets = [...emails]
-//     const users = targets.map((email) => {
-//       return { email, first_name, last_name };
-//     });
-//     testHandler.logic.barchCreateUsers({
-//       role: "teacher",
-//       users,
-//       expiration_date: expiration_date,
-//       teaching_class_ids:[class_id]
-//     });
-
-//     //act
-//     await createClass();
-//     // await createUser(scuessEmail,"managedStudent",{enrolled:class_id})
-//     await testHandler.start();
-//     await testHandler.testRevert();
-
-//     //assert
-//     const classData = await fetchSingleClass(class_id);
-//     testClass(classData, {
-//       class_id,
-//       class_name,
-//       available_modules,
-//       teacher_ids: undefined,
-//       capacity,
-//       student_ids: undefined,
-//     });
-//     for(const email of targets){
-//       await testError(async () => {
-//         const searched = await fetchSingleUser(email)
-//       }, "Resource Not Found");
-//     }
-//   },
-//   TIME_OUT * emails.length
-// );
-
-// //Revert update user fail, no role change, managed -> un
-// test(
-//   "Reverting for Managed Stuendent Removed From Class",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-//     testHandler.logic.updateUserByEmail(email, { enrolled_class_id: null });
-
-//     //act
-//     await createClass();
-//     await createUser(email, "managedStudent", { enrolled: class_id });
-//     await testHandler.start();
-//     await testHandler.testRevert();
-
-//     //assert
-//     const classData = await fetchSingleClass(class_id);
-//     const user = await fetchSingleUser(email);
-//     testClass(classData, {
-//       class_id,
-//       class_name,
-//       available_modules,
-//       teacher_ids: undefined,
-//       capacity,
-//       student_ids: [email],
-//     });
-//     testUser(user, {
-//       role: "managedStudent",
-//       first_name,
-//       last_name,
-//       email,
-//       enrolled_class_id: class_id,
-//       expiration_date,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// //un -> mangaed
-// test(
-//   "Reverting for Unmanaged Student enrolled in class",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-//     testHandler.logic.updateUserByEmail(email, { enrolled_class_id: class_id });
-
-//     //act
-//     await createClass();
-//     await createUser(email, "unmanagedStudent");
-//     await testHandler.start();
-//     await testHandler.testRevert();
-
-//     //assert
-//     const classData = await fetchSingleClass(class_id);
-//     const user = await fetchSingleUser(email);
-//     testClass(classData, {
-//       class_id,
-//       class_name,
-//       available_modules,
-//       teacher_ids: undefined,
-//       capacity,
-//       student_ids: undefined,
-//     });
-//     testUser(user, {
-//       role: "unmanagedStudent",
-//       first_name,
-//       last_name,
-//       email,
-//       enrolled_class_id: undefined,
-//       expiration_date,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// //delete user fail
-// test(
-//   "Reverting for Deleting Teacher from Class",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-//     testHandler.logic.deleteUserByEmail(email);
-
-//     //act
-//     await createClass();
-//     await createUser(email, "teacher", { teaching: [class_id] });
-//     await testHandler.start();
-//     await testHandler.testRevert();
-
-//     //assert
-//     const classData = await fetchSingleClass(class_id);
-//     const user = await fetchSingleUser(email);
-//     testClass(classData, {
-//       class_id,
-//       class_name,
-//       available_modules,
-//       teacher_ids: [email],
-//       capacity,
-//       student_ids: undefined,
-//     });
-//     testUser(user, {
-//       role: "teacher",
-//       first_name,
-//       last_name,
-//       email,
-//       teaching_class_ids: [class_id],
-//       expiration_date,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// //create class fail
-// test(
-//   "Reverting for Creating Class",
-//   async () => {
-//     //arrange
-//     const email = emails[0];
-//     testHandler.logic.createClass(
-//       { class_name, capacity, available_modules, teacher_ids: [email] },
-//       class_id
-//     );
-
-//     //act
-//     await createUser(email, "teacher");
-//     await createClass();
-//     await testHandler.start();
-//     await testHandler.testRevert();
-
-//     //assert
-//     await testError(async () => {
-//       const classData = await fetchSingleClass(class_id);
-//     }, "Resource Not Found");
-//     const user = await fetchSingleUser(email);
-//     testUser(user, {
-//       role: "teacher",
-//       first_name,
-//       last_name,
-//       email,
-//       teaching_class_ids: [],
-//       expiration_date,
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// //update class  fail
-// test(
-//   "Revert Class Upodate",
-//   async () => {
-//     //arrange
-//     const studentEmail = emails[0];
-//     const teacherEmail = emails[1];
-//     testHandler.logic.updateClass({
-//       class_id,
-//       class_name: "Updated",
-//       removeStudents: [studentEmail],
-//       removeTeachers: [teacherEmail],
-//     });
-
-//     //act
-//     await createClass();
-//     await createUser(studentEmail, "managedStudent", { enrolled: class_id });
-//     await createUser(teacherEmail, "teacher", { teaching: [class_id] });
-//     await testHandler.start();
-//     await testHandler.testRevert();
-
-//     //assert
-//     const student = await fetchSingleUser(studentEmail);
-//     const teacher = await fetchSingleUser(teacherEmail);
-//     const classData = await fetchSingleClass(class_id);
-//     testUser(student, {
-//       role: "managedStudent",
-//       first_name,
-//       last_name,
-//       email: studentEmail,
-//       enrolled_class_id: class_id,
-//       expiration_date,
-//     });
-//     testUser(teacher, {
-//       role: "teacher",
-//       first_name,
-//       last_name,
-//       email: teacherEmail,
-//       teaching_class_ids: [class_id],
-//       expiration_date,
-//     });
-//     testClass(classData, {
-//       class_id,
-//       class_name,
-//       available_modules,
-//       teacher_ids: [teacherEmail],
-//       capacity,
-//       student_ids: [studentEmail],
-//     });
-//   },
-//   TIME_OUT
-// );
-
-// //delete class fail
-// test(
-//   "Revert Class Delete",
-//   async () => {
-//     //arrange
-//     const studentEmail = emails[0];
-//     const teacherEmail = emails[1];
-//     testHandler.logic.deleteClassbyID(class_id);
-
-//     //act
-//     await createUser(teacherEmail, "teacher");
-//     await createClass([teacherEmail]);
-//     await createUser(studentEmail, "managedStudent", { enrolled: class_id });
-//     await testHandler.start();
-//     await testHandler.testRevert();
-
-//     //assert
-//     const student = await fetchSingleUser(studentEmail);
-//     const teacher = await fetchSingleUser(teacherEmail);
-
-//     const classData = await fetchSingleClass(class_id);
-//     // console.log(student, teacher);
-//     testUser(student, {
-//       role: "managedStudent",
-//       first_name,
-//       last_name,
-//       email: studentEmail,
-//       enrolled_class_id: class_id,
-//       expiration_date,
-//     });
-//     testUser(teacher, {
-//       role: "teacher",
-//       first_name,
-//       last_name,
-//       email: teacherEmail,
-//       teaching_class_ids: [class_id],
-//       expiration_date,
-//     });
-//     testClass(classData, {
-//       class_id,
-//       class_name,
-//       available_modules,
-//       teacher_ids: [teacherEmail],
-//       capacity,
-//       student_ids: [studentEmail],
-//     });
-//   },
-//   TIME_OUT * emails.length
-// );
-
-// //handle revert error with create user
-// test("Handling Revert Error",async()=>{
-//   //arrange
-//   const email = emails[0]
-//   testHandler.logic.createSingleUser({role:"managedStudent",first_name,last_name,email,expiration_date,enrolled_class_id:class_id})
-
-//   //act
-//   await createClass()
-//   await testHandler.start()
-//   // console.log(testHandler.getRevertStack())
-//   testHandler.setRevertError()
-//   await testHandler.testRevert()
-
-//   //assert
-//   //nothing is reverted
-//   const user = await fetchSingleUser(email)
-//   const classData = await fetchSingleClass(class_id)
-//   testClass(classData,{
-//     class_id,class_name,capacity,available_modules,
-//     student_ids:[email]
-//   })
-//   testUser(user,{email,first_name,last_name,expiration_date,enrolled_class_id:class_id,role:"managedStudent"})
-
-// },TIME_OUT)
-
-test("pass", () => {
-  expect(1).toBe(1);
+) {
+  const {manager_emails,student_emails,children_emails,available_modules,unlocked_modules} = info??{}
+  const base = {
+    manager_emails:manager_emails??[],
+    student_emails:null,
+    children_emails:null,
+    capacity:null,
+    available_modules:null,
+    unlocked_modules:null,
+  }
+  if(type==="class"){
+    const payload = {
+      ...base,
+      group_name:name,
+      type:"class" as const,
+      student_emails :student_emails??[],
+      available_modules :available_modules??[],
+      unlocked_modules:unlocked_modules??[],
+      capacity : capacity
+    }
+    const data = await createGroup(payload)
+    return data
+  }else if (type === "family"){
+    const payload = {
+      ...base,
+      group_name:name,
+      type:"family" as const,
+      children_emails:children_emails??[]
+    }
+    const data = await createGroup(payload)
+    return data
+  }
+  throw new Error("Unknown group type")
+}
+
+async function createTestModule(name:string) {
+  return await createModule({module_name:name})
+}
+
+async function cleanUp(name:string) {
+  console.log(`${name} start`)
+  console.time(name)
+  for(const name of[...family_names,...class_names]){
+    try {
+      const group = await findGroupByName(name)
+      //group found
+      await deleteGroup(group.group_id)
+    } catch (error) {
+      if(error instanceof APIError && error.status === "Resource Not Found"){
+        //unexist class
+      }else{
+        console.error(`Hitting error when searching and deleting class in ${name}`,error)
+      }
+    }
+  }
+  try {
+    const token = await getAccessToken()
+    for(const email of emails){
+      try {
+        // console.log(`try to clean up ${email}`)
+        await deleteUser(email)
+        await deleteAuth0Account(token,email)
+        await delay(500)
+      } catch (error:any) {
+        // console.log(error instanceof APIError , error?.status === "Resource Not Found")
+        if(error instanceof APIError && error.status === "Resource Not Found"){
+          //unexist class
+          continue
+        }else{
+          console.error(`Hitting error when searching and deleting user in ${name}`,error)
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Hitting error when getting auth0 access token in ${name}`,error)
+  }
+  try {
+    const names:string[] = [...module_names]
+    const modules = await getModules()
+    const test_modules = modules.filter(m=>names.includes(m.module_name))
+    for(const module of test_modules){
+      try {
+        await deleteModule(module.module_id)
+      } catch (error) {
+        if(error instanceof APIError && error.status === "Resource Not Found"){
+          //unexist class
+        }else{
+          console.error(`Hitting error when  deleting module in ${name}`,error)
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Hitting error when searching  module in ${name}`,error)
+  }
+  console.log(`${name} end`)
+  console.timeEnd(name)
+}
+
+beforeEach(() => {
+  console.log(`Testing ${expect.getState().currentTestName} start.`);
+  console.time(expect.getState().currentTestName)
 });
+
+afterEach(() => {
+  console.log(`Testing ${expect.getState().currentTestName} done.`);
+  console.timeEnd(expect.getState().currentTestName)
+});
+
+beforeAll(async()=>{
+  await cleanUp("Initail Clean Up")
+},TIME_OUT)
+
+afterAll(async()=>{
+  await cleanUp("Final Clean Up")
+},TIME_OUT)
+
+
+test("Create user and send email",async()=>{
+  //arrange 
+  const email = emails[0]
+  const payload = {
+    name:"test user",
+    role:"student",
+    email,
+    expiration_date
+  }
+  const parsed = postUsersReqSchema.parse(payload)
+  const th = new TestTaskHandler()
+  th.logic.createSingleUser(parsed)
+
+  //act
+  const {users} = await th.run()
+  const user = users.get(email)
+
+  //assert
+  // console.log(user)
+  expect(user).toBeDefined()
+  expect(user?.role).toBe("student")
+  expect(user?.email).toBe(email)
+  expect(user?.name).toBe("test user")
+  expect(user?.expiration_date?.getTime()).toEqual(parseDateStr(expiration_date)?.getTime())
+
+  //clean up
+  await th.testRevert()
+},TIME_OUT)
+
+
+test("Batch create students",async()=>{
+  //arrange 
+  const toCreate = emails.slice(0,emails.length)
+  const module = await createTestModule(module_names[0])
+  const testClass = await createTestGroup("class",class_names[0])
+  const testFamily = await createTestGroup("family",family_names[0])
+  const payload = {
+    users:toCreate.map(email=>({email,name:"test batch create"})),
+    role:"student",
+    expiration_date,
+    enrolled:testClass.group_id,
+    families:[testFamily.group_id],
+    available_modules:[module.module_id],
+  }
+  const parsed = postBatchCreateUsersReqSchema.parse(payload)
+  const th = new TestTaskHandler()
+  th.logic.batchCreateUser(parsed)
+  //act
+  const {users:data} = await th.run()
+
+  //assert
+  // console.log(user)
+  for(const email of toCreate){
+    const user = data.get(email)
+    expect(user).toBeDefined()
+    expect(user?.role).toBe("student")
+    expect(user?.email).toBe(email)
+    expect(user?.name).toBe("test batch create")
+    expect(user?.expiration_date?.getTime()).toEqual(parseDateStr(expiration_date)?.getTime())
+    expect(user?.enrolled).toEqual(testClass.group_id)
+    expect(user?.families).toContain(testFamily.group_id)
+    expect(user?.available_modules).toContain(module.module_id)
+  }
+
+  //clean up
+  await th.testRevert()
+  await deleteGroup(testClass.group_id)
+  await deleteGroup(testFamily.group_id)
+  await deleteModule(module.module_id)
+},TIME_OUT)
+
+test("Delete User",async()=>{
+  //arrange 
+  const email = emails[0]
+  const payload = {
+    name:"test user",
+    role:"student",
+    email,
+    expiration_date
+  }
+  const parsed = postUsersReqSchema.parse(payload)
+  const creater = new TestTaskHandler()
+  const deleter = new TestTaskHandler()
+  creater.logic.createSingleUser(parsed)
+  deleter.logic.deleteUser(email)
+
+  //act
+  await creater.run()
+  await deleter.run()
+
+  //assert
+  await expectError(async()=>{
+    await findSingleUser(email)
+  },"Resource Not Found")
+  await expectError(async()=>{
+    await getAuth0UserByEmail(creater.getAuth0Token(),email)
+  },"Resource Not Found")
+},TIME_OUT)
+
+
+
+test("Create Teacher with classes",async()=>{
+  //arrage 
+  const email = emails[0]
+  const class1 = await createTestGroup("class",class_names[0])
+  const class2 = await createTestGroup("class",class_names[2])
+  const classIds = [class1.group_id,class2.group_id]
+  //act 
+  const user = await createTestUser(email,"teacher",{managing:classIds})
+  
+  //assert
+  expect(user.role).toBe("teacher")
+  expect(sameList(user.managing,classIds)).toBeTruthy()
+  
+  //clean up
+  await deleteGroup(class1.group_id)
+  await deleteGroup(class2.group_id)
+  await deleteUser(user.email)
+},TIME_OUT)
+
+
+test("Create parent with families",async()=>{
+  //arrage 
+  const email = emails[0]
+  const family1 = await createTestGroup("family",family_names[0])
+  const family2 = await createTestGroup("family",family_names[2])
+  const familyIds = [family1.group_id,family2.group_id]
+  //act 
+  const user = await createTestUser(email,"parent",{managing:familyIds})
+  
+  //assert
+  expect(user.role).toBe("parent")
+  expect(sameList(user.managing,familyIds)).toBeTruthy()
+  
+  //clean up
+  await deleteGroup(family1.group_id)
+  await deleteGroup(family2.group_id)
+  await deleteUser(user.email)
+},TIME_OUT)
+
+
+test("Create class",async ()=>{
+  //arrange
+  const student = await createTestUser(emails[0],"student")
+  const teacher = await createTestUser(emails[1],"teacher")
+  const locked = await createTestModule(module_names[0])
+  const unlocked = await createTestModule(module_names[1])
+  const group_name = class_names[0]
+  const payload:PostGroupsReq = {
+    type:"class",
+    group_name,
+    capacity,
+    manager_emails:[teacher.email],
+    student_emails:[student.email],
+    available_modules:[locked.module_id,unlocked.module_id],
+    unlocked_modules:[unlocked.module_id]
+  }
+  
+  //act
+  const data = await createGroup(payload)
+  
+  //assert
+  expect(data.type).toBe("class")
+  expect(data.group_name).toBe(group_name)
+  expect(data.capacity).toBe(capacity)
+  expect(sameList(data.managers,[teacher.user_id])).toBeTruthy()
+  expect(sameList(data.students,[student.user_id])).toBeTruthy()
+  expect(sameList(data.available_modules,[locked.module_id,unlocked.module_id])).toBeTruthy
+  expect(sameList(data.unlocked_modules,[unlocked.module_id])).toBeTruthy
+  
+  //clean up
+  await deleteModule(locked.module_id)
+  await deleteModule(unlocked.module_id)
+  await deleteUser(student.email)
+  await deleteUser(teacher.email)
+  await deleteGroup(data.group_id)
+},TIME_OUT)
+
+test("Create family",async ()=>{
+  //arrange
+  const student = await createTestUser(emails[0],"student")
+  const parent = await createTestUser(emails[1],"parent")
+  const group_name = family_names[0]
+  const payload:PostGroupsReq = {
+    type:"family",
+    group_name,
+    manager_emails:[parent.email],
+    children_emails:[student.email]
+  }
+  
+  
+  //act
+  const data = await createGroup(payload)
+  
+  //assert
+  expect(data.type).toBe("family")
+  expect(data.group_name).toBe(group_name)
+  expect(data.capacity).toBe(-1)
+  expect(sameList(data.managers,[parent.user_id])).toBeTruthy()
+  expect(sameList(data.children,[student.user_id])).toBeTruthy()
+  
+  //clean up
+  await deleteUser(student.email)
+  await deleteUser(parent.email)
+  await deleteGroup(data.group_id)
+},TIME_OUT)
+
+test("DB realtion creation and onDelete Functioning",async()=>{
+  //arrange
+  const email = emails[0]
+  const group_name = class_names[0]
+  const user = await createTestUser(email,"student")
+  const group = await createTestGroup("class",group_name,{
+    student_emails:[email]
+  })
+
+  //act
+  const before =  await findSingleUser(email)
+  await deleteGroup(group.group_id)
+  const after = await findSingleUser(email)
+
+  //assert
+  expect(user.enrolled).toBeUndefined()
+  expect(before.enrolled).toBe(group.group_id)
+  expect(after.enrolled).toBeUndefined()
+
+  //clean up
+  await deleteUser(email)
+
+},TIME_OUT)
+
+
+
+test("Create Teacher with classes",async()=>{
+  //arrage 
+  const email = emails[0]
+  const class1 = await createTestGroup("class",class_names[0])
+  const class2 = await createTestGroup("class",class_names[2])
+  const classIds = [class1.group_id,class2.group_id]
+  //act 
+  const user = await createTestUser(email,"teacher",{managing:classIds})
+  
+  //assert
+  expect(user.role).toBe("teacher")
+  expect(sameList(user.managing,classIds)).toBeTruthy()
+  
+  //clean up
+  await deleteGroup(class1.group_id)
+  await deleteGroup(class2.group_id)
+  await deleteUser(user.email)
+},TIME_OUT)
+
+
+test("Create parent with families",async()=>{
+  //arrage 
+  const email = emails[0]
+  const family1 = await createTestGroup("family",family_names[0])
+  const family2 = await createTestGroup("family",family_names[2])
+  const familyIds = [family1.group_id,family2.group_id]
+  //act 
+  const user = await createTestUser(email,"parent",{managing:familyIds})
+  
+  //assert
+  expect(user.role).toBe("parent")
+  expect(sameList(user.managing,familyIds)).toBeTruthy()
+  
+  //clean up
+  await deleteGroup(family1.group_id)
+  await deleteGroup(family2.group_id)
+  await deleteUser(user.email)
+},TIME_OUT)
+
+test("Updating class modules",async()=>{
+  //arrange 
+  const module1 = await createTestModule(module_names[0])
+  const module2 = await createTestModule(module_names[1])
+  const module3 = await createTestModule(module_names[2])
+  const group = await createTestGroup("class",class_names[0],{
+    available_modules:[module1.module_id,module2.module_id],
+    unlocked_modules:[module1.module_id]
+  })
+  const payload:PutClassesModulesReq ={
+    group_id:group.group_id,
+    toAdd:[module3.module_id],
+    toRemove:[module2.module_id],
+    toLock:[module1.module_id],
+    toUnlock:[module3.module_id]
+  }
+
+  //act
+  const {group_id,toAdd,toRemove,toLock,toUnlock}=payload
+  const updated = await updateClassAvailableModules(group_id,toAdd,toRemove,toLock,toUnlock)
+
+  //assert
+  expect(sameList(updated.available_modules,[module1.module_id,module3.module_id])).toBeTruthy()
+  expect(sameList(updated.unlocked_modules,[module3.module_id])).toBeTruthy()
+
+  //clean up
+  await deleteGroup(updated.group_id)
+  await deleteModule(module1.module_id)
+  await deleteModule(module2.module_id)
+  await deleteModule(module3.module_id)
+
+},TIME_OUT)
+
+
+//testing reverts
+test("Revert create user",async()=>{
+  //arrange 
+  const family = await createTestGroup("class",family_names[0])
+  const email = emails[0]
+  const payload = {
+    name:"test user",
+    role:"teacher",
+    email,
+    expiration_date,
+    managing:[family.group_id]
+  }
+  const parsed = postUsersReqSchema.parse(payload)
+  const th = new TestTaskHandler()
+  th.logic.createSingleUser(parsed)
+
+  //act
+  const {users} = await th.run()
+  await th.testRevert()
+
+  //assert
+  const updated = await findSingleGroup(family.group_id)
+  expect(updated.managers.length).toBe(0)
+  await expectError(async()=>{
+    await findSingleUser(email)
+  },"Resource Not Found")
+
+  //clean up
+  await deleteGroup(family.group_id)
+},TIME_OUT)
+
+
+test("Revert batch create students",async()=>{
+  //arrange 
+  const toCreate = emails.slice(0,emails.length)
+  const testClass = await createTestGroup("class",class_names[0])
+  const testFamily = await createTestGroup("family",family_names[0])
+  const payload = {
+    users:toCreate.map(email=>({email,name:"test batch create"})),
+    role:"student",
+    expiration_date,
+    enrolled:testClass.group_id,
+    families:[testFamily.group_id],
+  }
+  const parsed = postBatchCreateUsersReqSchema.parse(payload)
+  const th = new TestTaskHandler()
+  th.logic.batchCreateUser(parsed)
+  //act
+  const {users:data} = await th.run()
+  await th.testRevert()
+
+
+  //assert
+  const users = await findManyUsers({email:toCreate,exact:false})
+  const updatedFam = await findSingleGroup(testFamily.group_id)
+  const updatedClass = await findSingleGroup(testClass.group_id)
+  expect(users.length).toBe(0)
+  expect(updatedFam.children.length).toBe(0)
+  expect(updatedClass.students.length).toBe(0)
+
+  //clean up
+  await deleteGroup(testClass.group_id)
+  await deleteGroup(testFamily.group_id)
+},TIME_OUT)
+
+test("Revert delete User",async()=>{
+  //arrange 
+  const module = await createTestModule(module_names[0])
+  const classData = await createTestGroup("class",class_names[0])
+  const fam = await createTestGroup("family",family_names[0])
+  const email = emails[0]
+  const payload = {
+    name:"test user",
+    role:"student",
+    email,
+    expiration_date,
+    enrolled:classData.group_id,
+    families:[fam.group_id],
+    available_modules:[module.module_id]
+  }
+  const parsed = postUsersReqSchema.parse(payload)
+  const creater = new TestTaskHandler()
+  const deleter = new TestTaskHandler()
+  creater.logic.createSingleUser(parsed)
+  deleter.logic.deleteUser(email)
+
+  //act
+  await creater.run()
+  await deleter.run()
+  await deleter.testRevert()
+
+  //assert
+  const user = await findSingleUser(email)
+  const auth0Ac =  await getAuth0UserByEmail(creater.getAuth0Token(),email)
+  const updatedClass = await findSingleGroup(classData.group_id)
+  const updatedFam = await findSingleGroup(fam.group_id)
+  expect(user.role).toBe("student")
+  expect(user.email).toBe(email)
+  expect(user.name).toBe("test user")
+  expect(user.expiration_date?.getTime()).toEqual(parseDateStr(expiration_date).getTime())
+  expect(user.enrolled).toEqual(classData.group_id)
+  expect(user.families).toContain(fam.group_id)
+  expect(user.available_modules).toContain(module.module_id)
+  expect(auth0Ac.email).toBe(email)
+  expect(updatedClass.students).toContain(user.user_id)
+  expect(updatedFam.children).toContain(user.user_id)
+
+  //clean up
+  const cleaner = new TestTaskHandler()
+  cleaner.logic.deleteUser(email)
+  await cleaner.run()
+  await deleteGroup(updatedClass.group_id)
+  await deleteGroup(updatedFam.group_id)
+  await deleteModule(module.module_id)
+},TIME_OUT)
+
+
+
+test("Handling Revert Error",async()=>{
+  //arrange
+  const email = emails[0]
+  const group = await createTestGroup("class",class_names[0])
+  const th = new TestTaskHandler()
+  const payload = {
+    name:"test user",
+    role:"student",
+    email,
+    expiration_date,
+    enrolled:group.group_id
+  }
+  const parsed = postUsersReqSchema.parse(payload)
+  th.logic.createSingleUser(parsed)
+  
+  //act
+  const {users} = await th.run()
+  th.setRevertError()
+  await th.testRevert()
+
+  //assert
+  //nothing is reverted,i.e. user stil exist and class
+  const user = await findSingleUser(email)
+  const updatedGroup = await findSingleGroup(group.group_id)
+  expect(user.enrolled).toBe(group.group_id)
+  expect(sameList(updatedGroup.students,[user.user_id])).toBeTruthy()
+
+  //clean up
+  const cleaner = new TestTaskHandler()
+  cleaner.logic.deleteUser(email)
+  await cleaner.run()
+  await deleteGroup(group.group_id)
+
+},TIME_OUT)

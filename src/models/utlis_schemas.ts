@@ -1,5 +1,5 @@
 import {z} from "zod"
-import { validDateString,afterToday } from "@/lib/utils"
+import { validDateString,afterToday, parseDateStr } from "@/lib/utils"
 
 
 
@@ -19,7 +19,7 @@ if(str) return afterToday(str)
 return true
 },{message:"Expiration date is required to be set after today"})
 
-export const setExpriationSchema = expirationDateStrSchema.transform(str=> new Date(str))
+export const setExpriationSchema = expirationDateStrSchema.transform(str=> parseDateStr(str))
 
 
 

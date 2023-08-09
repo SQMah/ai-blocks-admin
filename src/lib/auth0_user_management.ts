@@ -161,7 +161,7 @@ export const getAuth0UserByEmail = async (access_token: string, email: string) =
       throw new APIError("Resource Not Found", "User not found");
     return auth0UserSchema.parse(data[0])
   } catch (error: any) {
-    console.log(error)
+    // console.log(error)
     throw handleAuth0Error(error);
   }
 };
