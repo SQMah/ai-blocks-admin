@@ -24,7 +24,7 @@ const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const payload = postGroupsReqSchema.parse(req.body)
     const result = await createGroup(payload)
-    console.log(result)
+    // console.log(result)
     // const user = UserSchema.parse(data)
     res.status(201).json(result);
   } catch (error) {

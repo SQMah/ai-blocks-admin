@@ -19,7 +19,7 @@ const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
 const handlePut = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const payload = putClassesModulesReqSchema.parse({...req.query,...req.body})
-    console.log(payload)
+    // console.log(payload)
     const {group_id,toAdd,toRemove,toLock,toUnlock}=payload
     const data = await updateClassAvailableModules(group_id,toAdd,toRemove,toLock,toUnlock)
     res.status(200).json(data);

@@ -358,7 +358,7 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
               <div className="grid grid-cols-1 space-y-5 md:grid-cols-2 md:space-y-0 md:gap-4">
                 <div className="space-y-5">
                   <p>Modules to add </p>
-                  <ul className="max-h-64 min-h-8 overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+                  <ul className="max-h-[90%] min-h-[60%]  overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
                     {modulesToAdd.map((module, index) => {
                       return (
                         <li
@@ -381,7 +381,7 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
                 </div>
                 <div className="space-y-5">
                   <p>Modules selected </p>
-                  <ul className="max-h-64 min-h-8 overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+                  <ul className="max-h-[90%] min-h-[60%] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
                     {seletcedModules.map((module, index) => {
                       return (
                         <li

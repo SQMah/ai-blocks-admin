@@ -88,6 +88,7 @@ export const ManageStudent: FC<ManageStudentProps> = (props) => {
   const [families, setFamilies] = useState<Group[]>([]);
 
   useEffect(() => {
+    setIsLoading(true)
     try {
       //find all moules and groups
       requestAPI("modules", "GET", { module_id: [] }, {})
@@ -116,6 +117,7 @@ export const ManageStudent: FC<ManageStudentProps> = (props) => {
         description: handler.message,
       });
     }
+    setIsLoading(false)
   }, []);
 
   // useEffect(()=>{

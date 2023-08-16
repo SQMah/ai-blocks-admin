@@ -4,7 +4,9 @@ import { FC } from "react";
 const Loading: FC<{}> = () => {
     return (
       <>
-        <Loader2 />
+        <div >
+        <Loader2 className=" animate-spin"/>
+        </div>
       </>
     );
   };

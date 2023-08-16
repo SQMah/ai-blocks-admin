@@ -1,8 +1,5 @@
 import {
-  Enroll,
-  Group,
   GroupType,
-  User,
   UserRole,
   Prisma,
   PrismaClient,

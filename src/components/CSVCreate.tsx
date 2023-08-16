@@ -439,7 +439,7 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
                <div className="grid grid-cols-1 space-y-4">
                 <div className="space-y-5">
                   <p>Modules to add </p>
-                  <ul className="max-h-64 min-h-8 overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+                  <ul className="max-h-[90%] min-h-[60%]  overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
                     {modulesToAdd.map((module, index) => {
                       return (
                         <li
@@ -462,7 +462,7 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
                 </div>
                 <div className="space-y-5">
                   <p>Modules selected </p>
-                  <ul className="max-h-64 min-h-8 overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+                  <ul className="max-h-[90%] min-h-[60%]  overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
                     {seletcedModules.map((module, index) => {
                       return (
                         <li

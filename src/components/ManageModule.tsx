@@ -75,7 +75,8 @@ const ManageModule: FC<{}> = () => {
   return (
     <>
       <div className="space-y-4">
-      <ul className="max-h-[80%]  min-h-[50%] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+      <p>All modules:</p>
+      <ul className="max-h-[24rem]  min-h-[10rem] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
           {modules.map((module, index) => {
             const { module_id, module_name } = module;
             return (
