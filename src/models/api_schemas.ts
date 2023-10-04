@@ -160,7 +160,7 @@ export const batchPutUsersReqSchema = z
     emails: emailSchema
       .or(z.array(emailSchema))
       .transform((input) => (Array.isArray(input) ? input : [input])),
-    name: trimedNonEmptyString.optional(),
+    // name: trimedNonEmptyString.optional(),
     expiration_date: setExpriationSchema.optional(),
   })
   .strict();

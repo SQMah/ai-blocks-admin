@@ -39,9 +39,16 @@ const handleGet = async (req: NextApiRequest, res: NextApiResponse) => {
 const handlePut = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
     const payload = putUsersReqSchema.parse({...req.query,...req.body})
-    const {email,...update} = payload
-    const data = await updateUser(email,update)
-    res.status(200).json(data);
+    if(payload.name){
+      const th = new TaskHandler()
+      th.logic.updateUser(payload)
+      const {users} = await th.run()
+      res.status(200).json(users.get(payload.email));
+    }else{
+      const {email,...update} = payload
+      const data = await updateUser(email,update)
+      res.status(200).json(data);
+    }
   } catch (error) {
     const handler = new ServerErrorHandler(error);
     handler.log();

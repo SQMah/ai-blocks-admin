@@ -1,12 +1,12 @@
 import { APIError, ERROR_STATUS_TEXT, ServerErrorHandler } from "./api_utils";
 import { delay } from "./utils";
 
-import { Auth0Task, DBTask, DeleteAuth0AccountTask, GetAuthTokenProcedure, Procedure, Task, CreateAuth0AccountTask, createSignleUserTask, DeleteUserTask, GetInvitationParamsTask, BatchCreateUserTask } from "./task-and-procedure";
+import { Auth0Task, DBTask, DeleteAuth0AccountTask, GetAuthTokenProcedure, Procedure, Task, CreateAuth0AccountTask, createSignleUserTask, DeleteUserTask, GetInvitationParamsTask, BatchCreateUserTask, FindAndUpdateUserTask } from "./task-and-procedure";
 import { putLogEvent } from "./cloud_watch";
 import { Group, User } from "@/models/db_schemas";
 import { Auth0User } from "@/models/auth0_schemas";
 import { sendMail } from "./mail_sender";
-import { PostBatchCreateUsersReq, PostUsersReq } from "@/models/api_schemas";
+import { PostBatchCreateUsersReq, PostUsersReq, PutUsersReq } from "@/models/api_schemas";
 
 export const TRY_LIMIT = 3; //error hitting limit
 
@@ -73,7 +73,7 @@ export class TaskHandler {
   logic = {
     createSingleUser:(payload:PostUsersReq)=>{
       this
-      .addAuth0Tasks(new CreateAuth0AccountTask(this,payload.email))
+      .addAuth0Tasks(new CreateAuth0AccountTask(this,payload.email,payload.name))
       .addDBTasks(new createSignleUserTask(this,payload))
       .addAuth0Tasks(new GetInvitationParamsTask(this,payload.email,payload.name))
     },
@@ -82,13 +82,18 @@ export class TaskHandler {
       .addDBTasks(new DeleteUserTask(this,email))
     },
     batchCreateUser:(payload:PostBatchCreateUsersReq)=>{
-      payload.users.forEach(user=>{
-      const {email,name} = user
-      this
-      .addAuth0Tasks(new CreateAuth0AccountTask(this,email))
-      .addAuth0Tasks(new GetInvitationParamsTask(this,email,name))
-      })
+      //!for testing
+      // payload.users.forEach(user=>{
+      // const {email,name} = user
+      // this
+      // .addAuth0Tasks(new CreateAuth0AccountTask(this,email))
+      // .addAuth0Tasks(new GetInvitationParamsTask(this,email,name))
+      // })
       this.addDBTasks(new BatchCreateUserTask(this,payload))
+    },
+    updateUser:(payload:PutUsersReq)=>{
+      const {email,...update} = payload
+      this.addDBTasks(new FindAndUpdateUserTask(this,email,update))
     }
   };
 

@@ -670,7 +670,10 @@ export async function updateUser(email: string, update: UserUpdate) {
   }
 }
 
-export async function batchUpdateUser(emails: string[], update: UserUpdate) {
+//name is not batch updated
+type BatchUserUpdate = Omit<UserUpdate,"name">
+
+export async function batchUpdateUser(emails: string[], update: BatchUserUpdate) {
   const filetred = filterObject(update, (key, val) => val !== undefined);
   if (Object.keys(filetred).length === 0)
     throw new APIError("Bad Request", "Empty Update");
@@ -1132,20 +1135,23 @@ export async function changeClass(email: string, group_id: string) {
     const data = await prisma.$transaction(async (tx) => {
       await checkClassEnrollabe(group_id, 1);
       const user = await findSingleUser(email, ["student"]);
-      const data = await tx.enroll.update({
-        where: {
-          user_id: user.user_id,
-        },
-        data: {
-          group_id,
+      const del = await tx.enroll.delete({
+        where:{
+          user_id:user.user_id
+        }
+      })
+      const newEnroll = await tx.enroll.create({
+        data:{
+          user_id:user.user_id,
+          group_id
         },
         include: {
           student: {
             include: userInculde,
           },
         },
-      });
-      return data.student;
+      })
+      return newEnroll.student
     });
     return populateUser(data);
   } catch (error) {
@@ -1688,7 +1694,7 @@ export async function updateClassAvailableModules(
           },
         }
       );
-      const { count: unlcokCount } = await tx.class_available_module.updateMany(
+      const { count: unlockCount } = await tx.class_available_module.updateMany(
         {
           where: {
             group_id,
@@ -1701,7 +1707,7 @@ export async function updateClassAvailableModules(
           },
         }
       );
-      const { count: lcokCount } = await tx.class_available_module.updateMany({
+      const { count: lockCount } = await tx.class_available_module.updateMany({
         where: {
           group_id,
           module_id: {

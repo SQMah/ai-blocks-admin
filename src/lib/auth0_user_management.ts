@@ -56,12 +56,14 @@ const handleAuth0Error = (error: any) => {
 
 export async function createAuth0Account(
   access_token: string,
-  email:string
+  email:string,
+  name:string
 ){
   try {
     const create_body= {
       connection: "Username-Password-Authentication",
       email,
+      name,
       password: generatePassword(),
       verify_email: false,
     };
@@ -166,6 +168,41 @@ export const getAuth0UserByEmail = async (access_token: string, email: string) =
   }
 };
 
+
+type UserUpdate ={
+  name:string
+}
+
+export const updateAuth0User = async (
+  access_token: string,
+  email:string,
+  payload:UserUpdate,
+) => {
+  const {
+    name
+  } = payload;
+  const body ={
+    name
+  }
+  try {
+    const target = await getAuth0UserByEmail(access_token,email)
+    const { data } = await axios.patch(
+      `${auth0BaseUrl}/api/v2/users/${target.user_id}`,
+      body,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${access_token}`,
+        },
+      }
+    );
+    return data
+  } catch (error: any) {
+    throw handleAuth0Error(error);
+  }
+};
+
+
 export const deleteAuth0Account = async (access_token: string, email:string) => {
   try {
     const user = await getAuth0UserByEmail(access_token,email)
@@ -178,11 +215,13 @@ export const deleteAuth0Account = async (access_token: string, email:string) => 
         },
       }
     );
-    return undefined ;
+    return user ;
   } catch (error: any) {
     throw handleAuth0Error(error);
   }
 };
+
+
 
 
 

@@ -20,11 +20,12 @@ import {
  createAuth0Account,
  deleteAuth0Account,
  getInvitationPramas,
+ updateAuth0User,
 } from "./auth0_user_management";
 import { futureDate, type TupleSplit } from "./utils";
 import { User } from "@/models/db_schemas";
 import { Auth0User } from "@/models/auth0_schemas";
-import { batchCreateUsers, createUser, deleteManyUser, deleteUser, findManyUsers } from "./db";
+import { batchCreateUsers, createUser, deleteManyUser, deleteUser, findSingleUser, updateUser } from "./db";
 import { sendMail } from "./mail_sender";
 
 const defaultDateParam = [0,1,0] as const  //days, months, years + tdy
@@ -201,146 +202,97 @@ export abstract class Task<D extends Data> {
   //additional action after handle data
   // enqueue: DataHandler<D> = (data: D) => {};
   //task to enqueue that depends on data returned
-  createEnqueue: (data: D) =>  Task<any>[] = () => [];
+  createDBEnqueue: (data: D) =>  DBTask<any>[] = () => [];
+  createAuth0Enqueue: (data: D) =>  Auth0Task<any>[] = () => [];
+
   
   abstract forward: Procedure<Action<D>>;
-  abstract run: (instance: TaskHandler) => Promise<void>;
+  run = async (instance: TaskHandler)=>{
+    //pre check
+    ///task = new Task(data)
+    try {
+      //check is passed if no error thrown
+      this.preCheck.forEach((fn) => {
+        fn.check(instance);
+      });
+    } catch (error) {
+      //stop the task if checking is not passed
+      instance.handleError("Preprocess Checking", error);
+      return;
+    }
+    try {
+      const data = await this.forward.process(instance);
+      //add revert directly
+      //two procedure fix later
+      instance.addRevert(...this.revertProcedures);
+      //create and add revert
+      try {
+        const procedure = this.createRevert.apply(this, [data]);
+        instance.addRevert(...procedure);
+      } catch (error) {
+        instance.handleError("Create Revert Procedure", error);
+        return;
+      }
+      //handle data
+      try {
+        this.dataHandler.apply(instance, [data]);
+      } catch (error) {
+        instance.handleError("Handle Data", error);
+        return;
+      }
+      //post check
+      try {
+        this.postCheck.forEach((fn) => {
+          fn.check(instance);
+        });
+      } catch (error) {
+        //stop the task if checking is not passed
+        instance.handleError("Postprocess Checking", error);
+        return;
+      }
+      //create enqueue
+      try {
+        const tasks = this.createAuth0Enqueue.apply(this, [data]);
+        // console.log(tasks)
+        instance.addAuth0Tasks(...tasks);
+        // console.log(instance.task_queue.length)
+      } catch (error) {
+        instance.handleError("Create Auth0 Enqueue", error);
+        return;
+      }
+      try {
+        const tasks = this.createDBEnqueue.apply(this, [data]);
+        // console.log(tasks)
+        instance.addDBTasks(...tasks);
+        // console.log(instance.task_queue.length)
+      } catch (error) {
+        instance.handleError("Create DB Enqueue", error);
+        return;
+      }
+    } catch (error) {
+      //the only uncatch error is error from forward process
+      instance.handleError(this.forward.name, error);
+    }
+    return;
+  }
 }
 
 
 export abstract class  Auth0Task<D extends Auth0_Data> extends Task<D>{
   abstract forward: Procedure<Action<D>>;
-  run = async (instance: TaskHandler)=>{
-      //pre check
-      ///task = new Task(data)
-      try {
-        //check is passed if no error thrown
-        this.preCheck.forEach((fn) => {
-          fn.check(instance);
-        });
-      } catch (error) {
-        //stop the task if checking is not passed
-        instance.handleError("Preprocess Checking", error);
-        return;
-      }
-      try {
-        const data = await this.forward.process(instance);
-        //add revert directly
-        //two procedure fix later
-        instance.addRevert(...this.revertProcedures);
-        //create and add revert
-        try {
-          const procedure = this.createRevert.apply(this, [data]);
-          instance.addRevert(...procedure);
-        } catch (error) {
-          instance.handleError("Create Revert Procedure", error);
-          return;
-        }
-        //handle data
-        try {
-          this.dataHandler.apply(instance, [data]);
-        } catch (error) {
-          instance.handleError("Handle Data", error);
-          return;
-        }
-        //post check
-        try {
-          this.postCheck.forEach((fn) => {
-            fn.check(instance);
-          });
-        } catch (error) {
-          //stop the task if checking is not passed
-          instance.handleError("Postprocess Checking", error);
-          return;
-        }
-        //create enqueue
-        try {
-          const tasks = this.createEnqueue.apply(this, [data]);
-          // console.log(tasks)
-          instance.addAuth0Tasks(...tasks);
-          // console.log(instance.task_queue.length)
-        } catch (error) {
-          instance.handleError("Create Enqueue", error);
-          return;
-        }
-      } catch (error) {
-        //the only uncatch error is error from forward process
-        instance.handleError(this.forward.name, error);
-      }
-      return;
-    }
 }
 
 export abstract class  DBTask<D extends DB_Data> extends Task<D>{
   abstract forward: Procedure<Action<D>>;
-  run = async (instance: TaskHandler)=>{
-      //pre check
-      ///task = new Task(data)
-      try {
-        //check is passed if no error thrown
-        this.preCheck.forEach((fn) => {
-          fn.check(instance);
-        });
-      } catch (error) {
-        //stop the task if checking is not passed
-        instance.handleError("Preprocess Checking", error);
-        return;
-      }
-      try {
-        const data = await this.forward.process(instance);
-        //add revert directly
-        //two procedure fix later
-        instance.addRevert(...this.revertProcedures);
-        //create and add revert
-        try {
-          const procedure = this.createRevert.apply(this, [data]);
-          instance.addRevert(...procedure);
-        } catch (error) {
-          instance.handleError("Create Revert Procedure", error);
-          return;
-        }
-        //handle data
-        try {
-          this.dataHandler.apply(instance, [data]);
-        } catch (error) {
-          instance.handleError("Handle Data", error);
-          return;
-        }
-        //post check
-        try {
-          this.postCheck.forEach((fn) => {
-            fn.check(instance);
-          });
-        } catch (error) {
-          //stop the task if checking is not passed
-          instance.handleError("Postprocess Checking", error);
-          return;
-        }
-        //create enqueue
-        try {
-          const tasks = this.createEnqueue.apply(this, [data]);
-          // console.log(tasks)
-          instance.addDBTasks(...tasks);
-          // console.log(instance.task_queue.length)
-        } catch (error) {
-          instance.handleError("Create Enqueue", error);
-          return;
-        }
-      } catch (error) {
-        //the only uncatch error is error from forward process
-        instance.handleError(this.forward.name, error);
-      }
-      return;
-    }
 }
 
 export class CreateAuth0AccountTask extends Auth0Task<Auth0User>{
 
   forward:Auth0Procedure<Action<Auth0User>>
 
-  constructor(instance:TaskHandler,email:string){
+  constructor(instance:TaskHandler,email:string,name:string){
     super()
-    this.forward = new Auth0Procedure(`Create Auth0 A/C for ${email}`,createAuth0Account,[email],["Conflict"])
+    this.forward = new Auth0Procedure(`Create Auth0 A/C for ${email}`,createAuth0Account,[email,name],["Conflict"])
     this.createRevert = (data)=>{
       const revert = new Auth0Procedure(`Revert Create Auth0 A/C for ${email}`,deleteAuth0Account,[data.email])
       return [revert]
@@ -415,17 +367,17 @@ export class DeleteUserTask extends DBTask<User>{
   }
 }
 
-export class DeleteAuth0AccountTask extends Auth0Task<undefined>{
-  forward: Procedure<Action<undefined>>;
+export class DeleteAuth0AccountTask extends Auth0Task<Auth0User>{
+  forward: Procedure<Action<Auth0User>>;
   constructor(instance:TaskHandler,email:string){
     super()
     this.forward = new Auth0Procedure(`Delete Auth0 Account for ${email}`,deleteAuth0Account,[email],["Resource Not Found"])
-    const sendInvitation =async (access_token:string,email:string) => {
-        const {url} = await getInvitationPramas(access_token,email,email)
-        await sendMail(email,email,url)
+    const sendInvitation =async (access_token:string,email:string,name:string) => {
+        const {url} = await getInvitationPramas(access_token,email,name)
+        await sendMail(name,email,url)
         console.log(`Recover email sent to ${email}`)
     }
-    this.createRevert = ()=> [ new Auth0Procedure(`Ask For Change Password for ${email}`,sendInvitation,[email]), new Auth0Procedure(`Revert Delete Auth0 A/C ${email}`,createAuth0Account,[email])]
+    this.createRevert = (user)=> [ new Auth0Procedure(`Ask For Change Password for ${email}`,sendInvitation,[email,user.name]), new Auth0Procedure(`Revert Delete Auth0 A/C ${email}`,createAuth0Account,[email,user.name])]
   }
 }
 
@@ -439,6 +391,50 @@ export class BatchCreateUserTask extends DBTask<User[]>{
     this.createRevert = (data)=>{
       const emails = data.map(user=>user.email)
       return [new DBProcedure(`revert Batch Create Users, count:${emails.length}`,deleteManyUser,[emails])]
+    }
+  }
+}
+
+export class UpdateUseInDBTask extends DBTask<User>{
+  forward:Procedure<Action<User>>
+  constructor(instance:TaskHandler,email:string,payload:Parameters<typeof updateUser>[1],user:User){
+    super()
+    this.forward = new DBProcedure(`Update User`,updateUser,[email,payload])
+    this.dataHandler = instance.handleUserData
+    this.createRevert = (data)=>{
+      const revertPayload:Parameters<typeof updateUser>[1] ={
+        name:user.name,
+        expiration_date:user.expiration_date??undefined
+      }
+      return [new DBProcedure(`RevertUpdate User`,updateUser,[email,revertPayload])]
+    }
+  }
+}
+
+export class UpdateAuth0AccountTask extends Auth0Task<Auth0User>{
+  forward: Procedure<Action<Auth0User>>;
+  constructor(instance:TaskHandler,email:string,update:Parameters<typeof updateAuth0User>[2],user:User){
+    super()
+    this.forward = new Auth0Procedure(`Update Auth0 Account for ${email}`,updateAuth0User,[email,update],["Resource Not Found"])
+    const revertUpdate = {
+      name:user.name
+    }
+    this.createRevert = (user)=> [ new Auth0Procedure(`Revert Update Auth0 A/C ${email}`,updateAuth0User,[email,revertUpdate],["Resource Not Found"])]
+  }
+}
+
+export class FindAndUpdateUserTask extends DBTask<User>{
+  forward:Procedure<Action<User>>
+
+  constructor(instance:TaskHandler,email:string,payload:Parameters<typeof updateUser>[1]){
+    super()
+    this.forward = new DBProcedure(`Find User For Update User`,findSingleUser,[email])
+    this.createDBEnqueue = user => [new UpdateUseInDBTask(instance,email,payload,user)]
+    if(payload.name){
+      const auth0Paylaod = {
+        name:payload.name
+      }
+      this.createAuth0Enqueue = user => [new UpdateAuth0AccountTask(instance,email,auth0Paylaod,user)]
     }
   }
 }

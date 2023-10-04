@@ -35,37 +35,43 @@ model Group {
 }
 
 model Enroll {
-  id       String @id @default(uuid())
-  user_id  String @unique
-  group_id String
-  group    Group  @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
-  student  User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  id            Int      @id @default(autoincrement())
+  user_id       String   @unique
+  group_id      String
+  last_modified DateTime @default(now())
+  group         Group    @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
+  student       User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@unique([user_id, group_id])
+  @@index([id], type: BTree)
   @@index([group_id], type: Hash)
   @@index([user_id], type: Hash)
 }
 
 model Manage {
-  id       String @id @default(uuid())
-  user_id  String
-  group_id String
-  group    Group  @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
-  manager  User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  id            Int      @id @default(autoincrement())
+  user_id       String
+  group_id      String
+  last_modified DateTime @default(now())
+  group         Group    @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
+  manager       User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@unique([user_id, group_id])
+  @@index([id], type: BTree)
   @@index([group_id], type: Hash)
   @@index([user_id], type: Hash)
 }
 
 model Family {
-  id       String @id @default(uuid())
-  user_id  String
-  group_id String
-  group    Group  @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
-  child    User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  id            Int      @id @default(autoincrement())
+  user_id       String
+  group_id      String
+  last_modified DateTime @default(now())
+  group         Group    @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
+  child         User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@unique([user_id, group_id])
+  @@index([id], type: BTree)
   @@index([group_id], type: Hash)
   @@index([user_id], type: Hash)
 }
