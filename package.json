@@ -11,7 +11,7 @@
     "test:ci": "jest --ci"
   },
   "dependencies": {
-    "@auth0/nextjs-auth0": "^3.2.0",
+    "@auth0/nextjs-auth0": "^2.6.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.427.0",
     "@hookform/resolvers": "^3.3.1",
     "@prisma/client": "^5.4.1",
