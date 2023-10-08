@@ -41,7 +41,7 @@ export function DataTable<TData, TValue>({
   useEffect(()=>{
     if(pageSize&&pageSize>0) table.setPageSize(pageSize)
 
-  },[])
+  },[pageSize, table])
   return (
     <div>
         <div className="rounded-md border">

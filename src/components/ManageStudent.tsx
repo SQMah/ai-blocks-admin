@@ -118,7 +118,7 @@ export const ManageStudent: FC<ManageStudentProps> = (props) => {
       });
     }
     setIsLoading(false)
-  }, []);
+  }, [setIsLoading, student.available_modules, student.enrolled, student.families, toast]);
 
   // useEffect(()=>{
   //   console.log(families)

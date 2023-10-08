@@ -1,15 +1,10 @@
-import {
-  GroupType,
-  UserRole,
-  Prisma,
-  PrismaClient,
-} from "@prisma/client";
+import { GroupType, UserRole, Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "./prisma_client";
 import { APIError, ERROR_STATUS_TEXT } from "./api_utils";
 import { filterObject, hasIntersection, isSubset } from "./utils";
 import { allRoles, allGroupsTypes, moduleSchema } from "@/models/db_schemas";
 import {
-  User as PopoulatedUser,
+  User as PopulatedUser,
   Group as PopulatedGroup,
   userSchema,
   groupSchema,
@@ -157,22 +152,22 @@ async function findUserByTx(
     PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
     "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
   >,
-  email:string[]
-) :Promise<PopoulatedUser[]>
+  email: string[]
+): Promise<PopulatedUser[]>;
 async function findUserByTx(
   tx: Omit<
     PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
     "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
   >,
-  email: string 
-) :Promise<PopoulatedUser>
+  email: string
+): Promise<PopulatedUser>;
 async function findUserByTx(
   tx: Omit<
     PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
     "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
   >,
   email: string | string[]
-) :Promise<PopoulatedUser[]|PopoulatedUser>{
+): Promise<PopulatedUser[] | PopulatedUser> {
   if (Array.isArray(email)) {
     const users = await tx.user.findMany({
       where: {
@@ -207,21 +202,21 @@ async function findGroupByTx(
     "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
   >,
   group_id: string
-):Promise<PopulatedGroup>
+): Promise<PopulatedGroup>;
 async function findGroupByTx(
   tx: Omit<
     PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
     "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
   >,
   group_id: string[]
-):Promise<PopulatedGroup[]>
+): Promise<PopulatedGroup[]>;
 async function findGroupByTx(
   tx: Omit<
     PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
     "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
   >,
   group_id: string | string[]
-):Promise<PopulatedGroup|PopulatedGroup[]> {
+): Promise<PopulatedGroup | PopulatedGroup[]> {
   if (Array.isArray(group_id)) {
     const groups = await tx.group.findMany({
       where: {
@@ -369,7 +364,7 @@ type createManyUserPayload = {
 
 export async function batchCreateUsers(
   payload: createManyUserPayload
-): Promise<PopoulatedUser[]> {
+): Promise<PopulatedUser[]> {
   const {
     users,
     available_modules,
@@ -417,8 +412,8 @@ export async function batchCreateUsers(
         data: usersData,
       });
       if (willEnroll || willManage || willFamily) {
-        const users = await findUserByTx(tx,emails)
-        if(!Array.isArray(users)) throw new Error("Not finding user array")
+        const users = await findUserByTx(tx, emails);
+        if (!Array.isArray(users)) throw new Error("Not finding user array");
         if (willEnroll) {
           await tx.enroll.createMany({
             data: users.map((user) => ({
@@ -445,7 +440,7 @@ export async function batchCreateUsers(
           });
         }
         if (modules.length) {
-          const {count}= await tx.student_available_module.createMany({
+          const { count } = await tx.student_available_module.createMany({
             data: users.flatMap((user) =>
               modules.map((module_id) => ({
                 module_id,
@@ -456,9 +451,9 @@ export async function batchCreateUsers(
           // console.log(count)
         }
       }
-      return await findUserByTx(tx,emails);
+      return await findUserByTx(tx, emails);
     });
-    if(!Array.isArray(data)) throw new Error("Not finding user array")
+    if (!Array.isArray(data)) throw new Error("Not finding user array");
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -477,11 +472,11 @@ export async function batchCreateUsers(
 export async function findUserById(user_id: string[], roles?: UserRole[]) {
   const rolesToInculde = roles ?? allRoles; // allRoles;
   // console.log(roles)
-  if(user_id.length>1){
+  if (user_id.length > 1) {
     const user = await prisma.user.findMany({
       where: {
-        user_id:{
-          in:user_id
+        user_id: {
+          in: user_id,
         },
         role: {
           in: rolesToInculde,
@@ -489,12 +484,12 @@ export async function findUserById(user_id: string[], roles?: UserRole[]) {
       },
       include: userInculde,
     });
-    return user.map(populateUser)
-  }else if(user_id.length ===1){
-    const id = user_id[0]
+    return user.map(populateUser);
+  } else if (user_id.length === 1) {
+    const id = user_id[0];
     const user = await prisma.user.findUnique({
       where: {
-        user_id:id,
+        user_id: id,
         role: {
           in: rolesToInculde,
         },
@@ -511,7 +506,7 @@ export async function findUserById(user_id: string[], roles?: UserRole[]) {
       );
     const result = [populateUser(user)];
     return result;
-  }else{
+  } else {
     const user = await prisma.user.findMany({
       where: {
         role: {
@@ -520,7 +515,7 @@ export async function findUserById(user_id: string[], roles?: UserRole[]) {
       },
       include: userInculde,
     });
-    return user.map(populateUser)
+    return user.map(populateUser);
   }
 }
 
@@ -627,7 +622,7 @@ export async function findManyUsers(query: UserQuery) {
       );
     }
   }
-  const result: PopoulatedUser[] = users.map((user) => populateUser(user));
+  const result: PopulatedUser[] = users.map((user) => populateUser(user));
   return result;
 }
 
@@ -671,9 +666,12 @@ export async function updateUser(email: string, update: UserUpdate) {
 }
 
 //name is not batch updated
-type BatchUserUpdate = Omit<UserUpdate,"name">
+type BatchUserUpdate = Omit<UserUpdate, "name">;
 
-export async function batchUpdateUser(emails: string[], update: BatchUserUpdate) {
+export async function batchUpdateUser(
+  emails: string[],
+  update: BatchUserUpdate
+) {
   const filetred = filterObject(update, (key, val) => val !== undefined);
   if (Object.keys(filetred).length === 0)
     throw new APIError("Bad Request", "Empty Update");
@@ -890,10 +888,10 @@ export async function createGroup(payload: CreateGroupPayload) {
           status: "Resource Not Found",
           message: "Users or modules not exist",
         },
-        "Unique Constraint Failed":{
-          status:"Conflict",
-          message:`${group_name} is an existing group`
-        }
+        "Unique Constraint Failed": {
+          status: "Conflict",
+          message: `${group_name} is an existing group`,
+        },
       });
     }
   } catch (error) {
@@ -971,11 +969,11 @@ export async function findManyGroups(query: GroupQuery) {
   return data.map(populateGroup);
 }
 
-export async function findGroupByName(name:string,type?:GroupType[]){
+export async function findGroupByName(name: string, type?: GroupType[]) {
   const targetedTypes = type ?? allGroupsTypes;
   const data = await prisma.group.findUnique({
     where: {
-      group_name:name,
+      group_name: name,
       type: {
         in: targetedTypes,
       },
@@ -1128,30 +1126,28 @@ export async function disEnrollUser(email: string, group_id: string) {
   }
 }
 
-
-
 export async function changeClass(email: string, group_id: string) {
   try {
     const data = await prisma.$transaction(async (tx) => {
       await checkClassEnrollabe(group_id, 1);
       const user = await findSingleUser(email, ["student"]);
       const del = await tx.enroll.delete({
-        where:{
-          user_id:user.user_id
-        }
-      })
+        where: {
+          user_id: user.user_id,
+        },
+      });
       const newEnroll = await tx.enroll.create({
-        data:{
-          user_id:user.user_id,
-          group_id
+        data: {
+          user_id: user.user_id,
+          group_id,
         },
         include: {
           student: {
             include: userInculde,
           },
         },
-      })
-      return newEnroll.student
+      });
+      return newEnroll.student;
     });
     return populateUser(data);
   } catch (error) {
@@ -1378,9 +1374,9 @@ export async function createModule(payload: CreateModulePayload) {
   }
 }
 
-export async function getModules(ids?: string[],exact:boolean=true) {
-  if (ids&&ids.length>0) {
-    if(ids.length>1){
+export async function getModules(ids?: string[], exact: boolean = true) {
+  if (ids && ids.length > 0) {
+    if (ids.length > 1) {
       const data = await prisma.module.findMany({
         where: {
           module_id: {
@@ -1388,25 +1384,31 @@ export async function getModules(ids?: string[],exact:boolean=true) {
           },
         },
       });
-      if(ids.length!==data.length){
-        const missing = ids.filter(id=>!(data.map(m=>m.module_id).includes(id)))
-        if(missing.length) throw new APIError("Resource Not Found",`${missing} are not valid moudules`)
+      if (ids.length !== data.length) {
+        const missing = ids.filter(
+          (id) => !data.map((m) => m.module_id).includes(id)
+        );
+        if (missing.length)
+          throw new APIError(
+            "Resource Not Found",
+            `${missing} are not valid moudules`
+          );
       }
       return data.map(populateModule);
-    }else{
-      const id = ids[0] 
+    } else {
+      const id = ids[0];
       const data = await prisma.module.findUnique({
         where: {
           module_id: id,
         },
       });
-      if(exact&&!data){
-        throw new APIError("Resource Not Found",`${id} is not valid moudule`)
+      if (exact && !data) {
+        throw new APIError("Resource Not Found", `${id} is not valid moudule`);
       }
-      if(data){
+      if (data) {
         return [populateModule(data)];
-      }else{
-        return []
+      } else {
+        return [];
       }
     }
   } else {
@@ -1425,13 +1427,13 @@ export async function updateModule(module_id: string, update: ModuleUpdate) {
     throw new APIError("Bad Request", "At least one update to module");
   }
   try {
-    const module = await prisma.module.update({
+    const moduleToUpdate = await prisma.module.update({
       where: {
         module_id,
       },
       data: filtered,
     });
-    return populateModule(module);
+    return populateModule(moduleToUpdate);
   } catch (error) {
     throw handleDBError(error, {
       "Required Record Not Found": {
@@ -1444,12 +1446,12 @@ export async function updateModule(module_id: string, update: ModuleUpdate) {
 
 export async function deleteModule(module_id: string) {
   try {
-    const module = await prisma.module.delete({
+    const moduleToDelete = await prisma.module.delete({
       where: {
         module_id,
       },
     });
-    return populateModule(module);
+    return populateModule(moduleToDelete);
   } catch (error) {
     throw handleDBError(error, {
       "Required Record Not Found": {
@@ -1544,7 +1546,7 @@ export async function updateSudentAvailableModules(
           data: toAdd.map((module_id) => ({ module_id, user_id })),
         });
       }
-      if(toRemove.length){
+      if (toRemove.length) {
         await tx.student_available_module.deleteMany({
           where: {
             user_id,
@@ -1554,7 +1556,7 @@ export async function updateSudentAvailableModules(
           },
         });
       }
-      return await findUserByTx(tx,email);
+      return await findUserByTx(tx, email);
     });
     return user;
   } catch (error) {
@@ -1735,7 +1737,6 @@ export async function updateClassAvailableModules(
   }
 }
 
-
 export async function batchEnroll(emails: string[], group_id: string) {
   try {
     const data = await prisma.$transaction(async (tx) => {
@@ -1754,8 +1755,8 @@ export async function batchEnroll(emails: string[], group_id: string) {
             .join(", ")} are not  valid students with no enrolled class.`
         );
       }
-      const ids = students.map(u=>u.user_id)
-      if(hasIntersection(group.managers,ids)){
+      const ids = students.map((u) => u.user_id);
+      if (hasIntersection(group.managers, ids)) {
         throw new APIError(
           "Bad Request",
           `There is intersection between current enrolled students and requested users`
@@ -1764,7 +1765,7 @@ export async function batchEnroll(emails: string[], group_id: string) {
       const enrolls = await tx.enroll.createMany({
         data: ids.map((user_id) => ({ user_id, group_id })),
       });
-      return await  findGroupByTx(tx,group_id);
+      return await findGroupByTx(tx, group_id);
     });
     return data;
   } catch (error) {
@@ -1786,14 +1787,14 @@ export async function batchEnroll(emails: string[], group_id: string) {
 export async function batchAddFamily(emails: string[], group_id: string) {
   try {
     const data = await prisma.$transaction(async (tx) => {
-      const group = await findSingleGroup(group_id,['family'])
+      const group = await findSingleGroup(group_id, ["family"]);
       const students = await findManyUsers({
         email: emails,
         exact: true,
         roles: ["student"],
       });
-      const ids = students.map(u=>u.user_id)
-      if(hasIntersection(group.managers,ids)){
+      const ids = students.map((u) => u.user_id);
+      if (hasIntersection(group.managers, ids)) {
         throw new APIError(
           "Bad Request",
           `There is intersection between current children and requested users`
@@ -1802,7 +1803,7 @@ export async function batchAddFamily(emails: string[], group_id: string) {
       const families = await tx.family.createMany({
         data: ids.map((user_id) => ({ user_id, group_id })),
       });
-      return await  findGroupByTx(tx,group_id);
+      return await findGroupByTx(tx, group_id);
     });
     return data;
   } catch (error) {
@@ -1813,36 +1814,35 @@ export async function batchAddFamily(emails: string[], group_id: string) {
       },
       "Unique Constraint Failed": {
         status: "Conflict",
-        message: `Some users in ${emails.join(
-          ", "
-        )} already  in ${group_id}`,
+        message: `Some users in ${emails.join(", ")} already  in ${group_id}`,
       },
     });
   }
 }
 
-export async function batchManage(emails:string[],group_id:string) {
+export async function batchManage(emails: string[], group_id: string) {
   try {
     const data = await prisma.$transaction(async (tx) => {
-      const group = await findSingleGroup(group_id)
-      const {type} = group
-      const role:UserRole = type==="class"?"teacher":type==="family"?"parent":"teacher"
+      const group = await findSingleGroup(group_id);
+      const { type } = group;
+      const role: UserRole =
+        type === "class" ? "teacher" : type === "family" ? "parent" : "teacher";
       const managers = await findManyUsers({
         email: emails,
         exact: true,
         roles: [role],
       });
-      const ids = managers.map(m=>m.user_id)
-      if(hasIntersection(group.managers,ids)){
+      const ids = managers.map((m) => m.user_id);
+      if (hasIntersection(group.managers, ids)) {
         throw new APIError(
           "Bad Request",
           `There is intersection between current ${role}s and requested users`
         );
       }
       const manages = await tx.manage.createMany({
-        data: ids.map(user_id=>({user_id,group_id}))
+        data: ids.map((user_id) => ({ user_id, group_id })),
       });
-      return await findGroupByTx(tx,group_id);
+      return await findGroupByTx(tx, group_id);
     });
     return data;
   } catch (error) {

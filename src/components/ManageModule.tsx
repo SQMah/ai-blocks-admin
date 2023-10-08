@@ -1,27 +1,34 @@
 import { Module } from "@/models/db_schemas";
-import { FC, Dispatch, SetStateAction, useState, useEffect, useId } from "react";
+import {
+  FC,
+  Dispatch,
+  SetStateAction,
+  useState,
+  useEffect,
+  useId,
+} from "react";
 import { X } from "lucide-react";
 
 import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-    FormDescription,
-  } from "@/components/ui/form";
-  import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-  } from "@/components/ui/dialog";
-  
-  import { Input } from "./ui/input";
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+import { Input } from "./ui/input";
 
 import { Button } from "./ui/button";
 
@@ -51,11 +58,11 @@ const ManageModule: FC<{}> = () => {
   const { toast } = useToast();
 
   const reload = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-        const res = await requestAPI("modules", "GET", { module_id: [] }, {})
-        const data = getModulesResSchema.parse(res)
-        setModules(data)
+      const res = await requestAPI("modules", "GET", { module_id: [] }, {});
+      const data = getModulesResSchema.parse(res);
+      setModules(data);
     } catch (error) {
       const handler = new ClientErrorHandler(error);
       handler.log();
@@ -65,18 +72,18 @@ const ManageModule: FC<{}> = () => {
         description: handler.message,
       });
     }
-    setIsLoading(false)
+    setIsLoading(false);
   };
 
-  useEffect(()=>{
-    reload()
-  },[])
+  useEffect(() => {
+    reload().then((r) => console.log("reload modules"));
+  }, [reload]);
 
   return (
     <>
       <div className="space-y-4">
-      <p>All modules:</p>
-      <ul className="max-h-[24rem]  min-h-[10rem] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+        <p>All modules:</p>
+        <ul className="max-h-[24rem]  min-h-[10rem] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
           {modules.map((module, index) => {
             const { module_id, module_name } = module;
             return (
@@ -87,14 +94,16 @@ const ManageModule: FC<{}> = () => {
                 <span className="mx-4">{module_name}</span>
                 <span>{module_id}</span>
                 <div className="flex-grow flex justify-end">
-                  <RemoveModule {...{ isLoading, setIsLoading,reload,module }} />
+                  <RemoveModule
+                    {...{ isLoading, setIsLoading, reload, module }}
+                  />
                 </div>
               </li>
             );
           })}
         </ul>
         <div className="flex justify-end">
-            <AddModule {...{ isLoading, setIsLoading,reload }}/>
+          <AddModule {...{ isLoading, setIsLoading, reload }} />
         </div>
       </div>
     </>
@@ -108,97 +117,89 @@ interface props {
 }
 
 const formSchema = z.object({
-    module_name:trimedNonEmptyString
-})
+  module_name: trimedNonEmptyString,
+});
 
-const AddModule:FC<props>=(props)=>{
-    const {reload,isLoading,setIsLoading}= props
-    const {toast} = useToast()
-    const inputId = useId()
-    const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
-          module_name:"",
-        },
-      });
-      const onSubmit = async (values: z.infer<typeof formSchema>) => {
-        setIsLoading(true);
-        try {
-          const payload={
-            module_name : values.module_name
-          }
-          const response =await  requestAPI("modules","POST",{},payload)
-          toast({
-            title:"Updated"
-          })
-          await reload();
-        } catch (error: any) {
-          const handler = new ClientErrorHandler(error)
-          handler.log()
-          toast({
-            variant:"destructive",
-            title: "Create Module Error",
-            description: handler.message,
-          })
-    
-        }
-        setIsLoading(false);
+const AddModule: FC<props> = (props) => {
+  const { reload, isLoading, setIsLoading } = props;
+  const { toast } = useToast();
+  const inputId = useId();
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      module_name: "",
+    },
+  });
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setIsLoading(true);
+    try {
+      const payload = {
+        module_name: values.module_name,
       };
+      const response = await requestAPI("modules", "POST", {}, payload);
+      toast({
+        title: "Updated",
+      });
+      await reload();
+    } catch (error: any) {
+      const handler = new ClientErrorHandler(error);
+      handler.log();
+      toast({
+        variant: "destructive",
+        title: "Create Module Error",
+        description: handler.message,
+      });
+    }
+    setIsLoading(false);
+  };
 
-      const disableSave = !form.watch("module_name").length
+  const disableSave = !form.watch("module_name").length;
 
-    return <>
-        <Dialog>
+  return (
+    <>
+      <Dialog>
         <DialogTrigger asChild>
           <Button disabled={isLoading} variant={"default"} className="">
             {isLoading ? "loading..." : "Create Module"}
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Create Module</DialogTitle>
-              <DialogDescription>
+          <DialogHeader>
+            <DialogTitle>Create Module</DialogTitle>
+            <DialogDescription>
               Add new module. Click save when you are done.
-              </DialogDescription>
-            </DialogHeader>
-        <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <FormField
-            control={form.control}
-            name='module_name'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel htmlFor={inputId}>
-                  Module name
-                </FormLabel>
-                  <Input
-                    id = {inputId}
-                    {...field}
-                    type="text"
-                  ></Input>
-                <FormDescription>
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-            <DialogFooter>
-              <FormControl>
-              <Button type="submit" disabled={isLoading||disableSave} >
-                {isLoading ? "Loading..." : "Create"}
-              </Button>
-              </FormControl>
-            </DialogFooter>
-        </form>
-      </Form>
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)}>
+              <FormField
+                control={form.control}
+                name="module_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel htmlFor={inputId}>Module name</FormLabel>
+                    <Input id={inputId} {...field} type="text"></Input>
+                    <FormDescription></FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <FormControl>
+                  <Button type="submit" disabled={isLoading || disableSave}>
+                    {isLoading ? "Loading..." : "Create"}
+                  </Button>
+                </FormControl>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </>
+  );
+};
 
-}
-
-
-const RemoveModule: FC<props&{module:Module}> = ({
+const RemoveModule: FC<props & { module: Module }> = ({
   reload,
   isLoading,
   setIsLoading,
@@ -259,7 +260,5 @@ const RemoveModule: FC<props&{module:Module}> = ({
     </>
   );
 };
-
-
 
 export default ManageModule;

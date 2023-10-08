@@ -88,7 +88,7 @@ export const ManageManger:FC<ManageMangerProps>=(props)=>{
         description: handler.message,
       });
     }
-  }, []);
+  }, [groupType, manager.managing, toast]);
 
   return <>
   <div className="space-y-10">
