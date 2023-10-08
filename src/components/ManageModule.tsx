@@ -77,7 +77,7 @@ const ManageModule: FC<{}> = () => {
 
   useEffect(() => {
     reload().then((r) => console.log("reload modules"));
-  }, [reload]);
+  }, []);
 
   return (
     <>
