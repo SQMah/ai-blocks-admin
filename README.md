@@ -151,14 +151,14 @@ This is an admin panel for managing user and class information using Auth0 authe
     AWS_ACCESS_KEY_ID= Access key ID of IAM user
     AWS_SECRET_ACCESS_KEY= Access secret key of IAM user
 
-    #Dynamo DB
-    CLASS_TABLE_NAME = table name of the class table in DynamoDB
-
     #CloudWatch
-    CW_LOG_GROUP =  log group name in CloudWatch
+    CW_LOG_GROUP=  log group name in CloudWatch
 
     #Configurated for require admin user to access api, default to be True if not set
     REQUIRE_ADMIN = TRUE/FALSE
+
+    #Postgres connection
+    DATABASE_URL=postregsql://...
     ```
 - install dependences
     ```bash
