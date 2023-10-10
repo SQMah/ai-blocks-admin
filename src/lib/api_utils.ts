@@ -15,21 +15,21 @@ export const adminCheck = async (
   if (!requireAdminCheck) return true;
   try {
     const session = await getSession(req, res);
-    // console.log(session)
+    console.log(session);
     if (!session?.user?.eamil) {
       throw new APIError("Unauthorized");
     }
     const email = session.user.email as string;
     try {
       const user = await findSingleUser(email);
-      if (user.role!=="admin") {
+      if (user.role !== "admin") {
         throw new APIError("Forbidden");
       }
     } catch (error) {
-      if(error instanceof APIError && error.status==="Resource Not Found"){
+      if (error instanceof APIError && error.status === "Resource Not Found") {
         throw new APIError("Unauthorized");
       }
-      throw error
+      throw error;
     }
     return true;
   } catch (error: any) {
@@ -44,15 +44,15 @@ const APIErrorStatus = {
   "Bad Request": 400,
   "Invalid Request Body": 400,
   "Invalid Request Params": 400,
-  "Unauthorized": 401,
-  "Forbidden": 403,
+  Unauthorized: 401,
+  Forbidden: 403,
   "Resource Not Found": 404,
   "Not Found": 404,
-  "Conflict": 409,
+  Conflict: 409,
   "Auth0 Error": 500,
   "DB Error": 500,
-  "Mailing Error":500,
-  "Cloud Watch Error":500,
+  "Mailing Error": 500,
+  "Cloud Watch Error": 500,
   "Implementation Error": 500,
   "Internal Server Error": 500,
 } as const;
@@ -63,13 +63,13 @@ export type ERROR_STATUS_TEXT = keyof API_ERROR_STATUS;
 
 type ERROR_STATUS_CODE = API_ERROR_STATUS[ERROR_STATUS_TEXT];
 
-const APISccuessStatus = {
+const APISuccessStatus = {
   OK: 200,
   Created: 201,
-  "No Conetent": 204,
+  "No Content": 204,
 } as const;
 
-type API_SUCCESS_STATUS = typeof APISccuessStatus;
+type API_SUCCESS_STATUS = typeof APISuccessStatus;
 
 export type SUCCESS_STATUS_TEXT = keyof API_SUCCESS_STATUS;
 export type SUCCESS_STATUS_CODE = API_SUCCESS_STATUS[SUCCESS_STATUS_TEXT];
@@ -108,11 +108,11 @@ export class ServerErrorHandler {
       this.status_code = 500;
       this.status_text = "Auth0 Error";
       this.message = error.response?.data?.message ?? "Unknown";
-    } else if(error instanceof Prisma.PrismaClientKnownRequestError){
+    } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
       this.status_code = 500;
       this.status_text = "DB Error";
       this.message = error.message ?? "Unknown";
-    }else {
+    } else {
       this.status_code = 500;
       this.status_text = "Internal Server Error";
       if (error instanceof Error) this.message = error.message ?? "Unknown";
