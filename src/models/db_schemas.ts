@@ -68,6 +68,9 @@ const groupInfoSchema = z.object({
   group_name: trimedNonEmptyString,
   type: groupTypeSchema,
   capacity:z.number(),
+  student_count:z.number(),
+  student_last_modified_time:z.coerce.date(),
+  module_last_modified_time:z.coerce.date(),
   available_modules: z.array(trimedNonEmptyString).default([]),
   unlocked_modules:z.array(trimedNonEmptyString).default([]),
 });

@@ -11,7 +11,15 @@ import {
 } from "@/models/db_schemas";
 import { DefaultArgs } from "@prisma/client/runtime/library";
 
-//* Each function should only make one modifying rpc at last
+
+const TRANSACTION_MAX_WAIT = 5000 as const 
+const TRANSACTION_TIMEOUT = 10000 as const 
+
+const TRANSCATION_CONFIG ={
+  maxWait:TRANSACTION_MAX_WAIT,
+  timeout:TRANSACTION_TIMEOUT
+} as const 
+
 
 const errorCode = {
   "Unique Constraint Failed": "P2002",
@@ -52,46 +60,46 @@ const expectedError: ExpectedError = {
 };
 
 const userInculde = {
-  enrolled: {
+  Enroll: {
     select: { group_id: true },
   },
-  managing: {
+  Manages: {
     select: { group_id: true },
   },
-  families: {
+  Families: {
     select: { group_id: true },
   },
-  available_modules: {
+  StudentAvailableModules: {
     select: { module_id: true },
   },
 };
 
 const groupInclude = {
-  managers: {
+  Manages: {
     select: { user_id: true },
   },
-  students: {
+  Enrolls: {
     select: { user_id: true },
   },
-  children: { select: { user_id: true } },
-  available_modules: {
+  Families: { select: { user_id: true } },
+  GroupAvailableModules: {
     select: { module_id: true, unlocked: true },
   },
 };
 
 function populateUser(
-  user: Prisma.UserGetPayload<{
+  user: Prisma.UsersGetPayload<{
     include: {
-      enrolled: {
+      Enroll: {
         select: { group_id: true };
       };
-      managing: {
+      Manages: {
         select: { group_id: true };
       };
-      families: {
+      Families: {
         select: { group_id: true };
       };
-      available_modules: {
+      StudentAvailableModules: {
         select: { module_id: true };
       };
     };
@@ -99,26 +107,26 @@ function populateUser(
 ) {
   const result = {
     ...user,
-    enrolled: user.enrolled?.group_id,
-    managing: user.managing.map((manage) => manage.group_id),
-    families: user.families.map((fam) => fam.group_id),
-    available_modules: user.available_modules.map((m) => m.module_id),
+    enrolled: user.Enroll?.group_id,
+    managing: user.Manages.map((manage) => manage.group_id),
+    families: user.Families.map((fam) => fam.group_id),
+    available_modules: user.StudentAvailableModules.map((m) => m.module_id),
   };
   // console.log(user,result)
   return userSchema.parse(result);
 }
 
 function populateGroup(
-  data: Prisma.GroupGetPayload<{
+  data: Prisma.GroupsGetPayload<{
     include: {
-      managers: {
+      Manages: {
         select: { user_id: true };
       };
-      students: {
+      Enrolls: {
         select: { user_id: true };
       };
-      children: { select: { user_id: true } };
-      available_modules: {
+      Families: { select: { user_id: true } };
+      GroupAvailableModules: {
         select: { module_id: true; unlocked: true };
       };
     };
@@ -126,11 +134,11 @@ function populateGroup(
 ) {
   const result = {
     ...data,
-    managers: data.managers.map((manage) => manage.user_id),
-    students: data.students.map((enroll) => enroll.user_id),
-    children: data.children.map((fam) => fam.user_id),
-    available_modules: data.available_modules.map((m) => m.module_id),
-    unlocked_modules: data.available_modules
+    managers: data.Manages.map((manage) => manage.user_id),
+    students: data.Enrolls.map((enroll) => enroll.user_id),
+    children: data.Families.map((fam) => fam.user_id),
+    available_modules: data.GroupAvailableModules.map((m) => m.module_id),
+    unlocked_modules: data.GroupAvailableModules
       .filter((m) => m.unlocked)
       .map((x) => x.module_id),
   };
@@ -138,7 +146,7 @@ function populateGroup(
   return groupSchema.parse(result);
 }
 
-function populateModule(data: Prisma.ModuleGetPayload<{}>) {
+function populateModule(data: Prisma.ModulesGetPayload<{}>) {
   const result = {
     ...data,
   };
@@ -169,7 +177,7 @@ async function findUserByTx(
   email: string | string[]
 ): Promise<PopulatedUser[] | PopulatedUser> {
   if (Array.isArray(email)) {
-    const users = await tx.user.findMany({
+    const users = await tx.users.findMany({
       where: {
         email: {
           in: email,
@@ -182,7 +190,7 @@ async function findUserByTx(
     }
     return users.map((user) => populateUser(user));
   } else {
-    const user = await tx.user.findUnique({
+    const user = await tx.users.findUnique({
       where: {
         email,
       },
@@ -218,7 +226,7 @@ async function findGroupByTx(
   group_id: string | string[]
 ): Promise<PopulatedGroup | PopulatedGroup[]> {
   if (Array.isArray(group_id)) {
-    const groups = await tx.group.findMany({
+    const groups = await tx.groups.findMany({
       where: {
         group_id: {
           in: group_id,
@@ -231,7 +239,7 @@ async function findGroupByTx(
     }
     return groups.map(populateGroup);
   } else {
-    const group = await tx.group.findUnique({
+    const group = await tx.groups.findUnique({
       where: {
         group_id,
       },
@@ -241,6 +249,83 @@ async function findGroupByTx(
       throw new APIError("Resource Not Found", "Group not found");
     }
     return populateGroup(group);
+  }
+}
+
+async function updateGroupAttr(
+  tx: Omit<
+    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+  >,
+  group_id: string,
+  change: {
+    scount_update?:number,
+    modify_module?:boolean,
+  }
+) {
+  const {scount_update,modify_module = false} = change
+  if(!scount_update&&!modify_module) return
+  try {
+    const updated = await tx.groups.update({
+      where: {
+        group_id,
+      },
+      data: {
+        student_count: scount_update?{
+          increment: scount_update,
+        }:undefined,
+        module_last_modified_time: modify_module?new Date():undefined,
+        student_last_modified_time:scount_update?new Date():undefined
+      },
+    });
+    return;
+  } catch (error) {
+    throw handleDBError(error, {
+      "Required Record Not Found": {
+        status: "Resource Not Found",
+        message: "Invalid group_id",
+      },
+    });
+  }
+}
+
+async function updateGroupsAttr(
+  tx: Omit<
+    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
+    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+  >,
+  group_ids: string[],
+  change: {
+    scount_update?:number,
+    modify_module?:boolean,
+  }
+) {
+  const {scount_update,modify_module = false} = change
+  if(!scount_update&&!modify_module) return
+  if (!group_ids.length) return;
+  if (group_ids.length === 1) {
+    if (!group_ids[0]) return;
+    await updateGroupAttr(tx, group_ids[0], change);
+    return;
+  }
+  try {
+    const updated = await tx.groups.updateMany({
+      where: {
+        group_id: {
+          in: group_ids,
+        },
+      },
+      data: {
+        student_count: scount_update?{
+          increment: scount_update,
+        }:undefined,
+        module_last_modified_time: modify_module?new Date():undefined,
+        student_last_modified_time:scount_update?new Date():undefined
+      },
+    });
+    return;
+  } catch (error) {
+    throw handleDBError(error, {});
   }
 }
 
@@ -307,42 +392,63 @@ export async function createUser(payload: CreateUserPayload) {
   }
   // console.log(modules);
   try {
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        available_modules: modules.length
-          ? {
-              createMany: {
-                data: modules.map((id) => ({ module_id: id })),
-              },
-            }
-          : undefined,
-        role,
-        expiration_date: haveExpiration ? expiration_date : undefined,
-        enrolled:
-          enrolled && isStudent
-            ? {
-                create: { group_id: enrolled },
-              }
-            : undefined,
-        managing:
-          managing && canManage
+    const data = await prisma.$transaction(async (tx) => {
+      const groupsToUpdateCount = [
+        ...(isStudent && families ? families : []),
+        ...(canManage && managing ? managing : []),
+      ];
+      isStudent && enrolled && groupsToUpdateCount.push(enrolled);
+      const deltaCount = isStudent ? 1 : 0;
+      const user = await tx.users.create({
+        data: {
+          email,
+          name,
+          StudentAvailableModules: modules.length
             ? {
                 createMany: {
-                  data: managing.map((group_id) => ({ group_id })),
+                  data: modules.map((id) => ({ module_id: id })),
                 },
               }
             : undefined,
-        families:
-          families && isStudent
-            ? { createMany: { data: families.map((id) => ({ group_id: id })) } }
-            : undefined,
-      },
-      include: userInculde,
-    });
-    // console.log(user);
-    const result = populateUser(user);
+          role,
+          expiration_date: haveExpiration ? expiration_date : undefined,
+          Enroll:
+            enrolled && isStudent
+              ? {
+                  create: { group_id: enrolled },
+                }
+              : undefined,
+          Manages:
+            managing && canManage
+              ? {
+                  createMany: {
+                    data: managing.map((group_id) => ({ group_id })),
+                  },
+                }
+              : undefined,
+          Families:
+            families && isStudent
+              ? {
+                  createMany: {
+                    data: families.map((id) => ({ group_id: id })),
+                  },
+                }
+              : undefined,
+        },
+        include: userInculde,
+      });
+      const updateCount = await updateGroupsAttr(
+        tx,
+        groupsToUpdateCount,
+        {
+          scount_update:deltaCount
+        }
+      );
+      return user;
+    },TRANSCATION_CONFIG);
+
+    // console.log(data);
+    const result = populateUser(data);
     return result;
   } catch (error) {
     throw handleDBError(error, {
@@ -408,14 +514,20 @@ export async function batchCreateUsers(
   // console.log("modules:",modules)
   try {
     const data = await prisma.$transaction(async (tx) => {
-      await tx.user.createMany({
+      const groupsToUpdateCount = [
+        ...(isStudent && families ? families : []),
+        ...(willManage ? managing : []),
+      ];
+      isStudent && enrolled && groupsToUpdateCount.push(enrolled);
+      const deltaCount = isStudent ? users.length : 0;
+      await tx.users.createMany({
         data: usersData,
       });
       if (willEnroll || willManage || willFamily) {
         const users = await findUserByTx(tx, emails);
         if (!Array.isArray(users)) throw new Error("Not finding user array");
         if (willEnroll) {
-          await tx.enroll.createMany({
+          await tx.enrolls.createMany({
             data: users.map((user) => ({
               user_id: user.user_id,
               group_id: enrolled,
@@ -423,7 +535,7 @@ export async function batchCreateUsers(
           });
         }
         if (willManage) {
-          await tx.manage.createMany({
+          await tx.manages.createMany({
             data: users.flatMap((user) =>
               managing.map((group_id) => ({
                 group_id,
@@ -433,14 +545,14 @@ export async function batchCreateUsers(
           });
         }
         if (willFamily) {
-          await tx.family.createMany({
+          await tx.families.createMany({
             data: users.flatMap((user) =>
               families.map((group_id) => ({ group_id, user_id: user.user_id }))
             ),
           });
         }
         if (modules.length) {
-          const { count } = await tx.student_available_module.createMany({
+          const { count } = await tx.studentAvailableModules.createMany({
             data: users.flatMap((user) =>
               modules.map((module_id) => ({
                 module_id,
@@ -450,9 +562,16 @@ export async function batchCreateUsers(
           });
           // console.log(count)
         }
+        const upCount = await updateGroupsAttr(
+          tx,
+          groupsToUpdateCount,
+          {
+            scount_update:deltaCount
+          }
+        );
       }
       return await findUserByTx(tx, emails);
-    });
+    },TRANSCATION_CONFIG);
     if (!Array.isArray(data)) throw new Error("Not finding user array");
     return data;
   } catch (error) {
@@ -473,7 +592,7 @@ export async function findUserById(user_id: string[], roles?: UserRole[]) {
   const rolesToInculde = roles ?? allRoles; // allRoles;
   // console.log(roles)
   if (user_id.length > 1) {
-    const user = await prisma.user.findMany({
+    const user = await prisma.users.findMany({
       where: {
         user_id: {
           in: user_id,
@@ -487,7 +606,7 @@ export async function findUserById(user_id: string[], roles?: UserRole[]) {
     return user.map(populateUser);
   } else if (user_id.length === 1) {
     const id = user_id[0];
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: {
         user_id: id,
         role: {
@@ -507,7 +626,7 @@ export async function findUserById(user_id: string[], roles?: UserRole[]) {
     const result = [populateUser(user)];
     return result;
   } else {
-    const user = await prisma.user.findMany({
+    const user = await prisma.users.findMany({
       where: {
         role: {
           in: rolesToInculde,
@@ -522,7 +641,7 @@ export async function findUserById(user_id: string[], roles?: UserRole[]) {
 export async function findSingleUser(email: string, roles?: UserRole[]) {
   const rolesToInculde = roles ?? allRoles; // allRoles;
   // console.log(roles)
-  const user = await prisma.user.findUnique({
+  const user = await prisma.users.findUnique({
     where: {
       email,
       role: {
@@ -555,7 +674,7 @@ export async function findManyUsers(query: UserQuery) {
   const userIdToSearch = user_id ?? [];
   const rolesToInculde = roles ?? allRoles;
   if (!emailsToSearch.length && !userIdToSearch) {
-    const users = await prisma.user.findMany({
+    const users = await prisma.users.findMany({
       where: {
         role: {
           in: rolesToInculde,
@@ -565,7 +684,7 @@ export async function findManyUsers(query: UserQuery) {
     });
     return users.map(populateUser);
   }
-  const users = await prisma.user.findMany({
+  const users = await prisma.users.findMany({
     where: {
       OR: [
         {
@@ -640,7 +759,7 @@ export async function updateUser(email: string, update: UserUpdate) {
     : allRoles;
   // const users = await findSingleUser(email,rolesConstrient)
   try {
-    const data = await prisma.user.update({
+    const data = await prisma.users.update({
       where: {
         email,
         role: {
@@ -686,7 +805,7 @@ export async function batchUpdateUser(
   });
   try {
     const data = await prisma.$transaction(async (tx) => {
-      const data = await tx.user.updateMany({
+      const data = await tx.users.updateMany({
         where: {
           email: {
             in: emails,
@@ -701,7 +820,7 @@ export async function batchUpdateUser(
       if (data.count !== emails.length)
         throw new APIError("DB Error", `Only updated ${data.count} users.`);
       return await findUserByTx(tx, emails);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -719,13 +838,28 @@ export async function batchUpdateUser(
 
 export async function deleteUser(email: string) {
   try {
-    const data = await prisma.user.delete({
-      where: {
-        email,
-      },
-      include: userInculde,
-    });
-    return populateUser(data);
+    const data = await prisma.$transaction(async (tx) => {
+      const user = await prisma.users.delete({
+        where: {
+          email,
+        },
+        include: userInculde,
+      });
+      const res = populateUser(user);
+      if(res.role ==="student"){
+        const ids = [...res.families];
+        res.enrolled && ids.push(res.enrolled);
+        const upCount = await updateGroupsAttr(
+          tx,
+          ids,
+          {
+            scount_update:-1
+          }
+        );
+      }
+      return res;
+    },TRANSCATION_CONFIG);
+    return data;
   } catch (error) {
     throw handleDBError(error, {
       "Required Record Not Found": {
@@ -739,7 +873,51 @@ export async function deleteUser(email: string) {
 export async function deleteManyUser(emails: string[], exact: boolean = true) {
   try {
     const { count } = await prisma.$transaction(async (tx) => {
-      const data = await tx.user.deleteMany({
+      const users = await tx.users.findMany({
+        where: {
+          email: {
+            in: emails,
+          },
+        },
+        include: {
+          Enroll: {
+            select: {
+              group_id: true,
+            },
+          },
+          Families: {
+            select: {
+              group_id: true,
+            },
+          },
+          Manages: {
+            select: {
+              group_id: true,
+            },
+          },
+        },
+      });
+      if (exact && users.length !== emails.length) {
+        throw new APIError(
+          "Bad Request",
+          `Some users in ${emails.join(", ")} are not valid or not deletable `
+        );
+      }
+      //id->changes(shd be -ve in this func)
+      const countToUpdate = new Map<string, number>();
+      for (const user of users) {
+        if (user.role !== "student") continue;
+        const enrolled = user.Enroll?.group_id;
+        if (enrolled) {
+          const prev = countToUpdate.get(enrolled) ?? 0;
+          countToUpdate.set(enrolled, prev - 1);
+        }
+        for (const fam of user.Families) {
+          const prevVal = countToUpdate.get(fam.group_id) ?? 0;
+          countToUpdate.set(fam.group_id, prevVal - 1);
+        }
+      }
+      const data = await tx.users.deleteMany({
         where: {
           email: {
             in: emails,
@@ -752,8 +930,13 @@ export async function deleteManyUser(emails: string[], exact: boolean = true) {
           `Some users in ${emails.join(", ")} are not valid or not deletable `
         );
       }
+      for (const [id, delta] of countToUpdate) {
+        await updateGroupAttr(tx, id, {
+          scount_update:delta
+        });
+      }
       return data;
-    });
+    },TRANSCATION_CONFIG);
     return undefined;
   } catch (error) {
     throw handleDBError(error, {
@@ -802,6 +985,8 @@ export async function createGroup(payload: CreateGroupPayload) {
     if (student_emails && student_emails.length > capacity) {
       throw new APIError("Conflict", "Exceed capacity");
     }
+    const isClass = type === "class";
+    const isFamily = type === "family";
     const available =
       type === "class" && available_modules ? available_modules : [];
     const unlocked =
@@ -817,22 +1002,18 @@ export async function createGroup(payload: CreateGroupPayload) {
     const managers = manager_emails
       ? await findManyUsers({
           email: manager_emails,
-          roles:
-            type === "family"
-              ? ["parent"]
-              : type === "class"
-              ? ["teacher"]
-              : [],
+          roles: isFamily ? ["parent"] : isClass ? ["teacher"] : [],
           exact: true,
         })
       : [];
-    const students = student_emails
-      ? await findManyUsers({
-          email: student_emails,
-          roles: ["student"],
-          exact: true,
-        })
-      : [];
+    const students =
+      isClass && student_emails
+        ? await findManyUsers({
+            email: student_emails,
+            roles: ["student"],
+            exact: true,
+          })
+        : [];
     const haveEnrolled = students.filter((user) => user.enrolled);
     if (haveEnrolled.length) {
       throw new APIError(
@@ -842,20 +1023,26 @@ export async function createGroup(payload: CreateGroupPayload) {
           .join(", ")} have already enrolled in classes`
       );
     }
-    const children = children_emails
-      ? await findManyUsers({
-          email: children_emails,
-          exact: true,
-          roles: ["student"],
-        })
-      : [];
+    const children =
+      isFamily && children_emails
+        ? await findManyUsers({
+            email: children_emails,
+            exact: true,
+            roles: ["student"],
+          })
+        : [];
     try {
-      const data = await prisma.group.create({
+      const data = await prisma.groups.create({
         data: {
           group_name,
           type,
           capacity: capacity ?? -1,
-          available_modules: {
+          student_count: isClass
+            ? students.length
+            : isFamily
+            ? children.length
+            : 0,
+          GroupAvailableModules: {
             createMany: {
               data: available.map((module_id) => ({
                 module_id,
@@ -863,21 +1050,21 @@ export async function createGroup(payload: CreateGroupPayload) {
               })),
             },
           },
-          managers: {
+          Manages:managers.length? {
             createMany: {
               data: managers.map((user) => ({ user_id: user.user_id })),
             },
-          },
-          students: {
+          }:undefined,
+          Enrolls: students.length && isClass?{
             createMany: {
               data: students.map((user) => ({ user_id: user.user_id })),
             },
-          },
-          children: {
+          }:undefined,
+          Families:children.length && isFamily? {
             createMany: {
               data: children.map((user) => ({ user_id: user.user_id })),
             },
-          },
+          }:undefined,
         },
         include: groupInclude,
       });
@@ -904,7 +1091,7 @@ export async function createGroup(payload: CreateGroupPayload) {
 
 export async function findSingleGroup(group_id: string, type?: GroupType[]) {
   const targetedTypes = type ?? allGroupsTypes;
-  const data = await prisma.group.findUnique({
+  const data = await prisma.groups.findUnique({
     where: {
       group_id,
       type: {
@@ -931,7 +1118,7 @@ export async function findManyGroups(query: GroupQuery) {
   const { group_ids, type, exact } = query;
   const targetedTypes = type ?? allGroupsTypes;
   if (!group_ids) {
-    const data = await prisma.group.findMany({
+    const data = await prisma.groups.findMany({
       where: {
         type: {
           in: targetedTypes,
@@ -941,7 +1128,7 @@ export async function findManyGroups(query: GroupQuery) {
     });
     return data.map(populateGroup);
   }
-  const data = await prisma.group.findMany({
+  const data = await prisma.groups.findMany({
     where: {
       group_id: {
         in: group_ids,
@@ -971,7 +1158,7 @@ export async function findManyGroups(query: GroupQuery) {
 
 export async function findGroupByName(name: string, type?: GroupType[]) {
   const targetedTypes = type ?? allGroupsTypes;
-  const data = await prisma.group.findUnique({
+  const data = await prisma.groups.findUnique({
     where: {
       group_name: name,
       type: {
@@ -1011,9 +1198,11 @@ export async function updateGroup(group_id: string, update: GroupUpdate) {
     }
   }
   try {
-    const data = await prisma.group.update({
+    const data = await prisma.groups.update({
       where: where,
-      data: filtered,
+      data: {
+        ...filtered,
+      },
       include: groupInclude,
     });
     return populateGroup(data);
@@ -1031,7 +1220,7 @@ export async function updateGroup(group_id: string, update: GroupUpdate) {
 
 export async function deleteGroup(group_id: string) {
   try {
-    const data = await prisma.group.delete({
+    const data = await prisma.groups.delete({
       where: { group_id },
       include: groupInclude,
     });
@@ -1047,8 +1236,14 @@ export async function deleteGroup(group_id: string) {
 }
 
 async function checkClassEnrollabe(group_id: string, studentNumber: number) {
-  const group = await findSingleGroup(group_id, ["class"]);
-  if (group.capacity - group.students.length < studentNumber) {
+  const group = await prisma.groups.findFirst({
+    where: {
+      group_id,
+      type: "class",
+    },
+  });
+  if (!group) throw new APIError("Not Found", "Invlaid class id.");
+  if (group.capacity - group.student_count < studentNumber) {
     throw new APIError("Conflict", "Targeted class has not enough capacity.");
   }
   return group;
@@ -1058,23 +1253,25 @@ export async function enrollUser(email: string, group_id: string) {
   try {
     const { group, user } = await prisma.$transaction(async (tx) => {
       const group = await checkClassEnrollabe(group_id, 1);
-      const user = await tx.user.update({
+      const user = await tx.users.update({
         where: {
           email,
           role: "student",
-          enrolled: null,
+          Enroll: null,
         },
         data: {
-          role: "student",
-          enrolled: {
+          Enroll: {
             create: { group_id },
           },
         },
         include: userInculde,
       });
+      const updScount = await updateGroupAttr(tx, group_id, {
+        scount_update:1
+      });
       // throw new Error("test");
       return { user, group };
-    });
+    },TRANSCATION_CONFIG);
     // console.log(user);
     return populateUser(user);
   } catch (error) {
@@ -1094,11 +1291,11 @@ export async function enrollUser(email: string, group_id: string) {
 export async function disEnrollUser(email: string, group_id: string) {
   try {
     const data = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({
+      const user = await tx.users.findUnique({
         where: {
           email,
           role: "student",
-          enrolled: {
+          Enroll: {
             isNot: null,
           },
         },
@@ -1109,12 +1306,15 @@ export async function disEnrollUser(email: string, group_id: string) {
           `${email} is not a valid  student with no enrolled class.`
         );
       }
-      const data = await tx.enroll.delete({
+      const data = await tx.enrolls.delete({
         where: { user_id: user.user_id, group_id },
+      });
+      const updScount = await updateGroupAttr(tx, group_id, {
+        scount_update:-1
       });
 
       return await findUserByTx(tx, email);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -1131,24 +1331,30 @@ export async function changeClass(email: string, group_id: string) {
     const data = await prisma.$transaction(async (tx) => {
       await checkClassEnrollabe(group_id, 1);
       const user = await findSingleUser(email, ["student"]);
-      const del = await tx.enroll.delete({
+      const del = await tx.enrolls.delete({
         where: {
           user_id: user.user_id,
         },
       });
-      const newEnroll = await tx.enroll.create({
+      const newEnroll = await tx.enrolls.create({
         data: {
           user_id: user.user_id,
           group_id,
         },
         include: {
-          student: {
+          User: {
             include: userInculde,
           },
         },
       });
-      return newEnroll.student;
-    });
+      const inScount = await updateGroupAttr(tx, del.group_id, {
+        scount_update:-1
+      });
+      const deScount = await updateGroupAttr(tx, newEnroll.group_id, {
+        scount_update:1
+      });
+      return newEnroll.User;
+    },TRANSCATION_CONFIG);
     return populateUser(data);
   } catch (error) {
     throw handleDBError(error, {
@@ -1160,6 +1366,7 @@ export async function changeClass(email: string, group_id: string) {
   }
 }
 
+
 export async function manageUser(email: string, group_ids: string[]) {
   const { user_id, role } = await findSingleUser(email, ["parent", "teacher"]);
   const type: GroupType[] =
@@ -1167,11 +1374,11 @@ export async function manageUser(email: string, group_ids: string[]) {
   const groups = await findManyGroups({ group_ids, exact: true, type });
   try {
     const user = await prisma.$transaction(async (tx) => {
-      const data = await tx.manage.createMany({
+      const data = await tx.manages.createMany({
         data: group_ids.map((group_id) => ({ group_id, user_id: user_id })),
       });
       return await findUserByTx(tx, email);
-    });
+    },TRANSCATION_CONFIG);
     return user;
   } catch (error) {
     throw handleDBError(error, {
@@ -1192,7 +1399,7 @@ export async function manageUser(email: string, group_ids: string[]) {
 export async function unmanageUser(email: string, group_ids: string[]) {
   const data = await prisma.$transaction(async (tx) => {
     const { user_id } = await findSingleUser(email, ["parent", "teacher"]);
-    await tx.manage.deleteMany({
+    await tx.manages.deleteMany({
       where: {
         user_id,
         group_id: {
@@ -1201,7 +1408,7 @@ export async function unmanageUser(email: string, group_ids: string[]) {
       },
     });
     return await findUserByTx(tx, email);
-  });
+  },TRANSCATION_CONFIG);
   return data;
 }
 
@@ -1232,12 +1439,12 @@ export async function updateManage(
         type,
       });
       if (toAdd.length) {
-        await tx.manage.createMany({
+        await tx.manages.createMany({
           data: toAdd.map((group_id) => ({ group_id, user_id })),
         });
       }
       if (toRemove.length) {
-        await tx.manage.deleteMany({
+        await tx.manages.deleteMany({
           where: {
             user_id,
             group_id: {
@@ -1247,7 +1454,7 @@ export async function updateManage(
         });
       }
       return await findUserByTx(tx, email);
-    });
+    },TRANSCATION_CONFIG);
     return user;
   } catch (error) {
     throw handleDBError(error, {
@@ -1272,11 +1479,14 @@ export async function addStudentToFamily(email: string, group_ids: string[]) {
         exact: true,
         type: ["family"],
       });
-      const { count } = await tx.family.createMany({
+      const { count } = await tx.families.createMany({
         data: group_ids.map((group_id) => ({ group_id, user_id })),
       });
+      const updScount = await updateGroupsAttr(tx, group_ids, {
+        scount_update:1
+      });
       return await findUserByTx(tx, email);
-    });
+    },TRANSCATION_CONFIG);
     // console.log(data)
     return data;
   } catch (error) {
@@ -1297,7 +1507,7 @@ export async function removeStudentFromFamily(
 ) {
   const data = await prisma.$transaction(async (tx) => {
     const { user_id } = await findSingleUser(email, ["student"]);
-    await tx.family.deleteMany({
+    await tx.families.deleteMany({
       where: {
         user_id,
         group_id: {
@@ -1305,8 +1515,11 @@ export async function removeStudentFromFamily(
         },
       },
     });
+    const updScount = await updateGroupsAttr(tx, group_ids, {
+      scount_update:-1
+    });
     return await findUserByTx(tx, email);
-  });
+  },TRANSCATION_CONFIG);
   return data;
 }
 
@@ -1323,10 +1536,10 @@ export async function updateFamily(
         exact: true,
         type: ["family"],
       });
-      await tx.family.createMany({
+      await tx.families.createMany({
         data: toAdd.map((group_id) => ({ group_id, user_id })),
       });
-      await tx.family.deleteMany({
+      await tx.families.deleteMany({
         where: {
           user_id,
           group_id: {
@@ -1334,8 +1547,14 @@ export async function updateFamily(
           },
         },
       });
+      const indScount = await updateGroupsAttr(tx, toAdd, {
+        scount_update:1
+      });
+      const dedScount = await updateGroupsAttr(tx, toRemove, {
+        scount_update:-1
+      });
       return await findUserByTx(tx, email);
-    });
+    },TRANSCATION_CONFIG);
     return user;
   } catch (error) {
     throw handleDBError(error, {
@@ -1358,7 +1577,7 @@ interface CreateModulePayload {
 export async function createModule(payload: CreateModulePayload) {
   const { module_name } = payload;
   try {
-    const data = await prisma.module.create({
+    const data = await prisma.modules.create({
       data: {
         module_name,
       },
@@ -1377,7 +1596,7 @@ export async function createModule(payload: CreateModulePayload) {
 export async function getModules(ids?: string[], exact: boolean = true) {
   if (ids && ids.length > 0) {
     if (ids.length > 1) {
-      const data = await prisma.module.findMany({
+      const data = await prisma.modules.findMany({
         where: {
           module_id: {
             in: ids,
@@ -1397,7 +1616,7 @@ export async function getModules(ids?: string[], exact: boolean = true) {
       return data.map(populateModule);
     } else {
       const id = ids[0];
-      const data = await prisma.module.findUnique({
+      const data = await prisma.modules.findUnique({
         where: {
           module_id: id,
         },
@@ -1412,7 +1631,7 @@ export async function getModules(ids?: string[], exact: boolean = true) {
       }
     }
   } else {
-    const data = await prisma.module.findMany();
+    const data = await prisma.modules.findMany();
     return data.map(populateModule);
   }
 }
@@ -1427,7 +1646,7 @@ export async function updateModule(module_id: string, update: ModuleUpdate) {
     throw new APIError("Bad Request", "At least one update to module");
   }
   try {
-    const moduleToUpdate = await prisma.module.update({
+    const module = await prisma.modules.update({
       where: {
         module_id,
       },
@@ -1446,12 +1665,33 @@ export async function updateModule(module_id: string, update: ModuleUpdate) {
 
 export async function deleteModule(module_id: string) {
   try {
-    const moduleToDelete = await prisma.module.delete({
-      where: {
-        module_id,
-      },
-    });
-    return populateModule(moduleToDelete);
+    const data = await prisma.$transaction(async(tx)=>{
+      const module = await prisma.modules.delete({
+        where: {
+          module_id,
+        },
+        include:{
+          GroupAvailableModules:{
+            select:{
+              group_id:true
+            }
+          }
+        }
+      });
+      const groudIds = module.GroupAvailableModules.map(r=>r.group_id)
+      await tx.groups.updateMany({
+        where:{
+          group_id:{
+            in:groudIds
+          }
+        },
+        data:{
+          module_last_modified_time:new Date()
+        }
+      })
+      return module
+    },TRANSCATION_CONFIG)
+    return populateModule(data);
   } catch (error) {
     throw handleDBError(error, {
       "Required Record Not Found": {
@@ -1469,14 +1709,14 @@ export async function addAvalibleModulesToStudent(
   try {
     const user = await findSingleUser(email, ["student"]);
     const data = await prisma.$transaction(async (tx) => {
-      await tx.student_available_module.createMany({
+      await tx.studentAvailableModules.createMany({
         data: module_ids.map((module_id) => ({
           module_id,
           user_id: user.user_id,
         })),
       });
       return await findUserByTx(tx, email);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -1499,7 +1739,7 @@ export async function removeAvalibleModulesToStudent(
   try {
     const user = await findSingleUser(email, ["student"]);
     const data = await prisma.$transaction(async (tx) => {
-      const { count } = await tx.student_available_module.deleteMany({
+      const { count } = await tx.studentAvailableModules.deleteMany({
         where: {
           user_id: user.user_id,
           module_id: {
@@ -1515,7 +1755,7 @@ export async function removeAvalibleModulesToStudent(
       }
 
       return await findUserByTx(tx, email);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -1542,12 +1782,12 @@ export async function updateSudentAvailableModules(
     const user = await prisma.$transaction(async (tx) => {
       const { user_id, role } = await findSingleUser(email, ["student"]);
       if (toAdd.length) {
-        await tx.student_available_module.createMany({
+        await tx.studentAvailableModules.createMany({
           data: toAdd.map((module_id) => ({ module_id, user_id })),
         });
       }
       if (toRemove.length) {
-        await tx.student_available_module.deleteMany({
+        await tx.studentAvailableModules.deleteMany({
           where: {
             user_id,
             module_id: {
@@ -1557,7 +1797,7 @@ export async function updateSudentAvailableModules(
         });
       }
       return await findUserByTx(tx, email);
-    });
+    },TRANSCATION_CONFIG);
     return user;
   } catch (error) {
     throw handleDBError(error, {
@@ -1591,15 +1831,18 @@ export async function addAvalibleModulesToClass(
     }
     const group = await findSingleGroup(group_id, ["class"]);
     const data = await prisma.$transaction(async (tx) => {
-      const { count } = await tx.class_available_module.createMany({
+      const { count } = await tx.groupAvailableModules.createMany({
         data: available_module_ids.map((module_id) => ({
           module_id,
           group_id,
           unlocked: unlocked_modules_ids.includes(module_id),
         })),
       });
+      await updateGroupAttr(tx,group_id,{
+        modify_module:true
+      })
       return await findGroupByTx(tx, group_id);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -1622,7 +1865,7 @@ export async function removeAvalibleModulesToClass(
   try {
     const group = await findSingleGroup(group_id, ["class"]);
     const data = await prisma.$transaction(async (tx) => {
-      const { count } = await tx.class_available_module.deleteMany({
+      const { count } = await tx.groupAvailableModules.deleteMany({
         where: {
           group_id: group.group_id,
           module_id: {
@@ -1636,9 +1879,11 @@ export async function removeAvalibleModulesToClass(
           "Some module ids are not valid in available modules of group"
         );
       }
-
+      await updateGroupAttr(tx,group_id,{
+        modify_module:true
+      })
       return await findGroupByTx(tx, group_id);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -1674,10 +1919,12 @@ export async function updateClassAvailableModules(
     const locked = group.available_modules.filter(
       (id) => !group.unlocked_modules.includes(id)
     );
+    //ids to unlock in the original module set
     const unlock_ids = toUnlock.filter((id) => locked.includes(id));
+    //ids to lock in the original module set
     const lock_ids = toLock.filter((id) => group.unlocked_modules.includes(id));
     const data = await prisma.$transaction(async (tx) => {
-      const { count: createCount } = await tx.class_available_module.createMany(
+      const { count: createCount } = await tx.groupAvailableModules.createMany(
         {
           data: toAdd.map((id) => ({
             group_id,
@@ -1686,7 +1933,7 @@ export async function updateClassAvailableModules(
           })),
         }
       );
-      const { count: deleteCount } = await tx.class_available_module.deleteMany(
+      const { count: deleteCount } = await tx.groupAvailableModules.deleteMany(
         {
           where: {
             group_id,
@@ -1696,7 +1943,7 @@ export async function updateClassAvailableModules(
           },
         }
       );
-      const { count: unlockCount } = await tx.class_available_module.updateMany(
+      const { count: unlockCount } = await tx.groupAvailableModules.updateMany(
         {
           where: {
             group_id,
@@ -1709,7 +1956,7 @@ export async function updateClassAvailableModules(
           },
         }
       );
-      const { count: lockCount } = await tx.class_available_module.updateMany({
+      const { count: lockCount } = await tx.groupAvailableModules.updateMany({
         where: {
           group_id,
           module_id: {
@@ -1720,8 +1967,11 @@ export async function updateClassAvailableModules(
           unlocked: false,
         },
       });
+      await updateGroupAttr(tx,group_id,{
+        modify_module:true
+      })
       return await findGroupByTx(tx, group_id);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -1740,7 +1990,26 @@ export async function updateClassAvailableModules(
 export async function batchEnroll(emails: string[], group_id: string) {
   try {
     const data = await prisma.$transaction(async (tx) => {
-      const group = await checkClassEnrollabe(group_id, emails.length);
+      const group = await tx.groups.findUnique({
+        where: {
+          group_id,
+          type: "class",
+        },
+        include: {
+          Enrolls: {
+            select: {
+              user_id: true,
+            },
+          },
+        },
+      });
+      if (!group) throw new APIError("Not Found", "Invlaid class id.");
+      if (group.capacity - group.Enrolls.length < emails.length) {
+        throw new APIError(
+          "Conflict",
+          "Targeted class has not enough capacity."
+        );
+      }
       const students = await findManyUsers({
         email: emails,
         exact: true,
@@ -1756,17 +2025,25 @@ export async function batchEnroll(emails: string[], group_id: string) {
         );
       }
       const ids = students.map((u) => u.user_id);
-      if (hasIntersection(group.managers, ids)) {
+      if (
+        hasIntersection(
+          group.Enrolls.map((r) => r.user_id),
+          ids
+        )
+      ) {
         throw new APIError(
           "Bad Request",
           `There is intersection between current enrolled students and requested users`
         );
       }
-      const enrolls = await tx.enroll.createMany({
+      const enrolls = await tx.enrolls.createMany({
         data: ids.map((user_id) => ({ user_id, group_id })),
       });
+      const upCount = await updateGroupAttr(tx, group_id, {
+        scount_update:ids.length
+      });
       return await findGroupByTx(tx, group_id);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -1794,17 +2071,20 @@ export async function batchAddFamily(emails: string[], group_id: string) {
         roles: ["student"],
       });
       const ids = students.map((u) => u.user_id);
-      if (hasIntersection(group.managers, ids)) {
+      if (hasIntersection(group.children, ids)) {
         throw new APIError(
           "Bad Request",
           `There is intersection between current children and requested users`
         );
       }
-      const families = await tx.family.createMany({
+      const families = await tx.families.createMany({
         data: ids.map((user_id) => ({ user_id, group_id })),
       });
+      const upCount = await updateGroupAttr(tx, group_id, {
+        scount_update:ids.length
+      });
       return await findGroupByTx(tx, group_id);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
@@ -1839,11 +2119,11 @@ export async function batchManage(emails: string[], group_id: string) {
           `There is intersection between current ${role}s and requested users`
         );
       }
-      const manages = await tx.manage.createMany({
+      const manages = await tx.manages.createMany({
         data: ids.map((user_id) => ({ user_id, group_id })),
       });
       return await findGroupByTx(tx, group_id);
-    });
+    },TRANSCATION_CONFIG);
     return data;
   } catch (error) {
     throw handleDBError(error, {
