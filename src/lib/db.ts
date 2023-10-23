@@ -1652,7 +1652,7 @@ export async function updateModule(module_id: string, update: ModuleUpdate) {
       },
       data: filtered,
     });
-    return populateModule(moduleToUpdate);
+    return populateModule(module);
   } catch (error) {
     throw handleDBError(error, {
       "Required Record Not Found": {

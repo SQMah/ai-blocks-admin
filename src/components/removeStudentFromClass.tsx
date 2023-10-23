@@ -44,6 +44,7 @@ const RemoveStudentFromClass:FC<props>=({student,reload,isLoading,setIsLoading,g
             // console.log(paylaod)
             //update user data and class data by single api call
             const response =await requestAPI("enrolls","DELETE",{email:student.email,group_id:class_id},{})
+            console.log(response.data)
             if(reload){
               await reload()
             }else if(handleChangeGroup){
