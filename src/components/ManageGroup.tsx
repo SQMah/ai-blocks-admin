@@ -1050,7 +1050,7 @@ const ManageGroup: FC = () => {
                             <RemoveStudentFromClass
                               {...{
                                 student,
-                                reload,
+                                handleChangeGroup,
                                 isLoading,
                                 setIsLoading,
                                 group_name: data.group_name,
