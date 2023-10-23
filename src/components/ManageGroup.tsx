@@ -11,7 +11,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X, Search, Check } from "lucide-react";
-import  { AxiosError } from "axios";
+import { AxiosError } from "axios";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -138,8 +138,9 @@ const SearchManager: FC<Props> = ({
             { group_ids: managingIds, type: groupType },
             {}
           );
-          // console.log(groupData)
+          // console.log(groupData);
           const groups = batchGetGroupsResSchema.parse(groupData);
+          // console.log(groups);
           setManaging(groups);
         } catch (error) {
           const handler = new ClientErrorHandler(error);
@@ -256,7 +257,13 @@ const SearchManager: FC<Props> = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectLabel>{manager.role==="parent"?"Family":manager.role==="teacher"?"Class":""}</SelectLabel>
+                  <SelectLabel>
+                    {manager.role === "parent"
+                      ? "Family"
+                      : manager.role === "teacher"
+                      ? "Class"
+                      : ""}
+                  </SelectLabel>
                   {managing.map((entry) => {
                     return (
                       <SelectItem
@@ -380,7 +387,12 @@ const InputGroupName: FC<Props> = ({
     setIsLoading(true);
     try {
       // console.log("/api/v1/classes?class_id="+class_id)
-      const data = await requestAPI("group-by-name", "GET", {group_name:value}, {},);
+      const data = await requestAPI(
+        "group-by-name",
+        "GET",
+        { group_name: value },
+        {}
+      );
       const group = getGroupsResSechema.parse(data);
       await handleChangeGroup(group);
     } catch (error: any) {
@@ -439,7 +451,6 @@ const InputGroupName: FC<Props> = ({
     </>
   );
 };
-
 
 interface CapacProps extends Props {
   data: Group;
@@ -638,7 +649,8 @@ const UpdateName: FC<NameProps> = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel htmlFor="update name">
-                      Update {capitalizeFirstLetter(data.group_name)}{"'"}s Name
+                      Update {capitalizeFirstLetter(data.group_name)}
+                      {"'"}s Name
                     </FormLabel>
                     <Input id="update name" {...field} />
                     <FormDescription>
@@ -848,7 +860,12 @@ const ManageGroup: FC = () => {
         toLock,
         toUnlock,
       };
-      const res = await requestAPI("classes-available-modules", "PUT", {}, payload);
+      const res = await requestAPI(
+        "classes-available-modules",
+        "PUT",
+        {},
+        payload
+      );
       // console.log(res)
       const updated = putClassesModulesResSchema.parse(res);
       toast({
@@ -857,7 +874,7 @@ const ManageGroup: FC = () => {
       // console.log(updated)
       await handleChangeGroup(updated);
     } catch (error: any) {
-      console.log(error)
+      console.log(error);
       const handler = new ClientErrorHandler(error);
       handler.log();
       toast({
@@ -890,14 +907,16 @@ const ManageGroup: FC = () => {
             <InputGroupID {...{ isLoading, setIsLoading, handleChangeGroup }} />
           </TabsContent>
           <TabsContent value="groupName">
-            <InputGroupName {...{ isLoading, setIsLoading, handleChangeGroup }} />
+            <InputGroupName
+              {...{ isLoading, setIsLoading, handleChangeGroup }}
+            />
           </TabsContent>
         </Tabs>
         {data && !isLoading ? (
           <>
             {/* <pre>{JSON.stringify(data,null,2)}</pre> */}
             <div className="space-y-4">
-              <div className="space-y-3 col-span-2">
+              <div className="space-y-3  col-span-2">
                 <p>{capitalizeFirstLetter(groupType ?? "")} ID:</p>
                 <p>{data.group_id}</p>
                 <p>{capitalizeFirstLetter(groupType ?? "")} Name:</p>
@@ -906,6 +925,15 @@ const ManageGroup: FC = () => {
                   <UpdateName
                     {...{ isLoading, setIsLoading, handleChangeGroup, data }}
                   />
+                </div>
+                <div className=" grid grid-cols-2 ">
+
+                <p>Student count: </p>
+                <p>{data.student_count}</p>
+                <p>Student updated at: </p>
+                <p>{data.student_last_modified_time.toLocaleString()}</p>
+                <p>Module updated at: </p>
+                <p>{data.module_last_modified_time.toLocaleString()}</p>
                 </div>
                 {/* <p>{capitalizeFirstLetter(managersType ?? "")} in {groupType}:</p>
                 <p className="space-x-3">
@@ -919,7 +947,7 @@ const ManageGroup: FC = () => {
                 </p> */}
               </div>
               <div className=" space-y-3">
-              <div className="flex space-x-4 items-center">
+                <div className="flex space-x-4 items-center">
                   <p>
                     {groupType === "class"
                       ? "Teachers"
@@ -930,46 +958,60 @@ const ManageGroup: FC = () => {
                   </p>
                 </div>
                 <ul className="max-h-[24rem]  min-h-[8rem] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
-                    {managers.map((manager, index) => {
-                      return (
-                        <li
-                          key={`${manager.user_id}-${index}`}
-                          className="flex items-center  space-x-4"
-                        >
-                          <span>{`${index + 1}.`}</span>
-                          <span className="mx-4">{manager.name}</span>
-                          <span>{manager.email}</span>
-                          <ShowExpiration
-                            expiration={manager.expiration_date}
-                            content=""
+                  {managers.map((manager, index) => {
+                    return (
+                      <li
+                        key={`${manager.user_id}-${index}`}
+                        className="flex items-center  space-x-4"
+                      >
+                        <span>{`${index + 1}.`}</span>
+                        <span className="mx-4">{manager.name}</span>
+                        <span>{manager.email}</span>
+                        <ShowExpiration
+                          expiration={manager.expiration_date}
+                          content=""
+                        />
+                        <div className="flex-grow flex justify-end">
+                          <RemoveManagersFromGroup
+                            {...{
+                              manager,
+                              handleChangeGroup,
+                              isLoading,
+                              setIsLoading,
+                              group_name: data.group_name,
+                              group_id: data.group_id,
+                            }}
                           />
-                          <div className="flex-grow flex justify-end"> 
-                              <RemoveManagersFromGroup
-                                {...{
-                                  manager,
-                                  handleChangeGroup,
-                                  isLoading,
-                                  setIsLoading,
-                                  group_name: data.group_name,
-                                  group_id: data.group_id,
-                                }}
-                              />
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
                 <div className="space-x-5">
-                {groupType&&managersType?
-                <>
-                <BatchAddUsersToGroup 
-                {...{ isLoading, setIsLoading, users: managers, handleChangeGroup,type:groupType,role:managersType,group_id:data.group_id }}
-                 />
-                <UpdateAllExpiration
-                  {...{ isLoading, setIsLoading, users: managers, reload ,role:managersType}}
-                />
-                </>
-                :null}
+                  {groupType && managersType ? (
+                    <>
+                      <BatchAddUsersToGroup
+                        {...{
+                          isLoading,
+                          setIsLoading,
+                          users: managers,
+                          handleChangeGroup,
+                          type: groupType,
+                          role: managersType,
+                          group_id: data.group_id,
+                        }}
+                      />
+                      <UpdateAllExpiration
+                        {...{
+                          isLoading,
+                          setIsLoading,
+                          users: managers,
+                          reload,
+                          role: managersType,
+                        }}
+                      />
+                    </>
+                  ) : null}
                 </div>
                 <div className="flex space-x-4 items-center">
                   <p>
@@ -990,136 +1032,154 @@ const ManageGroup: FC = () => {
                   ) : null}
                 </div>
                 <ul className="max-h-[24rem]  min-h-[8rem] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
-                    {managed.map((student, index) => {
-                      return (
-                        <li
-                          key={`${student.user_id}-${index}`}
-                          className="flex items-center  space-x-4"
-                        >
-                          <span>{`${index + 1}.`}</span>
-                          <span className="mx-4">{student.name}</span>
-                          <span>{student.email}</span>
-                          <ShowExpiration
-                            expiration={student.expiration_date}
-                            content=""
-                          />
-                          <div className="flex-grow flex justify-end">
-                            {groupType === "class" ? (
-                              <RemoveStudentFromClass
-                                {...{
-                                  student,
-                                  reload,
-                                  isLoading,
-                                  setIsLoading,
-                                  group_name: data.group_name,
-                                }}
-                              />
-                            ) : (
-                              <RemoveStudentFromFamily
-                                {...{
-                                  student,
-                                  handleChangeGroup,
-                                  isLoading,
-                                  setIsLoading,
-                                  group_name: data.group_name,
-                                  group_id: data.group_id,
-                                }}
-                              />
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  {managed.map((student, index) => {
+                    return (
+                      <li
+                        key={`${student.user_id}-${index}`}
+                        className="flex items-center  space-x-4"
+                      >
+                        <span>{`${index + 1}.`}</span>
+                        <span className="mx-4">{student.name}</span>
+                        <span>{student.email}</span>
+                        <ShowExpiration
+                          expiration={student.expiration_date}
+                          content=""
+                        />
+                        <div className="flex-grow flex justify-end">
+                          {groupType === "class" ? (
+                            <RemoveStudentFromClass
+                              {...{
+                                student,
+                                reload,
+                                isLoading,
+                                setIsLoading,
+                                group_name: data.group_name,
+                              }}
+                            />
+                          ) : (
+                            <RemoveStudentFromFamily
+                              {...{
+                                student,
+                                handleChangeGroup,
+                                isLoading,
+                                setIsLoading,
+                                group_name: data.group_name,
+                                group_id: data.group_id,
+                              }}
+                            />
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
                 <div className="space-x-5">
-                {groupType?
-                <BatchAddUsersToGroup 
-                {...{ isLoading, setIsLoading, users: managed, handleChangeGroup,type:groupType,role:"student",group_id:data.group_id }}
-                 />
-                :null}
-                <UpdateAllExpiration
-                  {...{ isLoading, setIsLoading, users: managed, reload ,role:"student"}}
-                />
+                  {groupType ? (
+                    <BatchAddUsersToGroup
+                      {...{
+                        isLoading,
+                        setIsLoading,
+                        users: managed,
+                        handleChangeGroup,
+                        type: groupType,
+                        role: "student",
+                        group_id: data.group_id,
+                      }}
+                    />
+                  ) : null}
+                  <UpdateAllExpiration
+                    {...{
+                      isLoading,
+                      setIsLoading,
+                      users: managed,
+                      reload,
+                      role: "student",
+                    }}
+                  />
                 </div>
-            {groupType==="class"?
-            <div className="grid grid-cols-1 space-y-5 md:grid-cols-2 md:space-y-0 md:gap-4">
-              <div className="space-y-5">
-                <p>Modules to add </p>
-                <ul className="max-h-[80%]  min-h-[50%] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
-                  {modulesReady.map((module, index) => {
-                    return (
-                      <li
-                        key={`${module.module_id}-${index}`}
-                        className="flex items-center gap-2"
-                      >
-                        <div className="flex-grow">{module.module_name}</div>
-                        <Button
-                          type="button"
-                          variant={"ghost"}
-                          className="p-0"
-                          onClick={() => handleAddModule(module)}
-                        >
-                          <Check color="green" />
-                        </Button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                {groupType === "class" ? (
+                  <div className="grid grid-cols-1 space-y-5 md:grid-cols-2 md:space-y-0 md:gap-4">
+                    <div className="space-y-5">
+                      <p>Modules to add </p>
+                      <ul className="max-h-[80%]  min-h-[50%] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+                        {modulesReady.map((module, index) => {
+                          return (
+                            <li
+                              key={`${module.module_id}-${index}`}
+                              className="flex items-center gap-2"
+                            >
+                              <div className="flex-grow">
+                                {module.module_name}
+                              </div>
+                              <Button
+                                type="button"
+                                variant={"ghost"}
+                                className="p-0"
+                                onClick={() => handleAddModule(module)}
+                              >
+                                <Check color="green" />
+                              </Button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                    <div className="space-y-5">
+                      <p>Modules selected </p>
+                      <ul className="max-h-[80%]  min-h-[50%] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
+                        {seletcedModules.map((module, index) => {
+                          return (
+                            <li
+                              key={`${module.module_id}-${index}`}
+                              className="flex items-center gap-2"
+                            >
+                              <div className="flex-grow">
+                                {module.module_name}
+                              </div>
+                              {module.locked ? (
+                                <Button
+                                  type="button"
+                                  variant={"ghost"}
+                                  className="p-0"
+                                  onClick={() => handleUnlock(module)}
+                                >
+                                  <Lock />
+                                </Button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant={"ghost"}
+                                  className="p-0"
+                                  onClick={() => handleLock(module)}
+                                >
+                                  <Unlock />
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant={"ghost"}
+                                className="p-0"
+                                onClick={() => handleRemoveModule(module)}
+                              >
+                                <X color="red" />
+                              </Button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="default"
+                      className="p-0"
+                      disabled={disAbleModuleSave || isLoading}
+                      onClick={async () => await handleSaveModules()}
+                    >
+                      Save Module Changes
+                    </Button>
+                  </div>
+                ) : null}
               </div>
-              <div className="space-y-5">
-                <p>Modules selected </p>
-               <ul className="max-h-[80%]  min-h-[50%] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
-                  {seletcedModules.map((module, index) => {
-                    return (
-                      <li
-                        key={`${module.module_id}-${index}`}
-                        className="flex items-center gap-2"
-                      >
-                        <div className="flex-grow">{module.module_name}</div>
-                        {module.locked ? (
-                          <Button
-                            type="button"
-                            variant={"ghost"}
-                            className="p-0"
-                            onClick={() => handleUnlock(module)}
-                          >
-                            <Lock />
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant={"ghost"}
-                            className="p-0"
-                            onClick={() => handleLock(module)}
-                          >
-                            <Unlock />
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant={"ghost"}
-                          className="p-0"
-                          onClick={() => handleRemoveModule(module)}
-                        >
-                          <X color="red" />
-                        </Button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-              <Button
-                          type="button"
-                          variant="default"
-                          className="p-0"
-                          disabled={disAbleModuleSave||isLoading}
-                          onClick={async() => await handleSaveModules()}
-                        >
-                          Save Module Changes
-                        </Button>
-              </div>
-            :null}
-            </div>
             </div>
           </>
         ) : null}
@@ -1127,10 +1187,10 @@ const ManageGroup: FC = () => {
           <div className="flex justify-end w-full my-8">
             <DeleteGroup
               {...{
-                group:data,
+                group: data,
                 handleChangeGroup,
                 isLoading,
-                setIsLoading
+                setIsLoading,
               }}
             />
           </div>

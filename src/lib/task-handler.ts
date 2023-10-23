@@ -73,8 +73,8 @@ export class TaskHandler {
   logic = {
     createSingleUser:(payload:PostUsersReq)=>{
       this
-      .addAuth0Tasks(new CreateAuth0AccountTask(this,payload.email,payload.name))
       .addDBTasks(new createSignleUserTask(this,payload))
+      .addAuth0Tasks(new CreateAuth0AccountTask(this,payload.email,payload.name))
       .addAuth0Tasks(new GetInvitationParamsTask(this,payload.email,payload.name))
     },
     deleteUser:(email:string)=>{
@@ -82,13 +82,13 @@ export class TaskHandler {
       .addDBTasks(new DeleteUserTask(this,email))
     },
     batchCreateUser:(payload:PostBatchCreateUsersReq)=>{
-      //!for testing
-      // payload.users.forEach(user=>{
-      // const {email,name} = user
-      // this
-      // .addAuth0Tasks(new CreateAuth0AccountTask(this,email))
-      // .addAuth0Tasks(new GetInvitationParamsTask(this,email,name))
-      // })
+      //!for testing commend the auth0 tasks
+      payload.users.forEach(user=>{
+      const {email,name} = user
+      this
+      .addAuth0Tasks(new CreateAuth0AccountTask(this,email,name))
+      .addAuth0Tasks(new GetInvitationParamsTask(this,email,name))
+      })
       this.addDBTasks(new BatchCreateUserTask(this,payload))
     },
     updateUser:(payload:PutUsersReq)=>{
