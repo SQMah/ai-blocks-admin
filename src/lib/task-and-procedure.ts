@@ -25,7 +25,7 @@ import {
 import { futureDate, type TupleSplit } from "./utils";
 import { User } from "@/models/db_schemas";
 import { Auth0User } from "@/models/auth0_schemas";
-import { batchCreateUsers, createUser, deleteManyUser, deleteUser, findSingleUser, updateUser } from "./db";
+import { batchCreateUsers, createUser, revertCreateManyUser, deleteUser, findSingleUser, updateUser } from "./db";
 import { sendMail } from "./mail_sender";
 
 const defaultDateParam = [0,1,0] as const  //days, months, years + tdy
@@ -390,7 +390,7 @@ export class BatchCreateUserTask extends DBTask<User[]>{
     this.dataHandler = instance.handleUserData
     this.createRevert = (data)=>{
       const emails = data.map(user=>user.email)
-      return [new DBProcedure(`revert Batch Create Users, count:${emails.length}`,deleteManyUser,[emails])]
+      return [new DBProcedure(`revert Batch Create Users, count:${emails.length}`,revertCreateManyUser,[emails])]
     }
   }
 }

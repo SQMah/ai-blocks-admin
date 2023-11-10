@@ -154,12 +154,14 @@ function populateModule(data: Prisma.ModulesGetPayload<{}>) {
   return moduleSchema.parse(result);
 }
 
+type Tx = Omit<
+PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
+"$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>
+
 //email must be exact
 async function findUserByTx(
-  tx: Omit<
-    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
-    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
-  >,
+  tx:Tx ,
   email: string[]
 ): Promise<PopulatedUser[]>;
 async function findUserByTx(
@@ -170,10 +172,7 @@ async function findUserByTx(
   email: string
 ): Promise<PopulatedUser>;
 async function findUserByTx(
-  tx: Omit<
-    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
-    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
-  >,
+  tx:Tx,
   email: string | string[]
 ): Promise<PopulatedUser[] | PopulatedUser> {
   if (Array.isArray(email)) {
@@ -205,10 +204,7 @@ async function findUserByTx(
 
 //group_ids must be exact
 async function findGroupByTx(
-  tx: Omit<
-    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
-    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
-  >,
+  tx: Tx,
   group_id: string
 ): Promise<PopulatedGroup>;
 async function findGroupByTx(
@@ -219,10 +215,7 @@ async function findGroupByTx(
   group_id: string[]
 ): Promise<PopulatedGroup[]>;
 async function findGroupByTx(
-  tx: Omit<
-    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
-    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
-  >,
+  tx:Tx,
   group_id: string | string[]
 ): Promise<PopulatedGroup | PopulatedGroup[]> {
   if (Array.isArray(group_id)) {
@@ -253,10 +246,7 @@ async function findGroupByTx(
 }
 
 async function updateGroupAttr(
-  tx: Omit<
-    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
-    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
-  >,
+  tx:Tx,
   group_id: string,
   change: {
     scount_update?:number,
@@ -290,10 +280,7 @@ async function updateGroupAttr(
 }
 
 async function updateGroupsAttr(
-  tx: Omit<
-    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
-    "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
-  >,
+  tx: Tx,
   group_ids: string[],
   change: {
     scount_update?:number,
@@ -327,6 +314,276 @@ async function updateGroupsAttr(
   } catch (error) {
     throw handleDBError(error, {});
   }
+}
+
+async function classProgressHandleEnroll(tx:Tx,group_id:string,user_id:string){
+  const completed =( await tx.studentModuleProgress.findMany({
+    where:{
+      user_id,
+      completed:true
+    },
+    select:{
+      module_id:true
+    }
+  }))
+  .map(m=>m.module_id)
+  const data =  await tx.groupAvailableModules.updateMany({
+    where:{
+      group_id,
+      module_id:{
+        in:completed
+      }
+    },
+    data:{
+      number_of_completion:{
+        increment:1
+      }
+    },
+  })
+  return
+}
+
+/**
+ * better perormance with using join, after migrate to drizzle
+ * @param tx 
+ * @param group_id 
+ * @param user_ids 
+ * @returns 
+ */
+async function classProgressHandleEnrollManyUsers(tx:Tx,group_id:string,user_ids:string[]){
+  if(user_ids.length == 0){
+    return 
+  }
+  if(user_ids.length == 1){
+    return classProgressHandleEnroll(tx,group_id,user_ids[0] as string)
+  }
+  // list of duplicating module ids
+  const completed = await tx.studentModuleProgress.findMany({
+    where:{
+      user_id:{
+        in: user_ids
+      },
+      completed:true
+    },
+    select:{
+      module_id:true
+    }
+  })
+  const frequency = completed.reduce((prev:Map<string,number>,obj)=>{
+    const id = obj.module_id
+    const count = prev.get(id)??0
+    prev.set(id,count+1)
+    return prev
+  }, new Map())
+  for (const [id,count] of frequency.entries()){
+    await tx.groupAvailableModules.updateMany({
+      where:{
+        module_id:id,
+        group_id,
+      },
+      data:{
+        number_of_completion:{
+          increment:count
+        }
+      }
+    })
+  }
+  return 
+
+}
+
+/**
+ * @param tx 
+ * @param group_id 
+ * @param user_id 
+ * @returns 
+ */
+async function classProgressHandleDeleteUser(tx:Tx,group_id:string,completed_module_ids:string[]){
+  if(completed_module_ids.length==0) return
+  const data =  await tx.groupAvailableModules.updateMany({
+    where:{
+      group_id,
+      module_id:{
+        in:completed_module_ids
+      }
+    },
+    data:{
+      number_of_completion:{
+        decrement:1
+      }
+    },
+  })
+  return
+}
+
+
+
+/**
+ * @param tx 
+ * @param group_id 
+ * @param user_id 
+ * @returns 
+ */
+async function classProgressHandleDisenroll(tx:Tx,group_id:string,user_id:string){
+  const completed =( await tx.studentModuleProgress.findMany({
+    where:{
+      user_id,
+      completed:true
+    },
+    select:{
+      module_id:true
+    }
+  }))
+  .map(m=>m.module_id)
+  const data =  await tx.groupAvailableModules.updateMany({
+    where:{
+      group_id,
+      module_id:{
+        in:completed
+      }
+    },
+    data:{
+      number_of_completion:{
+        decrement:1
+      }
+    },
+  })
+  return
+}
+
+
+/**
+ * better perormance with using join, after migrate to drizzle
+ * @param tx 
+ * @param group_id 
+ * @param user_ids 
+ * @returns 
+ */
+async function classProgressHandleDisenrollManyUsers(tx:Tx,group_id:string,user_ids:string[]){
+  if(user_ids.length == 0){
+    return 
+  }
+  if(user_ids.length == 1){
+    return classProgressHandleDisenroll(tx,group_id,user_ids[0] as string)
+  }
+  // list of duplicating module ids
+  const completed = await tx.studentModuleProgress.findMany({
+    where:{
+      user_id:{
+        in: user_ids
+      },
+      completed:true
+    },
+    select:{
+      module_id:true
+    }
+  })
+  const frequency = completed.reduce((prev:Map<string,number>,obj)=>{
+    const id = obj.module_id
+    const count = prev.get(id)??0
+    prev.set(id,count+1)
+    return prev
+  }, new Map())
+  for (const [id,count] of frequency.entries()){
+    await tx.groupAvailableModules.updateMany({
+      where:{
+        module_id:id,
+        group_id,
+      },
+      data:{
+        number_of_completion:{
+          decrement:count
+        }
+      }
+    })
+  }
+  return 
+}
+
+async function classProgressHandleChangClass(tx:Tx,from:string,to:string,user_id:string){
+  const completed =( await tx.studentModuleProgress.findMany({
+    where:{
+      user_id,
+      completed:true
+    },
+    select:{
+      module_id:true
+    }
+  }))
+  .map(m=>m.module_id)
+  const data =  await tx.groupAvailableModules.updateMany({
+    where:{
+      group_id:from,
+      module_id:{
+        in:completed
+      }
+    },
+    data:{
+      number_of_completion:{
+        decrement:1
+      }
+    },
+  })
+  await tx.groupAvailableModules.updateMany({
+    where:{
+      group_id:to,
+      module_id:{
+        in:completed
+      }
+    },
+    data:{
+      number_of_completion:{
+        increment:1
+      }
+    },
+  })
+  return
+}
+
+
+/**
+ * better performance if num of complet is not svaed staticly as field
+ * @param tx 
+ * @param group_id 
+ * @param module_ids 
+ * @param unlocked 
+ * @returns 
+ */
+async function classProgressHandleAddModules(tx:Tx,group_id:string,module_ids:string[],unlocked:string[]){
+  //modules ids with completed  = true
+  const progresses = (await tx.users.findMany({
+    where:{
+      Enroll:{
+        group_id
+      }
+    },
+    select:{
+      StudnentModuleProgress:true
+    }
+  }))
+  .flatMap(std=>std.StudnentModuleProgress
+    .map(p=>({completed:p.completed,module_id:p.module_id})))
+    .filter(p=>p.completed)
+  
+  const frequency = new Map(module_ids.map(id=>[id,0]))
+  for (const {module_id} of progresses){
+    const count = frequency.get(module_id)
+    if(count){
+      frequency.set(module_id,count+1)
+    }
+  }
+  //moudle_id -> num_of_comp
+  for (const [id,count] of frequency.entries()){
+    await tx.groupAvailableModules.create({
+      data:{
+        module_id:id,
+        group_id,
+        unlocked:unlocked.includes(id),
+        number_of_completion:count
+      }
+    })
+  }
+  return 
 }
 
 type SubCreateUserPayloadByRole =
@@ -437,6 +694,7 @@ export async function createUser(payload: CreateUserPayload) {
         },
         include: userInculde,
       });
+      // update group count
       const updateCount = await updateGroupsAttr(
         tx,
         groupsToUpdateCount,
@@ -843,12 +1101,23 @@ export async function deleteUser(email: string) {
         where: {
           email,
         },
-        include: userInculde,
+        include: {
+          ...userInculde,
+          StudnentModuleProgress:{
+            select:{module_id:true,completed:true}
+          }
+        },
       });
       const res = populateUser(user);
       if(res.role ==="student"){
         const ids = [...res.families];
-        res.enrolled && ids.push(res.enrolled);
+        if(res.enrolled){
+          ids.push(res.enrolled)
+          const completed_mid = user.StudnentModuleProgress
+          .filter(p=>p.completed)
+          .map(p=>p.module_id)
+          await classProgressHandleDeleteUser(tx,res.enrolled,completed_mid)
+        }
         const upCount = await updateGroupsAttr(
           tx,
           ids,
@@ -870,7 +1139,7 @@ export async function deleteUser(email: string) {
   }
 }
 
-export async function deleteManyUser(emails: string[], exact: boolean = true) {
+export async function revertCreateManyUser(emails: string[], exact: boolean = true) {
   try {
     const { count } = await prisma.$transaction(async (tx) => {
       const users = await tx.users.findMany({
@@ -1266,6 +1535,7 @@ export async function enrollUser(email: string, group_id: string) {
         },
         include: userInculde,
       });
+      const upModule = await classProgressHandleEnroll(tx,group_id,user.user_id)
       const updScount = await updateGroupAttr(tx, group_id, {
         scount_update:1
       });
@@ -1309,6 +1579,7 @@ export async function disEnrollUser(email: string, group_id: string) {
       const data = await tx.enrolls.delete({
         where: { user_id: user.user_id, group_id },
       });
+      const upModule = await classProgressHandleDisenroll(tx,group_id,user.user_id)
       const updScount = await updateGroupAttr(tx, group_id, {
         scount_update:-1
       });
@@ -1347,6 +1618,7 @@ export async function changeClass(email: string, group_id: string) {
           },
         },
       });
+      await classProgressHandleChangClass(tx,del.group_id,group_id,user.user_id)
       const inScount = await updateGroupAttr(tx, del.group_id, {
         scount_update:-1
       });
@@ -1831,13 +2103,14 @@ export async function addAvalibleModulesToClass(
     }
     const group = await findSingleGroup(group_id, ["class"]);
     const data = await prisma.$transaction(async (tx) => {
-      const { count } = await tx.groupAvailableModules.createMany({
-        data: available_module_ids.map((module_id) => ({
-          module_id,
-          group_id,
-          unlocked: unlocked_modules_ids.includes(module_id),
-        })),
-      });
+      // const { count } = await tx.groupAvailableModules.createMany({
+      //   data: available_module_ids.map((module_id) => ({
+      //     module_id,
+      //     group_id,
+      //     unlocked: unlocked_modules_ids.includes(module_id),
+      //   })),
+      // });
+      await classProgressHandleAddModules(tx,group_id,available_module_ids,unlocked_modules_ids)
       await updateGroupAttr(tx,group_id,{
         modify_module:true
       })
@@ -2039,6 +2312,7 @@ export async function batchEnroll(emails: string[], group_id: string) {
       const enrolls = await tx.enrolls.createMany({
         data: ids.map((user_id) => ({ user_id, group_id })),
       });
+      const upModules = await classProgressHandleEnrollManyUsers(tx,group_id,ids)
       const upCount = await updateGroupAttr(tx, group_id, {
         scount_update:ids.length
       });

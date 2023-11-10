@@ -18,13 +18,14 @@ model GroupAvailableModules {
 
   @@unique([module_id, group_id])
   @@index([group_id], type: Hash)
+  @@index([module_id],type: Hash)
 }
 
 model StudentModuleProgress {
   user_id            String
   module_id          String
   completed          Boolean   @default(false)
-  pages_compeleted   String[]  @default([])
+  pages_completed   String[]  @default([])
   completed_time     DateTime?
   last_modified_time DateTime  @default(now())
   Module             Modules   @relation(fields: [module_id], references: [module_id], onDelete: Cascade)
@@ -95,7 +96,7 @@ model Modules {
   module_name             String                    @unique
   GroupAvailableModules   GroupAvailableModules[]
   StudentAvailableModules StudentAvailableModules[]
-  StdentModuleProgress    StudentModuleProgress[]
+  StudentModuleProgress    StudentModuleProgress[]
 
   @@index([module_name], type: Hash)
 }
@@ -121,7 +122,7 @@ model Users {
   Families                Families[]
   Manages                 Manages[]
   StudentAvailableModules StudentAvailableModules[]
-  StudnentModuleProgress  StudentModuleProgress[]
+  StudentModuleProgress  StudentModuleProgress[] 
 
   @@index([email], type: Hash)
 }
