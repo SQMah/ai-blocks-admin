@@ -5,30 +5,31 @@ import {
   setExpriationSchema,
 } from "./utlis_schemas";
 import {
+  UserRole,
+  GroupType,
   groupSchema,
   groupTypeSchema,
   moduleSchema,
   userRoleSchema,
   userSchema,
 } from "./db_schemas";
-import { GroupType, UserRole } from "@prisma/client";
+// import { GroupType, UserRole } from "@prisma/client";"
 
+// ! not yet modify
 export type APIRoute =
   | "users"
   | "groups"
   | "modules"
   | "invitation"
-  | "batch-create-users"
-  | "batch-manages"
-  | "batch-enrolls"
-  | "batch-families"
   | "users-by-id"
   | "group-by-name"
-  | "enrolls"
-  | "families"
-  | "manages"
-  | "students-available-modules"
-  | "classes-available-modules";
+  | 'batch-create-users'
+  |"user-enrolls"
+  |"group-enrolls"
+  |"user-manages"
+  | "group-manages"
+  | "user-modules"
+  | "group-modules";
 
 export const createUserInfoSchema = z.object({
   email: emailSchema,
@@ -39,36 +40,32 @@ const createStudentSubSchema = z.object({
   role: z.literal(UserRole.student),
   expiration_date: setExpriationSchema,
   available_modules: z.array(trimedNonEmptyString).default([]),
-  enrolled: trimedNonEmptyString.optional(),
+  enrolling: z.array(trimedNonEmptyString).default([]),
   managing: z.null().optional(),
-  families: z.array(trimedNonEmptyString).default([]),
 });
 
 const createTeacherSubSchema = z.object({
   role: z.literal(UserRole.teacher),
   expiration_date: setExpriationSchema,
   available_modules: z.null().optional(),
-  enrolled: z.null().optional(),
+  enrolling: z.null().optional(),
   managing: z.array(trimedNonEmptyString).default([]),
-  families: z.null().optional(),
 });
 
 const createParentSubSchema = z.object({
   role: z.literal(UserRole.parent),
   expiration_date: setExpriationSchema,
   available_modules: z.null().optional(),
-  enrolled: z.null().optional(),
+  enrolling: z.null().optional(),
   managing: z.array(trimedNonEmptyString).default([]),
-  families: z.null().optional(),
 });
 
 const createAdminSubSchema = z.object({
   role: z.literal(UserRole.admin),
   expiration_date: z.null().optional(),
   available_modules: z.null().optional(),
-  enrolled: z.null().optional(),
+  enrolling: z.null().optional(),
   managing: z.null().optional(),
-  families: z.null().optional(),
 });
 
 const createStudentSchema = createStudentSubSchema
@@ -91,6 +88,7 @@ const createUserSchema = z.discriminatedUnion("role", [
   createStudentSchema,
 ]);
 
+export type CreateUserPayload = z.infer<typeof createUserSchema>;
 export const postUsersReqSchema = createUserSchema;
 
 export const postUsersResSchema = userSchema;
@@ -105,51 +103,54 @@ const batchCreateUsersSchema = z.discriminatedUnion("role", [
 ]);
 
 export const postBatchCreateUsersReqSchema = batchCreateUsersSchema;
+export type BatchCreateUserPaylaod = z.infer<typeof batchCreateUsersSchema>;
 
 export const postBatchCreateUsersResSchema = z.array(userSchema);
 
-export const getUsersReqSchema = z
-  .object({
-    email: emailSchema,
-    roles: userRoleSchema
-      .or(z.array(userRoleSchema))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional(),
-  })
-  .strict();
-
-export const getUsersResSchema = userSchema;
-
-export const batchGetUsersReqSchema = z
-  .object({
-    email: emailSchema
-      .or(z.array(emailSchema))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional()
-      .default([]),
-    user_id: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional()
-      .default([]),
-    roles: userRoleSchema
-      .or(z.array(userRoleSchema))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional(),
-    exact: z
-      .string()
-      .transform((s) => (s.toLocaleLowerCase() === "false" ? false : true))
-      .default("true"),
-  })
-  .strict();
+export const batchGetUsersReqSchema = z.object({
+  email: z
+    .array(emailSchema)
+    .or(emailSchema)
+    .transform((i) => (Array.isArray(i) ? i : [i])),
+});
 
 export const batchGetUsersResSchema = z.array(userSchema);
+
+export const batchGetUsersByIdReqSchema = z.object({
+  userId: z
+    .array(trimedNonEmptyString)
+    .or(trimedNonEmptyString)
+    .transform((i) => (Array.isArray(i) ? i : [i])),
+});
+
+export const batchGetUsersByIdResSchema = z.array(userSchema);
+
+export const getUserReqSchema = z.object({
+  email: emailSchema,
+});
+
+export const getUserResSchema = userSchema;
+
+export const getUserByIdReqSchema = z.object({
+  userId: trimedNonEmptyString,
+});
+
+export const getUserByIdResSchema = userSchema;
+
+const userUpdateSchema = z
+  .object({
+    name: trimedNonEmptyString.optional(),
+    expiration_date: setExpriationSchema.optional(),
+  })
+  .refine((input) => input.expiration_date || input.name, {
+    message: "At least one update to be made",});
+
+export type UserUpdate = z.infer<typeof userUpdateSchema>;
 
 export const putUsersReqSchema = z
   .object({
     email: emailSchema,
-    name: trimedNonEmptyString.optional(),
-    expiration_date: setExpriationSchema.optional(),
+    update: userUpdateSchema,
   })
   .strict();
 
@@ -157,237 +158,297 @@ export const putUsersResSchema = userSchema;
 
 export const batchPutUsersReqSchema = z
   .object({
-    emails: emailSchema
-      .or(z.array(emailSchema))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
-    // name: trimedNonEmptyString.optional(),
-    expiration_date: setExpriationSchema.optional(),
+    emails: z.array(emailSchema),
+    update:z.object({
+      expiration_date: setExpriationSchema
+    }),
   })
   .strict();
 
 export const batchPutUsersResSchema = z.array(userSchema);
 
-export const deleteUserReqSchema = z.object({ email: emailSchema }).strict();
+export const deleteUserReqSchema = z.object({
+  email: emailSchema,
+});
 
-const createGroupBaseSchema = z
+export const deleteUserResSchema = userSchema;
+
+export const deleteUserByIdReqSchema = z.object({
+  userId: trimedNonEmptyString,
+});
+
+export const deleteUserByIdResSchema = userSchema;
+
+const createGroupSchema = z
   .object({
     group_name: trimedNonEmptyString,
+    type: groupTypeSchema,
     manager_emails: z.array(trimedNonEmptyString).default([]),
-  })
-  .strict();
-
-const createClassSchema = createGroupBaseSchema
-  .extend({
-    type: z.literal(GroupType.class),
+    student_emails: z.array(trimedNonEmptyString).default([]),
     available_modules: z.array(trimedNonEmptyString).default([]),
     unlocked_modules: z.array(trimedNonEmptyString).default([]),
-    student_emails: z.array(trimedNonEmptyString).default([]),
-    children_emails: z.null().optional(),
-    capacity: z.number().gt(0, { message: "Capacity must greater than 0" }),
+    capacity: z.number(),
   })
-  .strict();
+  .strict()
+  .refine((input) => input.type === "family" || input.capacity > 0, {
+    message: "Capacity must greater than 0",
+  });
 
-const createFamilySchema = createGroupBaseSchema
-  .extend({
-    type: z.literal(GroupType.family),
-    student_emails: z.null().optional(),
-    children_emails: z.array(trimedNonEmptyString).default([]),
-    capacity: z.null().optional(),
-    available_modules: z.null().optional(),
-    unlocked_modules: z.null().optional(),
-  })
-  .strict();
-
-const createGroupSchema = z.discriminatedUnion("type", [
-  createClassSchema,
-  createFamilySchema,
-]);
+export type CreateGroupPayload = z.infer<typeof createGroupSchema>;
 
 export const postGroupsReqSchema = createGroupSchema;
 
 export const postGroupsResSchema = groupSchema;
 
-export const getGroupsReqSechema = z
-  .object({
-    group_id: trimedNonEmptyString,
-    type: groupTypeSchema
-      .or(z.array(groupTypeSchema))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional(),
-  })
-  .strict();
-
-export const getGroupsResSechema = groupSchema;
-
-export const batchGetGroupsReqSchema = z
-  .object({
-    group_ids: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional()
-      .default([]),
-    type: groupTypeSchema
-      .or(z.array(groupTypeSchema))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional(),
-    exact: z
-      .string()
-      .transform((s) => (s.toLocaleLowerCase() === "false" ? false : true))
-      .default("true"),
-  })
-  .strict();
+export const batchGetGroupsReqSchema = z.object({
+  groupName: z
+    .array(trimedNonEmptyString)
+    .or(trimedNonEmptyString)
+    .transform((i) => (Array.isArray(i) ? i : [i])),
+});
 
 export const batchGetGroupsResSchema = z.array(groupSchema);
 
-export const putGroupsReqSchema = z
+export const batchGetGroupsByIdReqSchema = z.object({
+  group_id: z
+    .array(trimedNonEmptyString)
+    .or(trimedNonEmptyString)
+    .transform((i) => (Array.isArray(i) ? i : [i])),
+});
+
+export const batchGetGroupsByIdResSchema = z.array(groupSchema);
+
+export const getGroupReqSchema = z.object({
+  group_name: trimedNonEmptyString,
+});
+
+export const getGroupResSchema = groupSchema;
+
+export const getGroupByIdReqSchema = z.object({
+  group_id: trimedNonEmptyString,
+});
+
+export const getGroupByIdResSchema = groupSchema;
+
+const groupUpdateSchema = z
   .object({
-    group_id: trimedNonEmptyString,
-    group_name: trimedNonEmptyString.optional(),
+    groupName: trimedNonEmptyString.optional(),
     available_modules: z.array(trimedNonEmptyString).optional(),
     capacity: z
       .number()
       .gt(0, { message: "Capacity must greater than 0" })
       .optional(),
   })
+  .refine(
+    (input) => input.groupName || input.available_modules || input.capacity,
+    { message: "At least one update to be made" }
+  );
+
+export type GroupUpdatePayload = z.infer<typeof groupUpdateSchema>;
+
+export const putGroupsReqSchema = z
+  .object({
+    group_id: trimedNonEmptyString,
+    update: groupUpdateSchema,
+  })
   .strict();
 
 export const putGroupsResSchema = groupSchema;
 
-export const deleteGroupsSchema = z
+export const deleteGroupsReqSchema = z
   .object({
     group_id: trimedNonEmptyString,
   })
   .strict();
 
-export const postEnrollsReqSchema = z
+export const deleteGroupsResSchema = groupSchema;
+
+export const postUserEnrollsReqSchema = z
   .object({
     email: emailSchema,
+    group_id: z.array(trimedNonEmptyString),
+  })
+  .strict();
+
+export const postUserEnrollsResSchema = z.array(groupSchema);
+
+export const putUserEnrollsReqSchema = z
+  .object({
+    email: emailSchema,
+    add: z.array(trimedNonEmptyString).default([]),
+    remove: z.array(trimedNonEmptyString).default([]),
+  })
+  .strict();
+
+//added groups
+export const putUserEnrollsResSchema = z.array(groupSchema);
+
+export const getUserEnrollsReqSchema = z
+  .object({
+    email: emailSchema,
+  })
+  .strict();
+
+export const getUserEnrollsResSchema = z.array(groupSchema);
+
+export const deleteUserEnrollsReqSchema = z
+  .object({
+    email: emailSchema,
+    group_id: z
+      .array(trimedNonEmptyString)
+      .or(trimedNonEmptyString)
+      .transform((i) => (Array.isArray(i) ? i : [i])),
+  })
+  .strict();
+
+export const deleteUserEnrollsResSchema = z.undefined();
+
+export const postGroupEnrollsReqSchema = z
+  .object({
+    emails: z.array(emailSchema),
     group_id: trimedNonEmptyString,
   })
   .strict();
 
-export const postEnrollsResSchema = userSchema;
+export const postGroupEnrollsResSchema = z.array(userSchema);
 
-export const putEnrollsReqSchema = z
+export const getGroupEnrollsReqSchema = z
   .object({
-    email: emailSchema,
     group_id: trimedNonEmptyString,
   })
   .strict();
 
-export const putEnrollsResSchema = userSchema;
+export const getGroupEnrollsResSchema = z.array(userSchema);
 
-export const deleteEnrollsReqSchema = z
+export const putGroupEnrollsReqSchema = z
   .object({
-    email: emailSchema,
+    add: z.array(emailSchema).default([]),
+    remove: z.array(emailSchema).default([]),
     group_id: trimedNonEmptyString,
   })
   .strict();
 
-export const deleteEnrollsResSchema = userSchema;
+export const putGroupEnrollsResSchema = z.array(userSchema);
 
-export const postManagesReqSchema = z
+export const deleteGroupEnrollsReqSchema = z
   .object({
-    email: emailSchema,
-    group_ids: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
+    email: z
+      .array(emailSchema)
+      .or(trimedNonEmptyString)
+      .transform((i) => (Array.isArray(i) ? i : [i])),
+    group_id: trimedNonEmptyString,
   })
   .strict();
 
-export const postManagesResSchema = userSchema;
+export const deleteGroupEnrollsResSchema = z.undefined();
 
-export const putManagesReqSchema = z
+export const postUserManagesReqSchema = z
   .object({
     email: emailSchema,
-    toAdd: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
-    toRemove: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
+    group_id: z.array(trimedNonEmptyString),
   })
   .strict();
 
-export const putManagesResSchema = userSchema;
+export const postUserManagesResSchema = z.array(groupSchema);
 
-export const deleteManagesReqSchema = z
+export const putUserManagesReqSchema = z
   .object({
     email: emailSchema,
-    group_ids: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
+    add: z.array(trimedNonEmptyString).default([]),
+    remove: z.array(trimedNonEmptyString).default([]),
   })
   .strict();
 
-export const deleteManagesResSchema = userSchema;
+//added groups
+export const putUserManagesResSchema = z.array(groupSchema);
 
-export const postFamiliesReqSchema = z
+export const getUserManagesReqSchema = z
   .object({
     email: emailSchema,
-    group_ids: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
   })
   .strict();
 
-export const postFamiliesResSchema = userSchema;
+export const getUserManagesResSchema = z.array(groupSchema);
 
-export const putFamiliesReqSchema = z
+export const deleteUserManagesReqSchema = z
   .object({
     email: emailSchema,
-    toAdd: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
-    toRemove: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
+    group_id: z.array(trimedNonEmptyString),
   })
   .strict();
 
-export const putFamiliesResSchema = userSchema;
+export const deleteUserManagesResSchema = z.undefined();
 
-export const deleteFamiliesReqSchema = z
+export const postGroupManagesReqSchema = z
   .object({
-    email: emailSchema,
-    group_ids: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
+    emails: z.array(emailSchema),
+    group_id: trimedNonEmptyString,
   })
   .strict();
 
-export const deleteFamiliesResSchema = userSchema;
+export const postGroupManagesResSchema = z.array(userSchema);
 
-export const postModulesReqSchema = z
+export const getGroupManagesReqSchema = z
+  .object({
+    group_id: trimedNonEmptyString,
+  })
+  .strict();
+
+export const getGroupManagesResSchema = z.array(userSchema);
+
+export const putGroupManagesReqSchema = z
+  .object({
+    add: z.array(emailSchema).default([]),
+    remove: z.array(emailSchema).default([]),
+    group_id: trimedNonEmptyString,
+  })
+  .strict();
+
+export const putGroupManagesResSchema = z.array(userSchema);
+
+export const deleteGroupManagesReqSchema = z
+  .object({
+    emails: z.array(emailSchema),
+    group_id: trimedNonEmptyString,
+  })
+  .strict();
+
+export const deleteGroupManagesResSchema = z.undefined();
+
+export const createModuleSchema = z
   .object({
     module_name: trimedNonEmptyString,
   })
   .strict();
+
+export type CreateModulePayload = z.infer<typeof createModuleSchema>;
+
+export const postModulesReqSchema = createModuleSchema;
 
 export const postModulesResSchema = moduleSchema;
 
 export const getModulesReqSchema = z
   .object({
-    module_id: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional()
-      .default([]),
-    exact: z
-      .string()
-      .transform((s) => (s.toLocaleLowerCase() === "false" ? false : true))
-      .default("true"),
+    module_id: z
+      .array(trimedNonEmptyString)
+      .or(trimedNonEmptyString)
+      .default([])
+      .transform((i) => (Array.isArray(i) ? i : [i])),
   })
   .strict();
 
 export const getModulesResSchema = z.array(moduleSchema);
 
-export const putModulesReqSchema = z
+export const UpdateModuleSchema = z
   .object({
     module_id: trimedNonEmptyString,
     module_name: trimedNonEmptyString,
   })
   .strict();
+
+export type UpdateModulePayload = z.infer<typeof UpdateModuleSchema>;
+
+export const putModulesReqSchema = UpdateModuleSchema;
 
 export const putModulesResSchema = moduleSchema;
 export const deleteModulesReqSchema = z
@@ -398,127 +459,49 @@ export const deleteModulesReqSchema = z
 
 export const deleteModulesResSchema = moduleSchema;
 
-export const postStudentModulesReqSchema = z
-  .object({
-    module_ids: z.array(trimedNonEmptyString),
-    email: emailSchema,
-  })
-  .strict();
+export const getUserModulesReqSchema = z.object({ email: emailSchema });
 
-export const postStudentModulesResSchema = userSchema;
+export const getUserModulesResSchema = z.array(trimedNonEmptyString);
 
-export const putStudentModulesReqSchema = z
+export const putUserModulesReqSchema = z
   .object({
     email: emailSchema,
-    toAdd: z.array(trimedNonEmptyString).optional().default([]),
-    toRemove: z.array(trimedNonEmptyString).optional().default([]),
+    add: z.array(trimedNonEmptyString).optional().default([]),
+    remove: z.array(trimedNonEmptyString).optional().default([]),
   })
   .strict();
 
-export const putStudentModulesResSchema = userSchema;
+export const putUserModulesResSchema = z.array(moduleSchema);
 
-export const deleteStudentModulesReqSchema = z
-  .object({
-    module_ids: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
-    email: emailSchema,
+//checkpoint
+const groupAvailbaleModulesResponseSchema = z.array(
+  z.object({
+    moduleId: trimedNonEmptyString,
+    unlocked: z.boolean(),
+    numberOfCompletion: z.number(),
   })
-  .strict();
-
-export const deleteStudentModulesResSchema = userSchema;
-
-export const postClassesModulesReqSchema = z
-  .object({
-    module_ids: z.array(trimedNonEmptyString),
-    unlocked_ids: z.array(trimedNonEmptyString).optional().default([]),
-    group_id: trimedNonEmptyString,
-  })
-  .strict();
-
-export const postClassesModulesResSchema = groupSchema;
-
-export const putClassesModulesReqSchema = z
+);
+export const getGroupModulesReqSchema = z
   .object({
     group_id: trimedNonEmptyString,
-    toAdd: z.array(trimedNonEmptyString).optional().default([]),
-    toRemove: z.array(trimedNonEmptyString).optional().default([]),
-    toLock: z.array(trimedNonEmptyString).optional().default([]),
-    toUnlock: z.array(trimedNonEmptyString).optional().default([]),
   })
   .strict();
 
-export const putClassesModulesResSchema = groupSchema;
+export const getGroupModulesResSchema = groupAvailbaleModulesResponseSchema;
 
-export const deleteClassesModulesReqSchema = z
+export const putGroupModulesReqSchema = z
   .object({
-    module_ids: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input])),
     group_id: trimedNonEmptyString,
+    add: z.array(trimedNonEmptyString).default([]),
+    remove: z.array(trimedNonEmptyString).default([]),
+    lock: z.array(trimedNonEmptyString).default([]),
+    unlock: z.array(trimedNonEmptyString).default([]),
   })
   .strict();
 
-export const deleteClassesModulesResSchema = groupSchema;
+export const putGroupModulesResSchema = groupAvailbaleModulesResponseSchema;
 
-export const getUsersByIdReqSchema = z
-  .object({
-    user_id: trimedNonEmptyString
-      .or(z.array(trimedNonEmptyString))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional()
-      .default([]),
-    roles: userRoleSchema
-      .or(z.array(userRoleSchema))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional(),
-    exact: z
-      .string()
-      .transform((s) => (s.toLocaleLowerCase() === "false" ? false : true))
-      .default("true"),
-  })
-  .strict();
-
-export const getUsersByIdResSchema = z.array(userSchema);
-
-export const getGroupByNameReqSchema = z
-  .object({
-    group_name: trimedNonEmptyString,
-    type: groupTypeSchema
-      .or(z.array(groupTypeSchema))
-      .transform((input) => (Array.isArray(input) ? input : [input]))
-      .optional(),
-  })
-  .strict();
-
-export const getGroupByNameResSchema = groupSchema;
-
-export const postBatchManagesReqSchema = z
-  .object({
-    emails: z.array(emailSchema),
-    group_id: trimedNonEmptyString,
-  })
-  .strict();
-
-export const postBatchManagesResSchema = groupSchema;
-
-export const postBatchEnrollsReqSchema = z
-  .object({
-    emails: z.array(emailSchema),
-    group_id: trimedNonEmptyString,
-  })
-  .strict();
-
-export const postBatchEnrollsResSchema = groupSchema;
-
-export const postBatchFamiliesReqSchema = z
-  .object({
-    emails: z.array(emailSchema),
-    group_id: trimedNonEmptyString,
-  })
-  .strict();
-
-export const postBatchFamiliesResSchema = groupSchema;
+//////
 
 export const postInvitationReqSchema = z
   .object({
@@ -526,88 +509,23 @@ export const postInvitationReqSchema = z
   })
   .strict();
 
-export type PostUsersReq = z.infer<typeof postUsersReqSchema>;
-export type PostUsersRes = z.infer<typeof postUsersResSchema>;
-export type PostBatchCreateUsersReq = z.infer<
-  typeof postBatchCreateUsersReqSchema
->;
-export type PostBatchCreateUsersRes = z.infer<
-  typeof postBatchCreateUsersResSchema
->;
-export type GetUsersReq = z.infer<typeof getUsersReqSchema>;
-export type GetUsersRes = z.infer<typeof getUsersResSchema>;
-export type BatchGetUsersReq = z.infer<typeof batchGetUsersReqSchema>;
-export type BatchGetUsersRes = z.infer<typeof batchGetUsersResSchema>;
-export type PutUsersReq = z.infer<typeof putUsersReqSchema>;
-export type PutUsersRes = z.infer<typeof putUsersResSchema>;
-export type BatchPutUsersReq = z.infer<typeof batchPutUsersReqSchema>;
-export type BatchPutUsersRes = z.infer<typeof batchPutUsersResSchema>;
-export type DeleteUserReq = z.infer<typeof deleteUserReqSchema>;
-export type PostGroupsReq = z.infer<typeof postGroupsReqSchema>;
-export type PostGroupsRes = z.infer<typeof postGroupsResSchema>;
-export type GetGroupsReq = z.infer<typeof getGroupsReqSechema>;
-export type GetGroupsRes = z.infer<typeof getGroupsResSechema>;
-export type BatchGetGroupsReq = z.infer<typeof batchGetGroupsReqSchema>;
-export type BatchGetGroupsRes = z.infer<typeof batchGetGroupsResSchema>;
-export type PutGroupsReq = z.infer<typeof putGroupsReqSchema>;
-export type PutGroupsRes = z.infer<typeof putGroupsResSchema>;
-export type DeleteGroupsReq = z.infer<typeof deleteGroupsSchema>;
-export type PostEnrollsReq = z.infer<typeof postEnrollsReqSchema>;
-export type PostEnrollsRes = z.infer<typeof postEnrollsResSchema>;
-export type PutEnrollsReq = z.infer<typeof putEnrollsReqSchema>;
-export type PutEnrollsRes = z.infer<typeof putEnrollsResSchema>;
-export type DeleteEnrollsReq = z.infer<typeof deleteEnrollsReqSchema>;
-export type DeleteEnrollsRes = z.infer<typeof deleteEnrollsResSchema>;
-export type PostManagesReq = z.infer<typeof postManagesReqSchema>;
-export type PostManagesRes = z.infer<typeof postManagesResSchema>;
-export type PutManagesReq = z.infer<typeof putManagesReqSchema>;
-export type PutManagesRes = z.infer<typeof putManagesResSchema>;
-export type DeleteManagesReq = z.infer<typeof deleteManagesReqSchema>;
-export type DeleteManagesRes = z.infer<typeof deleteManagesResSchema>;
-export type PostFamiliesReq = z.infer<typeof postFamiliesReqSchema>;
-export type PostFamiliesRes = z.infer<typeof postFamiliesResSchema>;
-export type PutFamiliesReq = z.infer<typeof putFamiliesReqSchema>;
-export type PutFamiliesRes = z.infer<typeof putFamiliesResSchema>;
-export type DeleteFamiliesReq = z.infer<typeof deleteFamiliesReqSchema>;
-export type DeleteFamiliesRes = z.infer<typeof deleteFamiliesResSchema>;
-export type PostModulesReq = z.infer<typeof postModulesReqSchema>;
-export type PostModulesRes = z.infer<typeof postModulesResSchema>;
-export type GetModulesReq = z.infer<typeof getModulesReqSchema>;
-export type GetModulesRes = z.infer<typeof getModulesResSchema>;
-export type PutModulesReq = z.infer<typeof putModulesReqSchema>;
-export type PutModulesRes = z.infer<typeof putModulesResSchema>;
-export type DeleteModulesReq = z.infer<typeof deleteModulesReqSchema>;
-export type DeleteModulesRes = z.infer<typeof deleteModulesResSchema>;
-export type PostStudentModulesReq = z.infer<typeof postStudentModulesReqSchema>;
-export type PostStudentModulesRes = z.infer<typeof postStudentModulesResSchema>;
-export type PutStudentModulesReq = z.infer<typeof putStudentModulesReqSchema>;
-export type PutStudentModulesRes = z.infer<typeof putStudentModulesResSchema>;
-export type DeleteStudentModulesReq = z.infer<
-  typeof deleteStudentModulesReqSchema
->;
-export type DeleteStudentModulesRes = z.infer<
-  typeof deleteStudentModulesResSchema
->;
-export type PostClassesModulesReq = z.infer<typeof postClassesModulesReqSchema>;
-export type PostClassesModulesRes = z.infer<typeof postClassesModulesResSchema>;
-export type PutClassesModulesReq = z.infer<typeof putClassesModulesReqSchema>;
-export type PutClassesModulesRes = z.infer<typeof putClassesModulesResSchema>;
-export type DeleteClassesModulesReq = z.infer<
-  typeof deleteClassesModulesReqSchema
->;
-export type DeleteClassesModulesRes = z.infer<
-  typeof deleteClassesModulesResSchema
->;
-export type GetUsersByIdReq = z.infer<typeof getUsersByIdReqSchema>;
-export type GetUsersByIdRes = z.infer<typeof getUsersByIdResSchema>;
-export type GetGroupBynameReq = z.infer<typeof getGroupByNameReqSchema>;
-export type GetGroupBynameRes = z.infer<typeof getGroupByNameResSchema>;
 
-export type PostBatchManagesReq = z.infer<typeof postBatchManagesReqSchema>;
-export type PostBatchManagesRes = z.infer<typeof postBatchManagesResSchema>;
-export type PostBatchEnrollsReq = z.infer<typeof postBatchEnrollsReqSchema>;
-export type PostBatchEnrollsRes = z.infer<typeof postBatchEnrollsResSchema>;
-export type PostBatchFamiliesReq = z.infer<typeof postBatchFamiliesReqSchema>;
-export type PostBatchFamiliesRes = z.infer<typeof postBatchFamiliesResSchema>;
+//types
 
-export type PostInvitationReq = z.infer<typeof postInvitationReqSchema>;
+export type PostUsersReq = z.infer<typeof postUsersReqSchema>
+export type  PostBatchCreateUsersReq = z.infer<typeof postBatchCreateUsersReqSchema>
+export type PutUsersReq = z.infer<typeof putUsersReqSchema>
+export type DeleteUserByIdReq =z.infer<typeof deleteUserByIdReqSchema>
+export type DeleteUserReq =z.infer<typeof deleteUserReqSchema>
+
+export type PutGroupsReq = z.infer<typeof putGroupsReqSchema>
+
+export type GetGroupModulesRes = z.infer<typeof getGroupModulesResSchema>
+
+export type PutGroupModulesReq = z.infer<typeof putGroupModulesReqSchema>
+
+export type PutUserEnrollsReq = z.infer<typeof putUserEnrollsReqSchema>
+
+export type PutUserModulesReq = z.infer<typeof putUserModulesReqSchema>
+
+export type PutUserManagesReq = z.infer<typeof putUserManagesReqSchema>

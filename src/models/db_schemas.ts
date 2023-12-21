@@ -1,11 +1,32 @@
-import { z } from "zod";
+import { number, z } from "zod";
 import {
   emailSchema,
   trimedNonEmptyString,
   emptyArray,
   JSONDateSchema
 } from "./utlis_schemas";
-import { UserRole, GroupType } from "@prisma/client";
+// import { UserRole, GroupType } from "@prisma/client";
+import { userRole,groupType } from "../../drizzle/schema";
+
+type MappedObject<T extends string> = {
+  [Key in T]:Key
+}&{}
+
+export type UserRole = (typeof userRole.enumValues)[number]
+export const UserRole:MappedObject<UserRole> = {
+  "admin":"admin",
+  "parent":"parent",
+  "student":"student",
+  "teacher":"teacher"
+} as const
+
+export type GroupType = (typeof groupType.enumValues)[number]
+export const GroupType:MappedObject<GroupType> = {
+  "class":"class",
+  "family":"family"
+}
+
+
 
 const { admin, ...nonAdminRoles } = UserRole;
 const canManageRoles = {
@@ -25,19 +46,17 @@ const expirationDateSchema = z.date().or(JSONDateSchema)
 
 
 const nonAdminInfoSchema = z.object({
-  user_id: trimedNonEmptyString,
+  userId: trimedNonEmptyString,
   email: emailSchema,
   name:trimedNonEmptyString,
-  expiration_date: expirationDateSchema,
-  available_modules: z.array(trimedNonEmptyString),
+  expirationDate: expirationDateSchema,
 });
 
 const adminInfoSchema = z.object({
-  user_id: trimedNonEmptyString,
+  userId: trimedNonEmptyString,
   name:trimedNonEmptyString,
   email: emailSchema,
-  expiration_date: z.null().optional(),
-  available_modules: z.array(trimedNonEmptyString),
+  expirationDate: z.null().optional(),
 });
 
 const studentBaseSchema = nonAdminInfoSchema.extend({
@@ -64,15 +83,13 @@ const userBaseSchema = z.discriminatedUnion("role", [
 ]);
 
 const groupInfoSchema = z.object({
-  group_id: trimedNonEmptyString,
-  group_name: trimedNonEmptyString,
+  groupId: trimedNonEmptyString,
+  groupName: trimedNonEmptyString,
   type: groupTypeSchema,
   capacity:z.number(),
-  student_count:z.number(),
-  student_last_modified_time:z.coerce.date(),
-  module_last_modified_time:z.coerce.date(),
-  available_modules: z.array(trimedNonEmptyString).default([]),
-  unlocked_modules:z.array(trimedNonEmptyString).default([]),
+  studentCount:z.number(),
+  studentLastModifiedTime:z.coerce.date(),
+  moduleLastModifiedTime:z.coerce.date(),
 });
 
 const classBaseSchema = groupInfoSchema.extend({
@@ -121,13 +138,15 @@ const familySchema = familyBaseSchema.extend({
 })
 
 export const moduleSchema = z.object({
-  module_name:trimedNonEmptyString,
-  module_id:trimedNonEmptyString,
+  moduleName:trimedNonEmptyString,
+  moduleId:trimedNonEmptyString,
 })
 
-export const userSchema = z.discriminatedUnion("role",[studentSchema,teacherSchema,parentSchema,adminSchema])
+// export const userSchema = z.discriminatedUnion("role",[studentSchema,teacherSchema,parentSchema,adminSchema])
+export const userSchema = userBaseSchema
 
-export const groupSchema = z.discriminatedUnion("type",[classSchema,familySchema])
+// export const groupSchema = z.discriminatedUnion("type",[classSchema,familySchema])
+export const groupSchema = groupInfoSchema
 
 export type User = z.infer<typeof userSchema>
 export type Group = z.infer<typeof groupSchema> 

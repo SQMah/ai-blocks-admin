@@ -1,0 +1,691 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "prevId": "",
+  "version": "5",
+  "dialect": "pg",
+  "tables": {
+    "UserAvailableModules": {
+      "name": "UserAvailableModules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "module_id": {
+          "name": "module_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "UserAvailableModules_user_id_idx": {
+          "name": "UserAvailableModules_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "UserAvailableModules_module_id_user_id_key": {
+          "name": "UserAvailableModules_module_id_user_id_key",
+          "columns": [
+            "module_id",
+            "user_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "UserAvailableModules_module_id_fkey": {
+          "name": "UserAvailableModules_module_id_fkey",
+          "tableFrom": "UserAvailableModules",
+          "tableTo": "Modules",
+          "columnsFrom": [
+            "module_id"
+          ],
+          "columnsTo": [
+            "module_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "UserAvailableModules_user_id_fkey": {
+          "name": "UserAvailableModules_user_id_fkey",
+          "tableFrom": "UserAvailableModules",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "user_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "_prisma_migrations": {
+      "name": "_prisma_migrations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "checksum": {
+          "name": "checksum",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "migration_name": {
+          "name": "migration_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "logs": {
+          "name": "logs",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rolled_back_at": {
+          "name": "rolled_back_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "applied_steps_count": {
+          "name": "applied_steps_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "Groups": {
+      "name": "Groups",
+      "schema": "",
+      "columns": {
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "group_name": {
+          "name": "group_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "GroupType",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capacity": {
+          "name": "capacity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "student_count": {
+          "name": "student_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "student_last_modified_time": {
+          "name": "student_last_modified_time",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "module_last_modified_time": {
+          "name": "module_last_modified_time",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "Groups_group_name_key": {
+          "name": "Groups_group_name_key",
+          "columns": [
+            "group_name"
+          ],
+          "isUnique": true
+        },
+        "Groups_group_name_idx": {
+          "name": "Groups_group_name_idx",
+          "columns": [
+            "group_name"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "GroupAvailableModules": {
+      "name": "GroupAvailableModules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "module_id": {
+          "name": "module_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unlocked": {
+          "name": "unlocked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number_of_completion": {
+          "name": "number_of_completion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "GroupAvailableModules_module_id_idx": {
+          "name": "GroupAvailableModules_module_id_idx",
+          "columns": [
+            "module_id"
+          ],
+          "isUnique": false
+        },
+        "GroupAvailableModules_group_id_idx": {
+          "name": "GroupAvailableModules_group_id_idx",
+          "columns": [
+            "group_id"
+          ],
+          "isUnique": false
+        },
+        "GroupAvailableModules_module_id_group_id_key": {
+          "name": "GroupAvailableModules_module_id_group_id_key",
+          "columns": [
+            "module_id",
+            "group_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "GroupAvailableModules_group_id_fkey": {
+          "name": "GroupAvailableModules_group_id_fkey",
+          "tableFrom": "GroupAvailableModules",
+          "tableTo": "Groups",
+          "columnsFrom": [
+            "group_id"
+          ],
+          "columnsTo": [
+            "group_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "GroupAvailableModules_module_id_fkey": {
+          "name": "GroupAvailableModules_module_id_fkey",
+          "tableFrom": "GroupAvailableModules",
+          "tableTo": "Modules",
+          "columnsFrom": [
+            "module_id"
+          ],
+          "columnsTo": [
+            "module_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "Modules": {
+      "name": "Modules",
+      "schema": "",
+      "columns": {
+        "module_id": {
+          "name": "module_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "module_name": {
+          "name": "module_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "Modules_module_name_key": {
+          "name": "Modules_module_name_key",
+          "columns": [
+            "module_name"
+          ],
+          "isUnique": true
+        },
+        "Modules_module_name_idx": {
+          "name": "Modules_module_name_idx",
+          "columns": [
+            "module_name"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "Users": {
+      "name": "Users",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "UserRole",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiration_date": {
+          "name": "expiration_date",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "Users_email_key": {
+          "name": "Users_email_key",
+          "columns": [
+            "email"
+          ],
+          "isUnique": true
+        },
+        "Users_email_idx": {
+          "name": "Users_email_idx",
+          "columns": [
+            "email"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "Enrolls": {
+      "name": "Enrolls",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "Enrolls_user_id_key": {
+          "name": "Enrolls_user_id_key",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": true
+        },
+        "Enrolls_group_id_idx": {
+          "name": "Enrolls_group_id_idx",
+          "columns": [
+            "group_id"
+          ],
+          "isUnique": false
+        },
+        "Enrolls_id_idx": {
+          "name": "Enrolls_id_idx",
+          "columns": [
+            "id"
+          ],
+          "isUnique": false
+        },
+        "Enrolls_user_id_idx": {
+          "name": "Enrolls_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "Enrolls_user_id_group_id_key": {
+          "name": "Enrolls_user_id_group_id_key",
+          "columns": [
+            "user_id",
+            "group_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "Enrolls_group_id_fkey": {
+          "name": "Enrolls_group_id_fkey",
+          "tableFrom": "Enrolls",
+          "tableTo": "Groups",
+          "columnsFrom": [
+            "group_id"
+          ],
+          "columnsTo": [
+            "group_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "Enrolls_user_id_fkey": {
+          "name": "Enrolls_user_id_fkey",
+          "tableFrom": "Enrolls",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "user_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "Manages": {
+      "name": "Manages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "Manages_group_id_idx": {
+          "name": "Manages_group_id_idx",
+          "columns": [
+            "group_id"
+          ],
+          "isUnique": false
+        },
+        "Manages_id_idx": {
+          "name": "Manages_id_idx",
+          "columns": [
+            "id"
+          ],
+          "isUnique": false
+        },
+        "Manages_user_id_idx": {
+          "name": "Manages_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        },
+        "Manages_user_id_group_id_key": {
+          "name": "Manages_user_id_group_id_key",
+          "columns": [
+            "user_id",
+            "group_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "Manages_group_id_fkey": {
+          "name": "Manages_group_id_fkey",
+          "tableFrom": "Manages",
+          "tableTo": "Groups",
+          "columnsFrom": [
+            "group_id"
+          ],
+          "columnsTo": [
+            "group_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "Manages_user_id_fkey": {
+          "name": "Manages_user_id_fkey",
+          "tableFrom": "Manages",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "user_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "UserModuleProgress": {
+      "name": "UserModuleProgress",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "module_id": {
+          "name": "module_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "completed": {
+          "name": "completed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "pages_completed": {
+          "name": "pages_completed",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'RRAY['"
+        },
+        "completed_time": {
+          "name": "completed_time",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_modified_time": {
+          "name": "last_modified_time",
+          "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      },
+      "indexes": {
+        "UserModuleProgress_module_id_idx": {
+          "name": "UserModuleProgress_module_id_idx",
+          "columns": [
+            "module_id"
+          ],
+          "isUnique": false
+        },
+        "UserModuleProgress_user_id_idx": {
+          "name": "UserModuleProgress_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "UserModuleProgress_module_id_fkey": {
+          "name": "UserModuleProgress_module_id_fkey",
+          "tableFrom": "UserModuleProgress",
+          "tableTo": "Modules",
+          "columnsFrom": [
+            "module_id"
+          ],
+          "columnsTo": [
+            "module_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "UserModuleProgress_user_id_fkey": {
+          "name": "UserModuleProgress_user_id_fkey",
+          "tableFrom": "UserModuleProgress",
+          "tableTo": "Users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "user_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "UserModuleProgress_user_id_module_id": {
+          "name": "UserModuleProgress_pkey",
+          "columns": [
+            "user_id",
+            "module_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {}
+    }
+  },
+  "enums": {
+    "GroupType": {
+      "name": "GroupType",
+      "values": {
+        "class": "class",
+        "family": "family"
+      }
+    },
+    "UserRole": {
+      "name": "UserRole",
+      "values": {
+        "student": "student",
+        "teacher": "teacher",
+        "admin": "admin",
+        "parent": "parent"
+      }
+    }
+  },
+  "schemas": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  }
+}

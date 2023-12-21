@@ -18,47 +18,33 @@ model GroupAvailableModules {
 
   @@unique([module_id, group_id])
   @@index([group_id], type: Hash)
-  @@index([module_id],type: Hash)
+  @@index([module_id], type: Hash)
 }
 
-model StudentModuleProgress {
+model UserModuleProgress {
+  id                  Int @id @default(autoincrement())
   user_id            String
   module_id          String
   completed          Boolean   @default(false)
-  pages_completed   String[]  @default([])
-  completed_time     DateTime?
-  last_modified_time DateTime  @default(now())
+  pages_completed    String[]  @default([])
+  completed_time     DateTime? @db.Timestamptz(0)
+  last_modified_time DateTime  @default(now()) @db.Timestamptz(0)
   Module             Modules   @relation(fields: [module_id], references: [module_id], onDelete: Cascade)
   User               Users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
-  @@id([user_id, module_id])
   @@index([module_id], type: Hash)
   @@index([user_id], type: Hash)
 }
 
 model Enrolls {
   id       Int    @id @default(autoincrement())
-  user_id  String @unique
+  user_id  String 
   group_id String
   Group    Groups @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
   User     Users  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@unique([user_id, group_id])
   @@index([group_id], type: Hash)
-  @@index([id])
-  @@index([user_id], type: Hash)
-}
-
-model Families {
-  id       Int    @id @default(autoincrement())
-  user_id  String
-  group_id String
-  Group    Groups @relation(fields: [group_id], references: [group_id], onDelete: Cascade)
-  User     Users  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
-  @@unique([user_id, group_id])
-  @@index([group_id], type: Hash)
-  @@index([id])
   @@index([user_id], type: Hash)
 }
 
@@ -68,10 +54,9 @@ model Groups {
   type                       GroupType
   capacity                   Int
   student_count              Int
-  student_last_modified_time DateTime                @default(now())
-  module_last_modified_time  DateTime                @default(now())
+  student_last_modified_time DateTime                @default(now()) @db.Timestamptz(0)
+  module_last_modified_time  DateTime                @default(now()) @db.Timestamptz(0)
   Enrolls                    Enrolls[]
-  Families                   Families[]
   GroupAvailableModules      GroupAvailableModules[]
   Manages                    Manages[]
 
@@ -87,21 +72,20 @@ model Manages {
 
   @@unique([user_id, group_id])
   @@index([group_id], type: Hash)
-  @@index([id])
   @@index([user_id], type: Hash)
 }
 
 model Modules {
-  module_id               String                    @id @default(uuid())
-  module_name             String                    @unique
-  GroupAvailableModules   GroupAvailableModules[]
-  StudentAvailableModules StudentAvailableModules[]
-  StudentModuleProgress    StudentModuleProgress[]
+  module_id             String                  @id @default(uuid())
+  module_name           String                  @unique
+  GroupAvailableModules GroupAvailableModules[]
+  UserAvailableModules  UserAvailableModules[]
+  UserModuleProgress    UserModuleProgress[]
 
   @@index([module_name], type: Hash)
 }
 
-model StudentAvailableModules {
+model UserAvailableModules {
   id        Int     @id @default(autoincrement())
   module_id String
   user_id   String
@@ -110,19 +94,20 @@ model StudentAvailableModules {
 
   @@unique([module_id, user_id])
   @@index([user_id], type: Hash)
+  @@index([module_id], type: Hash)
+
 }
 
 model Users {
-  user_id                 String                    @id @default(uuid())
-  email                   String                    @unique
-  name                    String
-  role                    UserRole
-  expiration_date         DateTime?
-  Enroll                  Enrolls?
-  Families                Families[]
-  Manages                 Manages[]
-  StudentAvailableModules StudentAvailableModules[]
-  StudentModuleProgress  StudentModuleProgress[] 
+  user_id              String                 @id @default(uuid())
+  email                String                 @unique
+  name                 String
+  role                 UserRole
+  expiration_date      DateTime?              @db.Timestamptz(0)
+  Enrolls              Enrolls[]
+  Manages              Manages[]
+  UserAvailableModules UserAvailableModules[]
+  UserModuleProgress   UserModuleProgress[]
 
   @@index([email], type: Hash)
 }

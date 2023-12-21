@@ -3,8 +3,8 @@ import { getSession } from "@auth0/nextjs-auth0";
 import { stringToBoolean, zodErrorMessage } from "./utils";
 import { string, z } from "zod";
 import { AxiosError } from "axios";
-import { findSingleUser } from "./db";
 import { Prisma } from "@prisma/client";
+import { getUserByEmail } from "./drizzle_functions";
 
 const requireAdminCheck = stringToBoolean(process.env.REQUIRE_ADMIN) ?? true;
 
@@ -21,7 +21,7 @@ export const adminCheck = async (
     }
     const email = session.user.email as string;
     try {
-      const user = await findSingleUser(email);
+      const user = await getUserByEmail(email);
       if (user.role !== "admin") {
         throw new APIError("Forbidden");
       }
@@ -120,12 +120,13 @@ export class ServerErrorHandler {
     }
   }
   log() {
-    console.error(`Logging Error Message: ${this.message}`);
+    console.error(`Logging Error Message: ${this.status_text}->${this.message}`);
   }
   sendResponse(req: NextApiRequest, res: NextApiResponse) {
     res.status(this.status_code).json({
       status: this.status_code,
-      message: `${this.status_text}: ${this.message}`,
+      // message: `${this.status_text}: ${this.message}`,
+      message:this.message,
       details: {
         resource: req.url,
         method: req.method,
@@ -133,3 +134,5 @@ export class ServerErrorHandler {
     });
   }
 }
+
+

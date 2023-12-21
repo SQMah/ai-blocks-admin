@@ -56,7 +56,7 @@ export const UpdateExpiration: FC<props> = ({
 }) => {
   const { toast } = useToast();
 
-  const expiration = user.expiration_date;
+  const expiration = user.expirationDate;
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -67,7 +67,9 @@ export const UpdateExpiration: FC<props> = ({
     setIsLoading(true);
     try {
       const payload = {
-        expiration_date: values.expiration_date,
+        update: {
+          expiration_date: values.expiration_date,
+        },
       };
       const response = await requestAPI(
         "users",
@@ -164,7 +166,7 @@ export const UpdateAllExpiration: FC<AllProps> = ({
   const { toast } = useToast();
 
   const eariliestExpiration = findEarliestDate(
-    users.map((user) => user.expiration_date)
+    users.map((user) => user.expirationDate)
   );
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -179,7 +181,9 @@ export const UpdateAllExpiration: FC<AllProps> = ({
     try {
       const data = {
         emails: users.map((user) => user.email),
-        expiration_date: values.expiration_date,
+        update: {
+          expiration_date: values.expiration_date,
+        },
       };
       const update = await requestAPI("users", "PUT", {}, data);
     } catch (error) {

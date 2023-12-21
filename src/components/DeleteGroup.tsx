@@ -27,17 +27,21 @@ interface Props{
     handleChangeGroup :(data:Group|undefined)=>Promise<void>
     isLoading:boolean;
     setIsLoading:Dispatch<SetStateAction<boolean>>;
+    managers:User[];
+    students:User[];
 }
 
 
-const DeleteGroup:FC<Props> = ({group,isLoading,setIsLoading,handleChangeGroup})=>{
-    const {group_id,group_name,type,managers,students,children} = group
+const DeleteGroup:FC<Props> = ({group,isLoading,setIsLoading,handleChangeGroup,managers,students})=>{
+    const {groupId,groupName,type} = group
     const [confirm,setConfirm] = useState<boolean>(false)
     const {toast} = useToast()
     const handleDelete =async () => {
         setIsLoading(true)
         try {
-            const delRes = await  requestAPI("groups","DELETE",{group_id},{})
+            const delRes = await  requestAPI("groups","DELETE",{
+              group_id:groupId
+            },{})
             toast({
                 title:"Deleted"
             })
@@ -62,17 +66,17 @@ const DeleteGroup:FC<Props> = ({group,isLoading,setIsLoading,handleChangeGroup})
               </AlertDialogTrigger>
               <AlertDialogContent >
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure to delete  {group_name}?</AlertDialogTitle>
+                  <AlertDialogTitle>Are you absolutely sure to delete  {groupName}?</AlertDialogTitle>
                   <AlertDialogDescription>
                     <a>This action cannot be undone. The action will have the following effects:</a>
                     <span className=" list-disc mt-1 ml-4">
-                        <li>Delete all associated data of {group_name}</li>
-                        <li>Remove {group_name} from the manage list of {managers.length} teachers.</li>
+                        <li>Delete all associated data of {groupName}</li>
+                        <li>Remove {groupName} from the manage list of {managers.length} teachers.</li>
                         {type==="class"?
-                        <li>Remove {group_name} from the enrolling of {students.length} students</li>
+                        <li>Remove {groupName} from the enrolling of {students.length} students</li>
                         :null}
                          {type==="family"?
-                        <li>Remove {group_name} from the families of {children.length} children</li>
+                        <li>Remove {groupName} from the families of {students.length} children</li>
                         :null}
                     </span>
                   </AlertDialogDescription>
@@ -82,7 +86,7 @@ const DeleteGroup:FC<Props> = ({group,isLoading,setIsLoading,handleChangeGroup})
                             htmlFor="terms"
                             className=" mt-4 mb-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                         >
-                            Confirm deleting {group_name}
+                            Confirm deleting {groupName}
                         </label>
                     </span>
                 </AlertDialogHeader>

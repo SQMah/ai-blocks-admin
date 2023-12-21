@@ -35,6 +35,10 @@ This is an admin panel for managing user and class information using Auth0 authe
     - [ ] delete class by id
     - [ ] send invitation by email -->
 
+## Important
+To test or NOT test Auth0 features
+Toggle `TEST_AUTH0` in `src/lib/task-handler.ts`.
+
 ## Features
 - Create classes 
     - create class with inputed teachers, capacity and modules

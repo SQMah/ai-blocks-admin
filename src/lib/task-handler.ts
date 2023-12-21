@@ -1,16 +1,37 @@
 import { APIError, ERROR_STATUS_TEXT, ServerErrorHandler } from "./api_utils";
 import { delay } from "./utils";
 
-import { Auth0Task, DBTask, DeleteAuth0AccountTask, GetAuthTokenProcedure, Procedure, Task, CreateAuth0AccountTask, createSignleUserTask, DeleteUserTask, GetInvitationParamsTask, BatchCreateUserTask, FindAndUpdateUserTask } from "./task-and-procedure";
+import {
+  Auth0Task,
+  DBTask,
+  DeleteAuth0AccountTask,
+  GetAuthTokenProcedure,
+  Procedure,
+  Task,
+  CreateAuth0AccountTask,
+  createSignleUserTask,
+  DeleteUserTask,
+  GetInvitationParamsTask,
+  BatchCreateUserTask,
+  FindAndUpdateUserTask,
+} from "./task-and-procedure";
 import { putLogEvent } from "./cloud_watch";
 import { Group, User } from "@/models/db_schemas";
 import { Auth0User } from "@/models/auth0_schemas";
 import { sendMail } from "./mail_sender";
-import { PostBatchCreateUsersReq, PostUsersReq, PutUsersReq } from "@/models/api_schemas";
+import {
+  PostBatchCreateUsersReq,
+  PostUsersReq,
+  PutUsersReq,
+} from "@/models/api_schemas";
+
+const TEST_AUTH0 = false as const;
 
 export const TRY_LIMIT = 3; //error hitting limit
 
 const DEFAULT_WAITING_TIME = 300; //in ms
+
+const DELIMINATOR = "||" as const;
 
 export function wait(time: number | undefined = undefined) {
   return delay(time ?? DEFAULT_WAITING_TIME);
@@ -21,11 +42,9 @@ export function wait(time: number | undefined = undefined) {
 export type Data =
   | User
   | User[]
-  | Group
-  | Group[]
   | string
   | Auth0User
-  |EmailParam
+  | EmailParam
   | void
   | undefined;
 
@@ -41,10 +60,10 @@ export type Auth0Action<D extends Data> = (
 
 export type Proccessed<A extends Action<Data>> = Awaited<ReturnType<A>>;
 
-export type DataHandler<D extends Data> = (data: D[]|D) => void;
+export type DataHandler<D extends Data> = (data: D[] | D) => void;
 
-export type DB_Data =Exclude<Data,Auth0User|EmailParam>
-export type Auth0_Data = Exclude<Data,User|Group>
+export type DB_Data = Exclude<Data, Auth0User | EmailParam>;
+export type Auth0_Data = Exclude<Data, User | Group>;
 
 export interface EmailParam {
   email: string;
@@ -71,30 +90,37 @@ export class TaskHandler {
   protected groups = new Map<string, Group>();
 
   logic = {
-    createSingleUser:(payload:PostUsersReq)=>{
-      this
-      .addDBTasks(new createSignleUserTask(this,payload))
-      .addAuth0Tasks(new CreateAuth0AccountTask(this,payload.email,payload.name))
-      .addAuth0Tasks(new GetInvitationParamsTask(this,payload.email,payload.name))
+    createSingleUser: (payload: PostUsersReq) => {
+      this.addDBTasks(new createSignleUserTask(this, payload));
+      if (TEST_AUTH0) {
+        this.addAuth0Tasks(
+          new CreateAuth0AccountTask(this, payload.email, payload.name)
+        ).addAuth0Tasks(
+          new GetInvitationParamsTask(this, payload.email, payload.name)
+        );
+      }
     },
-    deleteUser:(email:string)=>{
-      this.addAuth0Tasks(new DeleteAuth0AccountTask(this,email))
-      .addDBTasks(new DeleteUserTask(this,email))
+    deleteUser: (email: string) => {
+      this.addDBTasks(new DeleteUserTask(this, email));
+      if (TEST_AUTH0) {
+        this.addAuth0Tasks(new DeleteAuth0AccountTask(this, email));
+      }
     },
-    batchCreateUser:(payload:PostBatchCreateUsersReq)=>{
-      //!for testing commend the auth0 tasks
-      payload.users.forEach(user=>{
-      const {email,name} = user
-      this
-      .addAuth0Tasks(new CreateAuth0AccountTask(this,email,name))
-      .addAuth0Tasks(new GetInvitationParamsTask(this,email,name))
-      })
-      this.addDBTasks(new BatchCreateUserTask(this,payload))
+    batchCreateUser: (payload: PostBatchCreateUsersReq) => {
+      if (TEST_AUTH0) {
+        payload.users.forEach((user) => {
+          const { email, name } = user;
+          this.addAuth0Tasks(
+            new CreateAuth0AccountTask(this, email, name)
+          ).addAuth0Tasks(new GetInvitationParamsTask(this, email, name));
+        });
+      }
+      this.addDBTasks(new BatchCreateUserTask(this, payload));
     },
-    updateUser:(payload:PutUsersReq)=>{
-      const {email,...update} = payload
-      this.addDBTasks(new FindAndUpdateUserTask(this,email,update))
-    }
+    updateUser: (payload: PutUsersReq) => {
+      const { email, update } = payload;
+      this.addDBTasks(new FindAndUpdateUserTask(this, email, update));
+    },
   };
 
   //utlis
@@ -128,27 +154,18 @@ export class TaskHandler {
   // }
 
   //handle data
-  handleUserData(data: User[]|User) {
-    if(!Array.isArray(data)){
-      this.users.set(data.email,data)
-      return
+  handleUserData(data: User[] | User) {
+    if (!Array.isArray(data)) {
+      this.users.set(data.email, data);
+      return;
     }
     data.forEach((entry) => this.users.set(entry.email, entry));
   }
 
-
-  handleClassData(data: Group[]|Group) {
-    if(!Array.isArray(data)){
-      this.groups.set(data.group_id,data)
-      return
-    }
-    data.forEach((entry) => this.groups.set(entry.group_id, entry));
-  }
-
-  handleEmailParam(data:EmailParam|EmailParam[]){
+  handleEmailParam(data: EmailParam | EmailParam[]) {
     // console.log(data)
-    const array = Array.isArray(data)?data:[data]
-    this.emailsToSent.splice(this.emailsToSent.length,0,...array)
+    const array = Array.isArray(data) ? data : [data];
+    this.emailsToSent.splice(this.emailsToSent.length, 0, ...array);
     // console.log(this.emailsToSent)
   }
 
@@ -253,7 +270,7 @@ export class TaskHandler {
     // await wait();
     return await this.processDBTasks();
   }
-  async proccessSendingEmails():Promise<void> {
+  async proccessSendingEmails(): Promise<void> {
     if (this.haveError()) {
       return;
     }
@@ -263,16 +280,16 @@ export class TaskHandler {
       console.log("All emails sent.");
       return;
     }
-    const {email,name,url} = params
+    const { email, name, url } = params;
     try {
-      await sendMail(name,email,url)
+      await sendMail(name, email, url);
       // console.log(this.task_queue,this.revert_stack)
-      console.log(`Invitation sent to ${email}`)
+      console.log(`Invitation sent to ${email}`);
       // await wait();
     } catch (error) {
-      this.handleError(`Sending Email to ${email}`,error)
+      this.handleError(`Sending Email to ${email}`, error);
     }
-    return await this.proccessSendingEmails()
+    return await this.proccessSendingEmails();
   }
 
   async run(): Promise<{
@@ -291,11 +308,11 @@ export class TaskHandler {
     }
 
     //process auth0 and db tasks
-    await Promise.allSettled([this.processAuth0Tasks(),this.processDBTasks()])
+    await Promise.allSettled([this.processAuth0Tasks(), this.processDBTasks()]);
 
     //send the emails
-    if(this.emailsToSent.length){
-      await this.proccessSendingEmails()
+    if (this.emailsToSent.length) {
+      await this.proccessSendingEmails();
     }
     //handle errors
     if (this.haveError()) {
@@ -307,10 +324,10 @@ export class TaskHandler {
       //handle by api
       throw new APIError(
         this.error_status_text as ERROR_STATUS_TEXT,
-        this.error_messages.join(", ")
+        this.error_messages.join(DELIMINATOR)
       );
     }
-    console.log("All Tasks Completed")
+    console.log("All Tasks Completed");
     return { users: this.users, groups: this.groups };
   }
 }

@@ -25,8 +25,8 @@ import {
 import { futureDate, type TupleSplit } from "./utils";
 import { User } from "@/models/db_schemas";
 import { Auth0User } from "@/models/auth0_schemas";
-import { batchCreateUsers, createUser, revertCreateManyUser, deleteUser, findSingleUser, updateUser } from "./db";
 import { sendMail } from "./mail_sender";
+import { batchCreateUser, batchDeleteUsers, createUser, deleteUserByEmail, getEnrolledGroups, getMangedGroups, getUserAvaibleModules, getUserByEmail, updateUser } from "./drizzle_functions";
 
 const defaultDateParam = [0,1,0] as const  //days, months, years + tdy
 
@@ -193,7 +193,7 @@ export abstract class Task<D extends Data> {
   //how to handle data
   dataHandler: DataHandler<any> = () => {};
   //take enque data and add a revert action to stack
-  createRevert: (data: D) => Procedure<Action<any>>[] =
+  createRevert: (data: D) => Procedure<Action<any>>[]|Promise<Procedure<Action<any>>[]> =
   () => [];
   //direct procedure to add
   readonly revertProcedures: Procedure<Action<Data>>[] = [];
@@ -227,7 +227,7 @@ export abstract class Task<D extends Data> {
       instance.addRevert(...this.revertProcedures);
       //create and add revert
       try {
-        const procedure = this.createRevert.apply(this, [data]);
+        const procedure = await this.createRevert.apply(this, [data]);
         instance.addRevert(...procedure);
       } catch (error) {
         instance.handleError("Create Revert Procedure", error);
@@ -305,9 +305,9 @@ export class createSignleUserTask extends DBTask<User>{
 
   constructor(instance:TaskHandler,payload:Parameters<typeof createUser>[0]){
     super()
-    this.forward = new DBProcedure(`Create ${payload.role} data for ${payload.email}`,createUser,[payload],["Conflict"])
+    this.forward = new DBProcedure(`Create ${payload.role} data for ${payload.email}`,createUser,[payload],["Conflict","Bad Request","Resource Not Found"])
     this.dataHandler = instance.handleUserData
-    this.createRevert = ()=> [new DBProcedure(`Revert Create ${payload.role} data for ${payload.email}`,deleteUser,[payload.email])]
+    this.createRevert = ()=> [new DBProcedure(`Revert Create ${payload.role} data for ${payload.email}`,deleteUserByEmail,[payload.email])]
   }
 }
 
@@ -325,10 +325,10 @@ export class DeleteUserTask extends DBTask<User>{
   forward:DBProcedure<Action<User>>
   constructor(instance:TaskHandler,email:string){
     super()
-    this.forward = new DBProcedure(`Delete User email:${email}`,deleteUser,[email],["Resource Not Found"])
+    this.forward = new DBProcedure(`Delete User email:${email}`,deleteUserByEmail,[email],["Resource Not Found"])
     this.dataHandler = instance.handleUserData
-    this.createRevert = (user)=>{
-      const {enrolled,managing,families,role,...data} = user
+    this.createRevert = async (user)=>{
+      const {role,...data} = user
       let payload:Parameters<typeof createUser>[0] 
       const defaultDate = futureDate(defaultDays,defaultMonths,defaultYears).toJSDate()
       if(role ==="admin"){
@@ -339,28 +339,26 @@ export class DeleteUserTask extends DBTask<User>{
           available_modules:null
         }
       }else if(role ==="student" ){
+        const enrolled = await getEnrolledGroups(email)
+        const modules = await getUserAvaibleModules(email)
         payload ={
           role,
           ...data,
-          expiration_date:data.expiration_date??defaultDate,
-          enrolled:enrolled,
-          families:families
+          expiration_date:data.expirationDate??defaultDate,
+          enrolling:enrolled.map(group=>group.groupId),
+          available_modules:modules
         }
       }else if(role ==="parent" || role === "teacher"){
+        const manging = await getMangedGroups(email)
         payload ={
           role,
           ...data,
-          expiration_date:data.expiration_date??defaultDate,
-          managing:managing,
-          available_modules:null
+          expiration_date:data.expirationDate??defaultDate,
+          managing:manging.map(group=>group.groupId),
+          available_modules:null,
         }
       }else{
-        payload ={
-          role:"student",
-          ...data,
-          expiration_date:data.expiration_date??defaultDate,
-          families:[]
-        }
+        throw new Error("Invalid Role")
       }
       return [new DBProcedure(`Revert Delete User for ${email}`,createUser,[payload])]
     }
@@ -384,13 +382,13 @@ export class DeleteAuth0AccountTask extends Auth0Task<Auth0User>{
 export class BatchCreateUserTask extends DBTask<User[]>{
   forward:Procedure<Action<User[]>>
 
-  constructor(instance:TaskHandler,payload:Parameters<typeof batchCreateUsers>[0]){
+  constructor(instance:TaskHandler,payload:Parameters<typeof batchCreateUser>[0]){
     super()
-    this.forward = new DBProcedure(`Batch Create Users, count:${payload.users.length}`,batchCreateUsers,[payload])
+    this.forward = new DBProcedure(`Batch Create Users, count:${payload.users.length}`,batchCreateUser,[payload])
     this.dataHandler = instance.handleUserData
     this.createRevert = (data)=>{
-      const emails = data.map(user=>user.email)
-      return [new DBProcedure(`revert Batch Create Users, count:${emails.length}`,revertCreateManyUser,[emails])]
+      const userIds = data.map(user=>user.userId)
+      return [new DBProcedure(`revert Batch Create Users, count:${userIds.length}`,batchDeleteUsers,[userIds])]
     }
   }
 }
@@ -404,7 +402,7 @@ export class UpdateUseInDBTask extends DBTask<User>{
     this.createRevert = (data)=>{
       const revertPayload:Parameters<typeof updateUser>[1] ={
         name:user.name,
-        expiration_date:user.expiration_date??undefined
+        expiration_date:user.expirationDate??undefined
       }
       return [new DBProcedure(`RevertUpdate User`,updateUser,[email,revertPayload])]
     }
@@ -428,7 +426,7 @@ export class FindAndUpdateUserTask extends DBTask<User>{
 
   constructor(instance:TaskHandler,email:string,payload:Parameters<typeof updateUser>[1]){
     super()
-    this.forward = new DBProcedure(`Find User For Update User`,findSingleUser,[email])
+    this.forward = new DBProcedure(`Find User For Update User`,getUserByEmail,[email])
     this.createDBEnqueue = user => [new UpdateUseInDBTask(instance,email,payload,user)]
     if(payload.name){
       const auth0Paylaod = {

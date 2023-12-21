@@ -61,6 +61,7 @@ const ManageModule: FC<{}> = () => {
     setIsLoading(true);
     try {
       const res = await requestAPI("modules", "GET", { module_id: [] }, {});
+      // console.log(res);
       const data = getModulesResSchema.parse(res);
       setModules(data);
     } catch (error) {
@@ -85,14 +86,14 @@ const ManageModule: FC<{}> = () => {
         <p>All modules:</p>
         <ul className="max-h-[24rem]  min-h-[10rem] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
           {modules.map((module, index) => {
-            const { module_id, module_name } = module;
+            const { moduleName,moduleId } = module;
             return (
               <li
-                key={`${module_id}-${index}`}
+                key={`${moduleId}-${index}`}
                 className="flex items-center  space-x-4"
               >
-                <span className="mx-4">{module_name}</span>
-                <span>{module_id}</span>
+                <span className="mx-4">{moduleName}</span>
+                <span>{moduleId}</span>
                 <div className="flex-grow flex justify-end">
                   <RemoveModule
                     {...{ isLoading, setIsLoading, reload, module }}
@@ -215,7 +216,7 @@ const RemoveModule: FC<props & { module: Module }> = ({
       const response = await requestAPI(
         "modules",
         "DELETE",
-        { module_id: module.module_id },
+        { module_id: module.moduleId },
         {}
       );
       await reload();
@@ -242,11 +243,11 @@ const RemoveModule: FC<props & { module: Module }> = ({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Are you absolutely sure to delete {module.module_name}?
+              Are you absolutely sure to delete {module.moduleName}?
             </AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanentlydelete{" "}
-              {module.module_name}.
+              {module.moduleName}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

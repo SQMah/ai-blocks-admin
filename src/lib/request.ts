@@ -9,7 +9,7 @@ type BodyData = Record<string,any>
 type Method ="GET"|"POST"|"PUT"|"DELETE"
 
 
-const BASE_URL = "/api/v1" as const
+const BASE_URL = "/api/v2" as const
 
 export function queryToString(query:Query){
     const strs:string[] = []

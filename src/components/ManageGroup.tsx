@@ -55,26 +55,30 @@ import {
 } from "@/lib/utils";
 import ShowExpiration from "./ShowExpiration";
 import { UpdateAllExpiration } from "./UpdateExpiration";
-import RemoveStudentFromClass from "./removeStudentFromClass";
 import { Group, Module, User } from "@/models/db_schemas";
 import { emailSchema, trimedNonEmptyString } from "@/models/utlis_schemas";
 import { requestAPI } from "@/lib/request";
 import {
-  PutClassesModulesReq,
+  GetGroupModulesRes,
+  PutGroupModulesReq,
   PutGroupsReq,
   batchGetGroupsResSchema,
-  getGroupsResSechema,
+  getGroupByIdResSchema,
+  getGroupEnrollsResSchema,
+  getGroupManagesResSchema,
+  getGroupModulesResSchema,
+  getGroupResSchema,
   getModulesResSchema,
-  getUsersByIdResSchema,
-  getUsersResSchema,
-  putClassesModulesResSchema,
+  getUserByIdResSchema,
+  getUserManagesResSchema,
+  putGroupModulesResSchema,
   putGroupsResSchema,
 } from "@/models/api_schemas";
-import RemoveStudentFromFamily from "./RemoveStudentFromFamily";
 import { Lock, Unlock } from "lucide-react";
 import DeleteGroup from "./DeleteGroup";
 import RemoveManagersFromGroup from "./RemoveManagersFromGroup";
 import BatchAddUsersToGroup from "./batchAddUsersToGroup";
+import RemoveStudentFromGroup from "./RemoveStudentFromGroup";
 
 const formSchema = z.object({
   email: emailSchema,
@@ -112,34 +116,29 @@ const SearchManager: FC<Props> = ({
     try {
       // console.log(values);
       const { email } = values;
-      const data = await requestAPI(
-        "users",
-        "GET",
-        { roles: ["teacher", "parent"] },
-        {},
-        email
-      );
-      const user = getUsersResSchema.parse(data);
+      const data = await requestAPI("users", "GET", {}, {}, email);
+      const user = getUserByIdResSchema.parse(data);
 
-      setManager(user);
       const groupType =
         user.role === "parent"
           ? "family"
           : user.role === "teacher"
           ? "class"
           : "";
-      const managingIds = user.managing;
       // console.log(managingIds)
-      if (managingIds.length) {
+      const canManage = user.role === "parent" || user.role === "teacher";
+
+      if (canManage) {
+        setManager(user);
         try {
           const groupData = await requestAPI(
-            "groups",
+            "user-manages",
             "GET",
-            { group_ids: managingIds, type: groupType },
+            { email: user.email },
             {}
           );
           // console.log(groupData);
-          const groups = batchGetGroupsResSchema.parse(groupData);
+          const groups = getUserManagesResSchema.parse(groupData);
           // console.log(groups);
           setManaging(groups);
         } catch (error) {
@@ -151,6 +150,8 @@ const SearchManager: FC<Props> = ({
             description: handler.message,
           });
         }
+      } else {
+        form.setError("email", { message: "Invalid teacher/parent email!" });
       }
     } catch (error: any) {
       if (error instanceof AxiosError && error.response?.status === 404) {
@@ -174,7 +175,7 @@ const SearchManager: FC<Props> = ({
     // setClassErrorMessage("")
     if (isLoading) return;
     // setIsLoading(true)
-    const target = managing.find((g) => g.group_id === selectedId);
+    const target = managing.find((g) => g.groupId === selectedId);
     if (target) {
       await handleChangeGroup(target);
     }
@@ -267,10 +268,10 @@ const SearchManager: FC<Props> = ({
                   {managing.map((entry) => {
                     return (
                       <SelectItem
-                        key={`select-${entry.group_id}`}
-                        value={entry.group_id}
+                        key={`select-${entry.groupId}`}
+                        value={entry.groupId}
                       >
-                        {entry.group_name}
+                        {entry.groupName}
                       </SelectItem>
                     );
                   })}
@@ -307,7 +308,8 @@ const InputGroupID: FC<Props> = ({
     try {
       // console.log("/api/v1/classes?class_id="+class_id)
       const data = await requestAPI("groups", "GET", {}, {}, input);
-      const group = getGroupsResSechema.parse(data);
+      console.log(data);
+      const group = getGroupByIdResSchema.parse(data);
       await handleChangeGroup(group);
     } catch (error: any) {
       if (error instanceof AxiosError && error.response?.status === 404) {
@@ -393,7 +395,7 @@ const InputGroupName: FC<Props> = ({
         { group_name: value },
         {}
       );
-      const group = getGroupsResSechema.parse(data);
+      const group = getGroupResSchema.parse(data);
       await handleChangeGroup(group);
     } catch (error: any) {
       if (error instanceof AxiosError && error.response?.status === 404) {
@@ -476,7 +478,7 @@ const UpdateCapacity: FC<CapacProps> = ({
       .refine(
         (input) => {
           const cap = Number(input);
-          return cap >= data.students.length;
+          return cap >= data.studentCount;
         },
         {
           message:
@@ -499,8 +501,10 @@ const UpdateCapacity: FC<CapacProps> = ({
     setIsLoading(true);
     try {
       const payload: PutGroupsReq = {
-        group_id: data.group_id,
-        capacity: Number(values.capacity),
+        group_id: data.groupId,
+        update: {
+          capacity: Number(values.capacity),
+        },
       };
       const response = await requestAPI("groups", "PUT", {}, payload);
       toast({
@@ -533,7 +537,7 @@ const UpdateCapacity: FC<CapacProps> = ({
           <DialogHeader>
             <DialogTitle>Update capacity</DialogTitle>
             <DialogDescription>
-              Update the capacity of {data.group_name}. Click save when you are
+              Update the capacity of {data.groupName}. Click save when you are
               done.
             </DialogDescription>
           </DialogHeader>
@@ -548,8 +552,8 @@ const UpdateCapacity: FC<CapacProps> = ({
                     <Input id="update cap" type="number" min="1" {...field} />
                     <FormDescription>
                       <span>
-                        Current number of students: {data.students.length}.
-                        Current capacity: {data.capacity}
+                        Current number of students: {data.studentCount}. Current
+                        capacity: {data.capacity}
                       </span>
                     </FormDescription>
                     <FormMessage />
@@ -593,19 +597,21 @@ const UpdateName: FC<NameProps> = ({
   const form = useForm<z.infer<typeof updateScehma>>({
     resolver: zodResolver(updateScehma),
     defaultValues: {
-      group_name: data.group_name,
+      group_name: data.groupName,
     },
   });
 
-  const disableSave = form.watch("group_name") === data.group_name;
+  const disableSave = form.watch("group_name") === data.groupName;
 
   const onSubmit = async (values: z.infer<typeof updateScehma>) => {
     if (isLoading) return;
     setIsLoading(true);
     try {
       const payload: PutGroupsReq = {
-        group_id: data.group_id,
-        group_name: values.group_name,
+        group_id: data.groupId,
+        update: {
+          groupName: values.group_name,
+        },
       };
       const response = await requestAPI("groups", "PUT", {}, payload);
       toast({
@@ -637,8 +643,7 @@ const UpdateName: FC<NameProps> = ({
           <DialogHeader>
             <DialogTitle>Update {data.type} name</DialogTitle>
             <DialogDescription>
-              Update the name of {data.group_name}. Click save when you are
-              done.
+              Update the name of {data.groupName}. Click save when you are done.
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -649,12 +654,12 @@ const UpdateName: FC<NameProps> = ({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel htmlFor="update name">
-                      Update {capitalizeFirstLetter(data.group_name)}
+                      Update {capitalizeFirstLetter(data.groupName)}
                       {"'"}s Name
                     </FormLabel>
                     <Input id="update name" {...field} />
                     <FormDescription>
-                      <span>Current name: {data.group_name}.</span>
+                      <span>Current name: {data.groupName}.</span>
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -686,8 +691,12 @@ type SelectedModule = Module & {
 const ManageGroup: FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [data, setData] = useState<Group | undefined>();
-  const [users, setUsers] = useState<User[]>([]);
+  const [students, setStudents] = useState<User[]>([]);
+  const [managers, setManagers] = useState<User[]>([]);
   const [allModules, setAllModules] = useState<Module[]>([]);
+  const [availableModules, setAvailableModules] = useState<GetGroupModulesRes>(
+    []
+  );
   const [seletcedModules, setSelectedModules] = useState<SelectedModule[]>([]);
   const [disAbleModuleSave, setDisableModuleSave] = useState(false);
   const groupType = data?.type;
@@ -697,14 +706,8 @@ const ManageGroup: FC = () => {
       : groupType === "class"
       ? "teacher"
       : undefined;
-  const managers = groupType
-    ? users.filter((user) => user.role == managersType)
-    : [];
-  const managed = groupType
-    ? users.filter((user) => user.role == "student")
-    : [];
   const modulesReady = allModules.filter(
-    (m) => !seletcedModules.map((s) => s.module_id).includes(m.module_id)
+    (m) => !seletcedModules.map((s) => s.moduleId).includes(m.moduleId)
   );
 
   const { toast } = useToast();
@@ -721,52 +724,54 @@ const ManageGroup: FC = () => {
     // console.log(currentGroup)
     if (!currentGroup) return;
     setIsLoading(true);
-    const {
-      group_id,
-      managers,
-      students,
-      children,
-      type,
-      available_modules,
-      unlocked_modules,
-    } = currentGroup;
-    //set modules
-    const selected = allModules
-      .filter((module) => available_modules.includes(module.module_id))
-      .map((module) => {
-        const locked = !unlocked_modules.includes(module.module_id);
-        return {
-          ...module,
-          locked,
-        };
-      });
-    setSelectedModules(selected);
-    // console.log(selected)
-    //get the users
-    try {
-      const managedIds =
-        type === "class" ? students : type === "family" ? children : [];
-      const allIds = managedIds.concat(managers);
-      if (!allIds.length) {
-        setIsLoading(false);
-        return;
+    const { groupId, groupName, type, studentCount } = currentGroup;
+    //get students, managers and modules
+    const api_requests = [
+      requestAPI("group-enrolls", "GET", { group_id: groupId }, {}),
+      requestAPI("group-manages", "GET", { group_id: groupId }, {}),
+      requestAPI("group-modules", "GET", { group_id: groupId }, {}),
+    ];
+    const results = await Promise.allSettled(api_requests);
+
+    function allFullfilled(
+      value: PromiseSettledResult<any>[]
+    ): value is PromiseFulfilledResult<any>[] {
+      return value.every((result) => result.status === "fulfilled");
+    }
+    if (!allFullfilled(results)) {
+      const messages = [];
+      for (const result of results) {
+        if (result.status === "rejected") {
+          messages.push(result.reason);
+        }
       }
-      const response = await requestAPI(
-        "users-by-id",
-        "GET",
-        { user_id: allIds },
-        {}
-      );
-      setUsers(getUsersByIdResSchema.parse(response));
-    } catch (error: any) {
-      const handler = new ClientErrorHandler(error);
-      handler.log();
+      const message = messages.join(" ");
       toast({
         variant: "destructive",
-        title: "Search  error",
-        description: handler.message,
+        title: "Reload error",
+        description: message,
       });
+      setIsLoading(false);
+      return;
     }
+    const [sData, managerData, moduleData] = results.map(
+      (result) => result.value
+    );
+    // console.log(sData,managerData,moduleData)
+    setStudents(getGroupEnrollsResSchema.parse(sData));
+    setManagers(getGroupManagesResSchema.parse(managerData));
+    const available_modules = getGroupModulesResSchema.parse(moduleData);
+    //set modules
+    setAvailableModules(available_modules);
+    const selected = available_modules.map((m) => {
+      const found = allModules.find((module) => module.moduleId === m.moduleId);
+      const locked = !m.unlocked;
+      const mName = found?.moduleName ?? "Unknown";
+      return { moduleId: m.moduleId, moduleName: mName, locked };
+    });
+    setSelectedModules(selected);
+    // console.log(selected)
+
     setIsLoading(false);
   };
 
@@ -775,7 +780,9 @@ const ManageGroup: FC = () => {
   ): Promise<void> => {
     // console.log(payload)
     setData(payload);
-    setUsers([]);
+    setStudents([]);
+    setManagers([]);
+    setAvailableModules([]);
     setSelectedModules([]);
     if (!payload) return;
     await reload(payload);
@@ -787,14 +794,14 @@ const ManageGroup: FC = () => {
   };
   const handleRemoveModule = (target: SelectedModule) => {
     setSelectedModules((prev) =>
-      prev.filter((m) => m.module_id !== target.module_id)
+      prev.filter((m) => m.moduleId !== target.moduleId)
     );
     setDisableModuleSave(false);
   };
 
   const handleLock = (target: SelectedModule) => {
     const changed = seletcedModules.map((m) =>
-      m.module_id === target.module_id ? { ...m, locked: true } : m
+      m.moduleId === target.moduleId ? { ...m, locked: true } : m
     );
     setSelectedModules(changed);
     setDisableModuleSave(false);
@@ -802,7 +809,7 @@ const ManageGroup: FC = () => {
 
   const handleUnlock = (target: SelectedModule) => {
     const changed = seletcedModules.map((m) =>
-      m.module_id === target.module_id ? { ...m, locked: false } : m
+      m.moduleId === target.moduleId ? { ...m, locked: false } : m
     );
     setSelectedModules(changed);
     setDisableModuleSave(false);
@@ -814,34 +821,44 @@ const ManageGroup: FC = () => {
   // };
   const handleSaveModules = async () => {
     if (!data) return;
-    const selectedIds = seletcedModules.map((m) => m.module_id);
+    const selectedIds = seletcedModules.map((m) => m.moduleId);
+    const avaIds = availableModules.map((m) => m.moduleId);
+    const oldeLocked = seletcedModules
+      .filter((m) => m.locked)
+      .map((m) => m.moduleId);
     const { included: oldModules, excluded: toAdd } = myFilterArray(
       seletcedModules,
-      (val) => data.available_modules.includes(val.module_id)
+      (val) => avaIds.includes(val.moduleId)
     );
-    const { excluded: toRemove } = myFilterArray(
-      data.available_modules,
-      (val) => selectedIds.includes(val)
+    const { excluded: toRemove } = myFilterArray(avaIds, (val) =>
+      selectedIds.includes(val)
     );
-    const oldLockedIds = data.available_modules.filter(
-      (id) => !data.unlocked_modules.includes(id)
-    );
+    const oldLockedIds = availableModules
+      .filter((m) => !m.unlocked)
+      .map((m) => m.moduleId);
     const { included: newLocked, excluded: newUnlocked } = myFilterArray(
       seletcedModules,
       (val) => val.locked
     );
+
     //new modules are default to be locked
     //old modules to lock
     const toLock = newLocked
-      .filter((m) => data.unlocked_modules.includes(m.module_id))
-      .map((m) => m.module_id);
+      .filter((m) => !oldLockedIds.includes(m.moduleId))
+      .map((m) => m.moduleId);
     const newModulesToUnlock = toAdd
       .filter((m) => !m.locked)
-      .map((m) => m.module_id);
+      .map((m) => m.moduleId);
     //unlcok old modules + unlcok new modules
     const toUnlock = oldLockedIds
-      .filter((id) => newUnlocked.map((m) => m.module_id).includes(id))
+      .filter((id) => newUnlocked.map((m) => m.moduleId).includes(id))
       .concat(newModulesToUnlock);
+    // console.log({
+    //   seletcedModules,
+    //   newLocked,
+    //   newUnlocked,
+    //   oldLockedIds,
+    // });
     if (
       !toAdd.length &&
       !toRemove.length &&
@@ -853,26 +870,22 @@ const ManageGroup: FC = () => {
     }
     setIsLoading(true);
     try {
-      const payload: PutClassesModulesReq = {
-        group_id: data.group_id,
-        toAdd: toAdd.map((m) => m.module_id),
-        toRemove,
-        toLock,
-        toUnlock,
+      const payload: PutGroupModulesReq = {
+        group_id: data.groupId,
+        add: toAdd.map((m) => m.moduleId),
+        remove: toRemove,
+        lock: toLock,
+        unlock: toUnlock,
       };
-      const res = await requestAPI(
-        "classes-available-modules",
-        "PUT",
-        {},
-        payload
-      );
-      // console.log(res)
-      const updated = putClassesModulesResSchema.parse(res);
+      const res = await requestAPI("group-modules", "PUT", {}, payload);
+      // console.log(res);
+      const updated = putGroupModulesResSchema.parse(res);
       toast({
         title: "Updated",
       });
       // console.log(updated)
-      await handleChangeGroup(updated);
+      //force reload
+      await handleChangeGroup({ ...data });
     } catch (error: any) {
       console.log(error);
       const handler = new ClientErrorHandler(error);
@@ -918,22 +931,21 @@ const ManageGroup: FC = () => {
             <div className="space-y-4">
               <div className="space-y-3  col-span-2">
                 <p>{capitalizeFirstLetter(groupType ?? "")} ID:</p>
-                <p>{data.group_id}</p>
+                <p>{data.groupId}</p>
                 <p>{capitalizeFirstLetter(groupType ?? "")} Name:</p>
                 <div className=" space-x-24">
-                  <span>{data.group_name}</span>{" "}
+                  <span>{data.groupName}</span>{" "}
                   <UpdateName
                     {...{ isLoading, setIsLoading, handleChangeGroup, data }}
                   />
                 </div>
                 <div className=" grid grid-cols-2 ">
-
-                <p>Student count: </p>
-                <p>{data.student_count}</p>
-                <p>Student updated at: </p>
-                <p>{data.student_last_modified_time.toLocaleString()}</p>
-                <p>Module updated at: </p>
-                <p>{data.module_last_modified_time.toLocaleString()}</p>
+                  <p>Student count: </p>
+                  <p>{data.studentCount}</p>
+                  <p>Student updated at: </p>
+                  <p>{data.studentLastModifiedTime.toLocaleString()}</p>
+                  <p>Module updated at: </p>
+                  <p>{data.moduleLastModifiedTime.toLocaleString()}</p>
                 </div>
                 {/* <p>{capitalizeFirstLetter(managersType ?? "")} in {groupType}:</p>
                 <p className="space-x-3">
@@ -961,14 +973,14 @@ const ManageGroup: FC = () => {
                   {managers.map((manager, index) => {
                     return (
                       <li
-                        key={`${manager.user_id}-${index}`}
+                        key={`${manager.userId}-${index}`}
                         className="flex items-center  space-x-4"
                       >
                         <span>{`${index + 1}.`}</span>
                         <span className="mx-4">{manager.name}</span>
                         <span>{manager.email}</span>
                         <ShowExpiration
-                          expiration={manager.expiration_date}
+                          expiration={manager.expirationDate}
                           content=""
                         />
                         <div className="flex-grow flex justify-end">
@@ -978,8 +990,8 @@ const ManageGroup: FC = () => {
                               handleChangeGroup,
                               isLoading,
                               setIsLoading,
-                              group_name: data.group_name,
-                              group_id: data.group_id,
+                              group_name: data.groupName,
+                              group_id: data.groupId,
                             }}
                           />
                         </div>
@@ -998,7 +1010,7 @@ const ManageGroup: FC = () => {
                           handleChangeGroup,
                           type: groupType,
                           role: managersType,
-                          group_id: data.group_id,
+                          group_id: data.groupId,
                         }}
                       />
                       <UpdateAllExpiration
@@ -1021,7 +1033,7 @@ const ManageGroup: FC = () => {
                       ? "Children"
                       : ""}{" "}
                     {groupType === "class"
-                      ? `(${managed.length}/${data.capacity})`
+                      ? `(${students.length}/${data.capacity})`
                       : null}
                     {":"}
                   </p>
@@ -1032,42 +1044,30 @@ const ManageGroup: FC = () => {
                   ) : null}
                 </div>
                 <ul className="max-h-[24rem]  min-h-[8rem] overflow-auto rounded-md border border-input bg-transparent px-3 py-2 ">
-                  {managed.map((student, index) => {
+                  {students.map((student, index) => {
                     return (
                       <li
-                        key={`${student.user_id}-${index}`}
+                        key={`${student.userId}-${index}`}
                         className="flex items-center  space-x-4"
                       >
                         <span>{`${index + 1}.`}</span>
                         <span className="mx-4">{student.name}</span>
                         <span>{student.email}</span>
                         <ShowExpiration
-                          expiration={student.expiration_date}
+                          expiration={student.expirationDate}
                           content=""
                         />
                         <div className="flex-grow flex justify-end">
-                          {groupType === "class" ? (
-                            <RemoveStudentFromClass
-                              {...{
-                                student,
-                                handleChangeGroup,
-                                isLoading,
-                                setIsLoading,
-                                group_name: data.group_name,
-                              }}
-                            />
-                          ) : (
-                            <RemoveStudentFromFamily
-                              {...{
-                                student,
-                                handleChangeGroup,
-                                isLoading,
-                                setIsLoading,
-                                group_name: data.group_name,
-                                group_id: data.group_id,
-                              }}
-                            />
-                          )}
+                          <RemoveStudentFromGroup
+                            {...{
+                              student,
+                              handleChangeGroup,
+                              isLoading,
+                              setIsLoading,
+                              group_name: data.groupName,
+                              group_id: data.groupId,
+                            }}
+                          />
                         </div>
                       </li>
                     );
@@ -1079,11 +1079,11 @@ const ManageGroup: FC = () => {
                       {...{
                         isLoading,
                         setIsLoading,
-                        users: managed,
+                        users: students,
                         handleChangeGroup,
                         type: groupType,
                         role: "student",
-                        group_id: data.group_id,
+                        group_id: data.groupId,
                       }}
                     />
                   ) : null}
@@ -1091,7 +1091,7 @@ const ManageGroup: FC = () => {
                     {...{
                       isLoading,
                       setIsLoading,
-                      users: managed,
+                      users: students,
                       reload,
                       role: "student",
                     }}
@@ -1105,11 +1105,11 @@ const ManageGroup: FC = () => {
                         {modulesReady.map((module, index) => {
                           return (
                             <li
-                              key={`${module.module_id}-${index}`}
+                              key={`${module.moduleId}-${index}`}
                               className="flex items-center gap-2"
                             >
                               <div className="flex-grow">
-                                {module.module_name}
+                                {module.moduleName}
                               </div>
                               <Button
                                 type="button"
@@ -1130,11 +1130,11 @@ const ManageGroup: FC = () => {
                         {seletcedModules.map((module, index) => {
                           return (
                             <li
-                              key={`${module.module_id}-${index}`}
+                              key={`${module.moduleId}-${index}`}
                               className="flex items-center gap-2"
                             >
                               <div className="flex-grow">
-                                {module.module_name}
+                                {module.moduleName}
                               </div>
                               {module.locked ? (
                                 <Button
@@ -1191,6 +1191,8 @@ const ManageGroup: FC = () => {
                 handleChangeGroup,
                 isLoading,
                 setIsLoading,
+                students: students,
+                managers: managers,
               }}
             />
           </div>

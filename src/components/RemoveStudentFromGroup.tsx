@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "./ui/use-toast";
 import { ClientErrorHandler } from "@/lib/utils";
-import { User, Group } from "@/models/db_schemas";
+import { User, Group, GroupType } from "@/models/db_schemas";
 import { requestAPI } from "@/lib/request";
-import { getGroupsResSechema } from "@/models/api_schemas";
+import { getGroupByIdResSchema } from "@/models/api_schemas";
 
 interface props {
   student: User;
@@ -31,7 +31,7 @@ interface props {
   display?: string;
 }
 
-const RemoveStudentFromFamily: FC<props> = ({
+const RemoveStudentFromGroup: FC<props> = ({
   student,
   reload,
   isLoading,
@@ -44,22 +44,22 @@ const RemoveStudentFromFamily: FC<props> = ({
   const { toast } = useToast();
 
   const handleRemove = async () => {
-    if (!student.families.includes(group_id)) return;
+    // if (!student.families.includes(group_id)) return;
     setIsLoading(true);
     try {
       // console.log(paylaod)
       //update user data and class data by single api call
       const response = await requestAPI(
-        "families",
+        "group-enrolls",
         "DELETE",
-        { email: student.email, group_ids: [group_id] },
+        { email: student.email, group_id: group_id },
         {}
       );
       if (reload) {
         await reload();
       } else if (handleChangeGroup) {
         const res = await requestAPI("groups","GET",{},{},group_id)
-        const data = getGroupsResSechema.parse(res)
+        const data = getGroupByIdResSchema.parse(res)
         await handleChangeGroup(data);
       }
     } catch (error: any) {
@@ -109,4 +109,4 @@ const RemoveStudentFromFamily: FC<props> = ({
   );
 };
 
-export default RemoveStudentFromFamily;
+export default RemoveStudentFromGroup;

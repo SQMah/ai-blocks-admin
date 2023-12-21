@@ -20,7 +20,6 @@ import {
 import { Input } from "./ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AxiosError } from "axios";
 import { z } from "zod";
 
 import { ClientErrorHandler } from "@/lib/utils";
@@ -32,7 +31,8 @@ import {
 } from "@/models/utlis_schemas";
 import { requestAPI } from "@/lib/request";
 import {
-  getGroupsResSechema,
+  PostUsersReq,
+  batchGetGroupsByIdResSchema,
   getModulesResSchema,
   postUsersResSchema,
 } from "@/models/api_schemas";
@@ -48,9 +48,8 @@ const UserCreateFormSchema = z
     role: userRoleSchema,
     email: emailSchema,
     name: trimedNonEmptyString,
-    enrolled: z.string().trim(),
     managing_str: z.string().trim(),
-    families_str: z.string().trim(),
+    enrolling_str: z.string().trim(),
     expiration_date: expirationDateStrSchema.or(z.literal("")),
   })
   .refine(
@@ -68,7 +67,7 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
   const [allModules, setAllModules] = useState<Module[]>([]);
   const [seletcedModules, setSelectedModules] = useState<Module[]>([]);
   const modulesToAdd = allModules.filter(
-    (m) => !seletcedModules.map((s) => s.module_id).includes(m.module_id)
+    (m) => !seletcedModules.map((s) => s.moduleId).includes(m.moduleId)
   );
 
   const { toast } = useToast();
@@ -85,7 +84,7 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
   };
   const handleRemoveModule = (target: Module) => {
     setSelectedModules((prev) =>
-      prev.filter((m) => m.module_id !== target.module_id)
+      prev.filter((m) => m.moduleId !== target.moduleId)
     );
   };
 
@@ -98,9 +97,8 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
     defaultValues: {
       email: "",
       name: "",
-      enrolled: "",
+      enrolling_str: "",
       managing_str: "",
-      families_str: "",
       expiration_date: "",
     },
   });
@@ -112,40 +110,49 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
         role,
         email,
         name,
-        enrolled,
         managing_str,
-        families_str,
+        enrolling_str,
         expiration_date,
       } = values;
       const isStudent = role == "student";
       const canManage = role === "parent" || role === "teacher";
       const isAdmin = role === "admin";
-      const toEnroll =
-        isStudent && enrolled.length ? enrolled.trim() : undefined;
+      const enrolling = isStudent
+        ? enrolling_str
+            .split(",")
+            .map((id) => id.trim())
+            .filter((id) => id.length)
+        : null;
       const managing = canManage
         ? managing_str
             .split(",")
             .map((id) => id.trim())
             .filter((id) => id.length)
         : null;
-      const families = isStudent
-        ? families_str
-            .split(",")
-            .map((id) => id.trim())
-            .filter((id) => id.length)
-        : null;
+
       if (managing?.length) {
         try {
           //class id valiadation will also be done in api
-          const groups = await requestAPI(
+          const data = await requestAPI(
             "groups",
             "GET",
             {
-              group_ids: managing,
-              type: role === "parent" ? "family" : "class",
+              group_id: managing,
             },
             {}
           );
+          const groups = batchGetGroupsByIdResSchema.parse(data);
+          const unmatched = managing.filter(
+            (id) => !groups.map((g) => g.groupId).includes(id)
+          );
+          if (unmatched.length) {
+            form.setError("managing_str", {
+              message: `Groups ${unmatched.join(",")} does not exist`,
+            });
+            setIsLoading(false);
+            return;
+          }
+
         } catch (error: any) {
           const handler = new ClientErrorHandler(error);
           if (handler.isAxiosError && handler.status_code === 404) {
@@ -164,51 +171,46 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
           return;
         }
       }
-      if (toEnroll) {
+      if (enrolling?.length) {
         try {
-          //class id will also be done on api
-          const group = await requestAPI("groups", "GET", {}, {}, toEnroll);
-          const target = getGroupsResSechema.parse(group);
-          //capacity check will also be done on api
-          if (target.students.length + 1 >= target.capacity) {
-            form.setError("enrolled", { message: "Class is full." });
+          //class id valiadation will also be done in api
+          const data = await requestAPI(
+            "groups",
+            "GET",
+            {
+              group_id: enrolling,
+            },
+            {}
+          );
+          const groups = batchGetGroupsByIdResSchema.parse(data);
+          const unmatched = enrolling.filter(
+            (id) => !groups.map((g) => g.groupId).includes(id)
+          );
+          if (unmatched.length) {
+            form.setError("enrolling_str", {
+              message: `Groups ${unmatched.join(",")} does not exist`,
+            });
+            setIsLoading(false);
+            return;
+          }
+          const outQuota = groups.filter(group=>{
+            if(group.type === "class" ){
+              const remaining = group.capacity - group.studentCount
+              return remaining <1
+            }
+            return false
+          })
+          if(outQuota.length){
+            form.setError("enrolling_str", {
+              message: `Class ${outQuota.map(g=>g.groupId).join(",")} is out of capacity`,
+            });
             setIsLoading(false);
             return;
           }
         } catch (error: any) {
-          if (error instanceof AxiosError && error.response?.status === 404) {
-            form.setError("enrolled", {
-              message: `${enrolled} is not a valid class ID`,
-            });
-          } else {
-            const handler = new ClientErrorHandler(error);
-            handler.log();
-            toast({
-              variant: "destructive",
-              title: "Search Class Error",
-              description: handler.message,
-            });
-          }
-          setIsLoading(false);
-          return;
-        }
-      }
-      if (families?.length) {
-        try {
-          //class id valiadation will also be done in api
-          const groups = await requestAPI(
-            "groups",
-            "GET",
-            {
-              group_ids: families,
-              type: "family",
-            },
-            {}
-          );
-        } catch (error: any) {
           const handler = new ClientErrorHandler(error);
           if (handler.isAxiosError && handler.status_code === 404) {
-            form.setError("families_str", {
+            form.setError("enrolling_str", {
               message: handler.message.split(":")[1],
             });
             setIsLoading(false);
@@ -228,19 +230,17 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
         email,
         name,
         expiration_date: isAdmin ? null : expiration_date,
-        enrolled: toEnroll,
-        families,
+        enrolling,
         managing,
         available_modules: isStudent
-          ? seletcedModules.map((m) => m.module_id) ?? []
+          ? seletcedModules.map((m) => m.moduleId) ?? []
           : null,
       };
       // console.log(userData)
       //class update will be handled by api
-      const data = postUsersResSchema.parse(
-        await requestAPI("users", "POST", {}, userData)
-      );
+      const data =  await requestAPI("users", "POST", {}, userData)
       // console.log(data)
+      const created = postUsersResSchema.parse(data)
       form.reset();
       handleResetModules();
       toast({
@@ -330,23 +330,10 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
             <>
               <FormField
                 control={form.control}
-                name="enrolled"
+                name="enrolling_str"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Enrolled Class ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Class ID..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="families_str"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Families</FormLabel>
+                    <FormLabel>Erolling Groups</FormLabel>
                     <FormControl>
                       <Input placeholder="Groups IDs..." {...field} />
                     </FormControl>
@@ -362,10 +349,10 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
                     {modulesToAdd.map((module, index) => {
                       return (
                         <li
-                          key={`${module.module_id}-${index}`}
+                          key={`${module.moduleId}-${index}`}
                           className="flex items-center gap-2"
                         >
-                          <div className="flex-grow">{module.module_name}</div>
+                          <div className="flex-grow">{module.moduleName}</div>
                           <Button
                             type="button"
                             variant={"ghost"}
@@ -385,10 +372,10 @@ const ManualCreate: FC<ManualCreateProps> = ({ isLoading, setIsLoading }) => {
                     {seletcedModules.map((module, index) => {
                       return (
                         <li
-                          key={`${module.module_id}-${index}`}
+                          key={`${module.moduleId}-${index}`}
                           className="flex items-center gap-2"
                         >
-                          <div className="flex-grow">{module.module_name}</div>
+                          <div className="flex-grow">{module.moduleName}</div>
                           <Button
                             type="button"
                             variant={"ghost"}

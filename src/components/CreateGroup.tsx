@@ -28,7 +28,7 @@ import { ClientErrorHandler, capitalizeFirstLetter } from "@/lib/utils";
 import { trimedNonEmptyString } from "@/models/utlis_schemas";
 import { Module, groupTypeSchema } from "@/models/db_schemas";
 import { requestAPI } from "@/lib/request";
-import { getModulesResSchema, postGroupsResSchema } from "@/models/api_schemas";
+import { batchGetUsersResSchema, getModulesResSchema, postGroupsResSchema } from "@/models/api_schemas";
 
 const FormSchema = z.object({
   type: groupTypeSchema,
@@ -76,23 +76,6 @@ const FormSchema = z.object({
       message: `Invalid email, please provide a list of email seperated by ","`,
     }
   ),
-  children_emails_str: z.string().trim().refine(
-    (input) => {
-      const idList = input
-        .split(",")
-        .filter((id) => id.length)
-        .map((id) => id.trim());
-      for (const id of idList) {
-        if (!z.string().email().safeParse(id).success) {
-          return false;
-        }
-      }
-      return true;
-    },
-    {
-      message: `Invalid email, please provide a list of email seperated by ","`,
-    }
-  ),
 });
 
 type SelectedModule = Module&{
@@ -104,7 +87,7 @@ const CreateGroup: FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [allModules,setAllModules] = useState<Module[]>([])
   const [seletcedModules,setSelectedModules] = useState<SelectedModule[]>([])
-  const modulesToAdd= allModules.filter(m=>!(seletcedModules.map(s=>s.module_id).includes(m.module_id)))
+  const modulesToAdd= allModules.filter(m=>!(seletcedModules.map(s=>s.moduleId).includes(m.moduleId)))
 
   const { toast } = useToast();
 
@@ -113,7 +96,6 @@ const CreateGroup: FC = () => {
     defaultValues: {
       group_name: "",
       manager_emails_str: "",
-      children_emails_str: "",
       student_emails_str: "",
       capacity: "10",
     },
@@ -130,26 +112,42 @@ const CreateGroup: FC = () => {
   const onSubmit = async (values: z.infer<typeof FormSchema>) => {
     setIsLoading(true);
     try {
-      const {group_name,capacity,manager_emails_str,children_emails_str,student_emails_str,type} = values
+      const {group_name,capacity,manager_emails_str,student_emails_str,type} = values
       const isClass = type ==="class"
       const isFamily = type === "family"
       const managerRole = isClass?"teacher":isFamily?"parent":""
       const manager = manager_emails_str.split(",").map(s=>s.trim()).filter(s=>s.length)
-      const children = isFamily?children_emails_str.split(",").map(s=>s.trim()).filter(s=>s.length):null
-      const students = isClass?student_emails_str.split(",").map(s=>s.trim()).filter(s=>s.length):null
-      const available_modules =isClass?seletcedModules.map(m=>m.module_id):null
-      const unlocked_modules = isClass?seletcedModules.filter(m=>m.locked===false).map(m=>m.module_id):null
+      const students = student_emails_str.split(",").map(s=>s.trim()).filter(s=>s.length)
+      const available_modules =isClass?seletcedModules.map(m=>m.moduleId):undefined
+      const unlocked_modules = isClass?seletcedModules.filter(m=>m.locked===false).map(m=>m.moduleId):undefined
       if(isClass&&((students?.length??0)>Number(capacity))){
         console.log(Number(capacity),students)
         form.setError("capacity", {
-          message: "Number fo students exceeds capacity."
+          message: "Number of students exceeds capacity."
         });
         setIsLoading(false);
         return;
       }
-      if(manager&&manager.length){
+      if(manager.length){
         try {
-          const users = await requestAPI("users","GET",{email:manager,roles:[managerRole]},{})
+          const data = await requestAPI("users","GET",{email:manager},{})
+          const users = batchGetUsersResSchema.parse(data)
+          const unmatched = manager.filter(m=>!users.map(u=>u.email).includes(m) )
+          if(unmatched.length){
+            form.setError("manager_emails_str", {
+              message: `Not found ${managerRole} emails: ${unmatched.join(",")}`,
+            });
+            setIsLoading(false);
+            return;
+          }
+          const wrongRole = users.filter(u=>u.role!==managerRole)
+          if(wrongRole.length){
+            form.setError("manager_emails_str", {
+              message: `Unmatched role ${managerRole} emails: ${wrongRole.map(u=>u.email).join(",")}`,
+            });
+            setIsLoading(false);
+            return;
+          }
         } catch (error) {
           const handler = new ClientErrorHandler(error);
           if (handler.isAxiosError && handler.status_code === 404) {
@@ -168,30 +166,27 @@ const CreateGroup: FC = () => {
           return;
         }
       }
-      if(children&&children.length){
+
+      if(students.length){
         try {
-          const users = await requestAPI("users","GET",{email:children,roles:["student"]},{})
-        } catch (error) {
-          const handler = new ClientErrorHandler(error);
-          if (handler.isAxiosError && handler.status_code === 404) {
-            form.setError("children_emails_str", {
-              message: handler.message.split(":")[2],
+          const data = await requestAPI("users","GET",{email:students},{})
+          const users = batchGetUsersResSchema.parse(data)
+          const unmatched = students.filter(m=>!users.map(u=>u.email).includes(m) )
+          if(unmatched.length){
+            form.setError("student_emails_str", {
+              message: `Not found student emails: ${unmatched.join(",")}`,
             });
             setIsLoading(false);
             return;
           }
-          handler.log();
-          toast({
-            title: "Search error",
-            description: handler.message,
-          });
-          setIsLoading(false);
-          return;
-        }
-      }
-      if(students&&students.length){
-        try {
-          const users = await requestAPI("users","GET",{email:students,roles:["student"]},{})
+          const wrongRole = users.filter(u=>u.role!=="student")
+          if(wrongRole.length){
+            form.setError("student_emails_str", {
+              message: `Unmatched role student emails: ${wrongRole.map(u=>u.email).join(",")}`,
+            });
+            setIsLoading(false);
+            return;
+          }
         } catch (error) {
           const handler = new ClientErrorHandler(error);
           if (handler.isAxiosError && handler.status_code === 404) {
@@ -213,19 +208,19 @@ const CreateGroup: FC = () => {
       const body = {
         type:type,
         group_name,
-        capacity:isClass?Number(capacity):null,
+        capacity:isClass?Number(capacity):-1,
         manager_emails:manager,
-        children_emails:children,
         student_emails:students,
         available_modules,
         unlocked_modules
       }
+      // console.log(body)
       const data = await requestAPI('groups',"POST",{},body)
       const created = postGroupsResSchema.parse(data)
 
       toast({
         title: "Creation status",
-        description: `Created group,type:${created.type}, name: ${created.group_name} ,ID: ${created.group_id}`,
+        description: `Created group,type:${created.type}, name: ${created.groupName} ,ID: ${created.groupId}`,
       });
       form.reset();
       handleResetModules()
@@ -245,16 +240,16 @@ const CreateGroup: FC = () => {
     setSelectedModules(prev=>[...prev,{...module,locked:true}])
   };
   const handleRemoveModule = (target:SelectedModule) => {
-   setSelectedModules(prev=>prev.filter(m=>m.module_id!==target.module_id))
+   setSelectedModules(prev=>prev.filter(m=>m.moduleId!==target.moduleId))
   };
 
   const handleLock = (target:SelectedModule)=>{
-    const changed = seletcedModules.map(m=>m.module_id===target.module_id?({...m,locked:true}):m)
+    const changed = seletcedModules.map(m=>m.moduleId===target.moduleId?({...m,locked:true}):m)
     setSelectedModules(changed)
   }
 
   const handleUnlock = (target:SelectedModule)=>{
-    const changed = seletcedModules.map(m=>m.module_id===target.module_id?({...m,locked:false}):m)
+    const changed = seletcedModules.map(m=>m.moduleId===target.moduleId?({...m,locked:false}):m)
     setSelectedModules(changed)
   }
 
@@ -326,6 +321,20 @@ const CreateGroup: FC = () => {
                 </FormItem>
               )}
             />
+                <FormField
+              control={form.control}
+              name='student_emails_str'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Students emails</FormLabel>
+                  <FormControl>
+                    <Input placeholder={`students emails ...`} {...field} />
+                  </FormControl>
+                  <FormDescription>{`Seperate students emails by "," `}</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             </>
             :null}
             {selectedType==="class"?
@@ -343,20 +352,6 @@ const CreateGroup: FC = () => {
                 </FormItem>
               )}
             />
-             <FormField
-              control={form.control}
-              name='student_emails_str'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Students emails</FormLabel>
-                  <FormControl>
-                    <Input placeholder={`studnets emails ...`} {...field} />
-                  </FormControl>
-                  <FormDescription>{`Seperate students emails by "," `}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           <div className="grid grid-cols-1 space-y-5 md:grid-cols-2 md:space-y-0 md:gap-4">
             <div className="space-y-5">
             <p>Modules to add </p>
@@ -364,10 +359,10 @@ const CreateGroup: FC = () => {
               {modulesToAdd.map((module, index) => {
                 return (
                   <li
-                    key={`${module.module_id}-${index}`}
+                    key={`${module.moduleId}-${index}`}
                     className="flex items-center gap-2"
                   >
-                    <div className="flex-grow">{module.module_name}</div>
+                    <div className="flex-grow">{module.moduleName}</div>
                     <Button
                       type="button"
                       variant={"ghost"}
@@ -387,10 +382,10 @@ const CreateGroup: FC = () => {
               {seletcedModules.map((module, index) => {
                 return (
                   <li
-                    key={`${module.module_id}-${index}`}
+                    key={`${module.moduleId}-${index}`}
                     className="flex items-center gap-2"
                   >
-                    <div className="flex-grow">{module.module_name}</div>
+                    <div className="flex-grow">{module.moduleName}</div>
                     {module.locked?
                     <Button
                       type="button"
@@ -426,23 +421,6 @@ const CreateGroup: FC = () => {
           </div>
             </>
             :null}
-            {selectedType==="family"?
-            <>
-             <FormField
-              control={form.control}
-              name='children_emails_str'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Children emails</FormLabel>
-                  <FormControl>
-                    <Input placeholder={`studnets emails ...`} {...field} />
-                  </FormControl>
-                  <FormDescription>{`Seperate children emails by "," `}</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            </>:null}
           </div>
           {form.watch("type")?
           <div className="items-center justify-end flex col-span-2 space-x-10">

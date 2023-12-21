@@ -1,0 +1,20 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1699846635499,
+      "tag": "0000_charming_mauler",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1699847268130,
+      "tag": "0001_dusty_tomas",
+      "breakpoints": true
+    }
+  ]
+}

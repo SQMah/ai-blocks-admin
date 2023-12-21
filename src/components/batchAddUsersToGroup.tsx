@@ -36,12 +36,8 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 
 import { User, Group } from "@/models/db_schemas";
-import {
-  APIRoute,
-  postBatchEnrollsResSchema,
-  postBatchFamiliesResSchema,
-  postBatchManagesResSchema,
-} from "@/models/api_schemas";
+import { batchGetUsersResSchema, getGroupByIdResSchema, postGroupManagesResSchema } from "@/models/api_schemas";
+
 
 interface props {
   users: User[];
@@ -116,12 +112,26 @@ const BatchAddUsersToGroup: FC<props> = (props) => {
     }
     setIsLoading(true);
     try {
-      const checkuUsers = await requestAPI(
-        "users",
-        "GET",
-        { email: emails, roles: [role] },
-        {}
-      );
+      const userRes = await requestAPI("users", "GET", {email:emails}, {});
+      const parsed = batchGetUsersResSchema.parse(userRes);
+      const notFound = emails.filter((email) => {
+        return !parsed.find((u) => u.email === email);
+      });
+      if (notFound.length) {
+        form.setError("emails_str", {
+          message: `User ${notFound.join(",")} not found`
+        });
+        setIsLoading(false);
+        return;
+      }
+      const unmatchedRole = parsed.filter((u) => u.role !== role);
+      if (unmatchedRole.length) {
+        form.setError("emails_str", {
+          message: `User ${unmatchedRole.map(u=>u.email).join(",")} is not a ${role}`
+        });
+        setIsLoading(false);
+        return;
+      }
     } catch (error) {
       const handler = new ClientErrorHandler(error);
       if (handler.isAxiosError && handler.status_code === 404) {
@@ -146,41 +156,26 @@ const BatchAddUsersToGroup: FC<props> = (props) => {
         group_id,
       };
       if (role === "parent" && type === "family") {
-        const response = await requestAPI("batch-manages", "POST", {}, payload);
+        const response = await requestAPI("group-manages", "POST", {}, payload);
         toast({
           title: "Updated",
         });
-        const data = postBatchManagesResSchema.parse(response);
-        await handleChangeGroup(data);
       } else if (role === "teacher" && type == "class") {
-        const response = await requestAPI("batch-manages", "POST", {}, payload);
+        const response = await requestAPI("group-manages", "POST", {}, payload);
         toast({
           title: "Updated",
         });
-        const data = postBatchManagesResSchema.parse(response);
-        await handleChangeGroup(data);
-      } else if (role === "student" && type === "class") {
-        const response = await requestAPI("batch-enrolls", "POST", {}, payload);
+      } else if (role === "student" &&( type === "class"||type == "family")) {
+        const response = await requestAPI("group-enrolls", "POST", {}, payload);
         toast({
           title: "Updated",
         });
-        const data = postBatchEnrollsResSchema.parse(response);
-        await handleChangeGroup(data);
-      } else if (role === "student" && type == "family") {
-        const response = await requestAPI(
-          "batch-families",
-          "POST",
-          {},
-          payload
-        );
-        toast({
-          title: "Updated",
-        });
-        const data = postBatchFamiliesResSchema.parse(response);
-        await handleChangeGroup(data);
       } else {
         throw new Error("Unmatch on user role and group type ");
       }
+      const gData = await requestAPI("groups", "GET", {},{},group_id);
+      const group = getGroupByIdResSchema.parse(gData);
+      await handleChangeGroup(group);
     } catch (error: any) {
       const handler = new ClientErrorHandler(error);
       handler.log();

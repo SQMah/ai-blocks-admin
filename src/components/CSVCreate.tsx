@@ -30,7 +30,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios, { AxiosError } from "axios";
 
 import { getOrdinal, ClientErrorHandler } from "@/lib/utils";
-import { createUserInfoSchema,GetGroupsRes,GetModulesRes,getGroupsResSechema, postBatchCreateUsersResSchema, getModulesResSchema} from "@/models/api_schemas";
+import { createUserInfoSchema, postBatchCreateUsersResSchema, getModulesResSchema, batchGetGroupsByIdResSchema} from "@/models/api_schemas";
 import { Module, userRoleSchema } from "@/models/db_schemas";
 import {
   emailSchema,
@@ -169,9 +169,8 @@ const CSVCreate: FC<CSVCreateProps> = ({ isLoading, setIsLoading }) => {
 const formSchema = z
   .object({
     role: userRoleSchema,
-    enrolled: z.string().trim(),
     managing_str: z.string().trim(),
-    families_str: z.string().trim(),
+    enrolling_str: z.string().trim(),
     expiration_date: expirationDateStrSchema.or(z.literal("")),
   })
   .refine(
@@ -194,7 +193,7 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
   const [allModules, setAllModules] = useState<Module[]>([]);
   const [seletcedModules, setSelectedModules] = useState<Module[]>([]);
   const modulesToAdd = allModules.filter(
-    (m) => !seletcedModules.map((s) => s.module_id).includes(m.module_id)
+    (m) => !seletcedModules.map((s) => s.moduleId).includes(m.moduleId)
   );
   const { toast } = useToast();
   //get modules
@@ -210,7 +209,7 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
   };
   const handleRemoveModule = (target: Module) => {
     setSelectedModules((prev) =>
-      prev.filter((m) => m.module_id !== target.module_id)
+      prev.filter((m) => m.moduleId !== target.moduleId)
     );
   };
 
@@ -223,9 +222,8 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       role: undefined,
-      enrolled: "",
       managing_str: "",
-      families_str: "",
+      enrolling_str: "",
       expiration_date: "",
     },
   });
@@ -235,23 +233,21 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
     try {
       const {
         role,
-        enrolled,
         managing_str,
-        families_str,
+        enrolling_str,
         expiration_date,
       } = values;
       const isStudent = role == "student";
       const canManage = role === "parent" || role === "teacher";
       const isAdmin = role === "admin";
-      const toEnroll = isStudent&&enrolled.length ? enrolled.trim() : undefined;
       const managing = canManage
         ? managing_str
             .split(",")
             .map((id) => id.trim())
             .filter((id) => id.length)
         : null;
-      const families = isStudent
-        ? families_str
+      const enrolling = isStudent
+        ? enrolling_str
             .split(",")
             .map((id) => id.trim())
             .filter((id) => id.length)
@@ -259,15 +255,26 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
       if (managing?.length) {
         try {
           //class id valiadation will also be done in api
-          const groups = await requestAPI(
+          const data = await requestAPI(
             "groups",
             "GET",
             {
-              group_ids: managing,
-              type: role === "parent" ? "family" : "class",
+              group_id: managing,
             },
             {}
           );
+          const groups =  batchGetGroupsByIdResSchema.parse(data);
+          const notFound = managing.filter((id) => !groups.map((g) => g.groupId).includes(id));
+          if (notFound.length) {
+            form.setError("managing_str", {
+              message: `${notFound.join(",")} ${
+                notFound.length > 1 ? "are" : "is"
+              } not valid group ID.`,
+            });
+            setIsLoading(false);
+            return;
+          }
+
         } catch (error: any) {
           const handler = new ClientErrorHandler(error);
           if (handler.isAxiosError && handler.status_code === 404) {
@@ -286,51 +293,45 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
           return;
         }
       }
-      if (toEnroll) {
+      if (enrolling?.length) {
         try {
-          //class id will also be done on api
-          const group = await requestAPI("groups", "GET", {}, {}, toEnroll);
-          const target = getGroupsResSechema.parse(group);
-          //capacity check will also be done on api
-          if (target.students.length + users.length >= target.capacity) {
-            form.setError("enrolled", { message: "Class is full." });
+          const data = await requestAPI(
+            "groups",
+            "GET",
+            {
+              group_id: enrolling,
+            },
+            {}
+          );
+          const groups =  batchGetGroupsByIdResSchema.parse(data);
+          const notFound = enrolling.filter((id) => !groups.map((g) => g.groupId).includes(id));
+          if (notFound.length) {
+            form.setError("enrolling_str", {
+              message: `${notFound.join(",")} ${
+                notFound.length > 1 ? "are" : "is"
+              } not valid group ID.`,
+            });
+            setIsLoading(false);
+            return;
+          }
+          const outCapac = groups.filter((g) => {
+            if(g.type === "family") return true
+            const remain = g.capacity - g.studentCount;
+            return remain < users.length
+          });
+          if(outCapac.length){
+            form.setError("enrolling_str", {
+              message: `${outCapac.map(g=>g.groupId).join(",")} ${
+                outCapac.length > 1 ? "are" : "is"
+              } out of capacity.`,
+            });
             setIsLoading(false);
             return;
           }
         } catch (error: any) {
-          if (error instanceof AxiosError && error.response?.status === 404) {
-            form.setError("enrolled", {
-              message: `${enrolled} is not a valid class ID`,
-            });
-          } else {
-            const handler = new ClientErrorHandler(error);
-            handler.log();
-            toast({
-              variant: "destructive",
-              title: "Search Class Error",
-              description: handler.message,
-            });
-          }
-          setIsLoading(false);
-          return;
-        }
-      }
-      if (families?.length) {
-        try {
-          //class id valiadation will also be done in api
-          const groups = await requestAPI(
-            "groups",
-            "GET",
-            {
-              group_ids: families,
-              type: "family",
-            },
-            {}
-          );
-        } catch (error: any) {
           const handler = new ClientErrorHandler(error);
           if (handler.isAxiosError && handler.status_code === 404) {
-            form.setError("families_str", {
+            form.setError("enrolling_str", {
               message: handler.message.split(":")[1],
             });
             setIsLoading(false);
@@ -349,10 +350,9 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
         users,
         role,
         expiration_date: isAdmin ? null : expiration_date,
-        enrolled: toEnroll,
-        families,
+        enrolling,
         managing,
-        available_modules: isStudent ? seletcedModules.map(m=>m.module_id) : null,
+        available_modules: isStudent ? seletcedModules.map(m=>m.moduleId) : null,
       };
       // console.log(userData)
       //class update will be handled by api
@@ -411,23 +411,10 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
             <>
               <FormField
                 control={form.control}
-                name="enrolled"
+                name="enrolling_str"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Enrolled Class ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Class ID..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="families_str"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Families</FormLabel>
+                    <FormLabel>Enrolling Groups</FormLabel>
                     <FormControl>
                       <Input placeholder="Groups IDs..." {...field} />
                     </FormControl>
@@ -443,10 +430,10 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
                     {modulesToAdd.map((module, index) => {
                       return (
                         <li
-                          key={`${module.module_id}-${index}`}
+                          key={`${module.moduleId}-${index}`}
                           className="flex items-center gap-2"
                         >
-                          <div className="flex-grow">{module.module_name}</div>
+                          <div className="flex-grow">{module.moduleName}</div>
                           <Button
                             type="button"
                             variant={"ghost"}
@@ -466,10 +453,10 @@ const Create: FC<formProps> = ({ isLoading, setIsLoading, users }) => {
                     {seletcedModules.map((module, index) => {
                       return (
                         <li
-                          key={`${module.module_id}-${index}`}
+                          key={`${module.moduleId}-${index}`}
                           className="flex items-center gap-2"
                         >
-                          <div className="flex-grow">{module.module_name}</div>
+                          <div className="flex-grow">{module.moduleName}</div>
                           <Button
                             type="button"
                             variant={"ghost"}

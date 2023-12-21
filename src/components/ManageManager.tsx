@@ -1,84 +1,75 @@
-import { User } from "@/models/db_schemas"
+import { User } from "@/models/db_schemas";
 import {
-    FC,
-    FormEvent,
-    useId,
-    useState,
-    Dispatch,
-    SetStateAction,
-    useEffect,
-  } from "react";
-  import { useForm } from "react-hook-form";
-  import { zodResolver } from "@hookform/resolvers/zod";
-  
-  import { Button } from "./ui/button";
-  import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-  } from "@/components/ui/alert-dialog";
-  
-  import {  useToast } from "./ui/use-toast";
-  
-  import { Input } from "@/components/ui/input";
-  import { X, Check} from "lucide-react";
-  
-  import {
-    ClientErrorHandler,
-    hasIntersection,
-    sameList,
-  } from "@/lib/utils";
-  import { Group, Module} from "@/models/db_schemas";
-  import { requestAPI } from "@/lib/request";
-  import {
-    PutFamiliesReq,
-    batchGetGroupsResSchema,
-    putFamiliesResSchema,
-  } from "@/models/api_schemas";
-  import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-    FormDescription,
-  } from "@/components/ui/form";
-  import { z } from "zod";
-  import { trimedNonEmptyString } from "@/models/utlis_schemas";
-  import Loading from "./Loading";
+  FC,
+  FormEvent,
+  useId,
+  useState,
+  Dispatch,
+  SetStateAction,
+  useEffect,
+} from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+import { Button } from "./ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+import { useToast } from "./ui/use-toast";
+
+import { Input } from "@/components/ui/input";
+import { X, Check } from "lucide-react";
+
+import { ClientErrorHandler, hasIntersection, sameList } from "@/lib/utils";
+import { Group, Module } from "@/models/db_schemas";
+import { requestAPI } from "@/lib/request";
+
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from "@/components/ui/form";
+import { z } from "zod";
+import { trimedNonEmptyString } from "@/models/utlis_schemas";
+import Loading from "./Loading";
 import { GroupType } from "@prisma/client";
+import { PutUserManagesReq, batchGetGroupsByIdResSchema, getUserManagesResSchema } from "@/models/api_schemas";
 
-
-interface ManageMangerProps{
-  manager:User,
-  reload:()=>Promise<void>,
-  isLoading:boolean,
-  setIsLoading:Dispatch<SetStateAction<boolean>>
+interface ManageMangerProps {
+  manager: User;
+  reload: () => Promise<void>;
+  isLoading: boolean;
+  setIsLoading: Dispatch<SetStateAction<boolean>>;
 }
 
-
-
-export const ManageManger:FC<ManageMangerProps>=(props)=>{
-  const {  manager, reload, isLoading, setIsLoading } = props;
-  const role = manager.role
-  const groupType:GroupType = role ==="teacher"?"class":"family"
+export const ManageManger: FC<ManageMangerProps> = (props) => {
+  const { manager, reload, isLoading, setIsLoading } = props;
+  const role = manager.role;
+  const groupType: GroupType = role === "teacher" ? "class" : "family";
   const { toast } = useToast();
-  const [managing,setManaging] = useState<Group[]>([]);
+  const [managing, setManaging] = useState<Group[]>([]);
 
   useEffect(() => {
     try {
-      if (manager.managing.length) {
-        requestAPI("groups", "GET", { group_ids: manager.managing, type:groupType }, {})
-          .then((data) => batchGetGroupsResSchema.parse(data))
-          .then((groups) => setManaging(groups));
-      }
+      requestAPI("user-manages", "GET", {
+        email: manager.email,
+      }, {}).then((data) => {
+        const groups = getUserManagesResSchema.parse(data);
+        setManaging(groups);
+      })
     } catch (error) {
       const handler = new ClientErrorHandler(error);
       handler.log();
@@ -88,22 +79,23 @@ export const ManageManger:FC<ManageMangerProps>=(props)=>{
         description: handler.message,
       });
     }
-  }, [groupType, manager.managing, toast]);
+  }, [groupType, manager,manager.email, toast]);
 
-  return <>
-  <div className="space-y-10">
+  return (
+    <>
+      <div className="space-y-10">
         <ManageManaging
           {...{
             ...props,
-            user:manager,
+            user: manager,
             managing,
-            type:groupType,
+            type: groupType,
           }}
         />
       </div>
-  </>
-
-}
+    </>
+  );
+};
 
 interface ManageManagingProps {
   user: User;
@@ -111,7 +103,7 @@ interface ManageManagingProps {
   isLoading: boolean;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   managing: Group[];
-  type:GroupType;
+  type: GroupType;
 }
 
 const groupFromSchema = z.object({
@@ -121,17 +113,17 @@ const groupFromSchema = z.object({
 type ManageGroupsForm = z.infer<typeof groupFromSchema>;
 
 const ManageManaging: FC<ManageManagingProps> = (props) => {
-  const { user, reload, setIsLoading, isLoading, managing,type } = props;
+  const { user, reload, setIsLoading, isLoading, managing, type } = props;
   const [displaying, setDisplaying] = useState<Group[]>(managing);
   const [removed, SetRemoved] = useState<Group[]>([]);
-  const managing_ids:string[] = managing.map((m) => m.group_id);
-  const displayingIds = displaying.map((f) => f.group_id);
+  const managing_ids: string[] = managing.map((m) => m.groupId);
+  const displayingIds = displaying.map((f) => f.groupId);
   const disableSave: boolean = sameList(managing_ids, displayingIds);
   const groupToBeAdded = displaying.filter(
-    (group) => !managing_ids.includes(group.group_id)
+    (group) => !managing_ids.includes(group.groupId)
   );
   const groupToBeRemoved = removed.filter((group) =>
-    managing_ids.includes(group.group_id)
+    managing_ids.includes(group.groupId)
   );
 
   const { toast } = useToast();
@@ -145,7 +137,7 @@ const ManageManaging: FC<ManageManagingProps> = (props) => {
 
   const handleUnRemove = async (target: Group) => {
     SetRemoved((prev) =>
-      prev.filter((group) => group.group_id !== target.group_id).sort()
+      prev.filter((group) => group.groupId !== target.groupId).sort()
     );
     setDisplaying((prev) => [...prev, target]);
   };
@@ -153,7 +145,7 @@ const ManageManaging: FC<ManageManagingProps> = (props) => {
   const handleRemove = (toRemove: Group) => {
     SetRemoved((prev) => [...prev, toRemove].sort());
     setDisplaying((prev) =>
-      prev.filter((group) => group.group_id !== toRemove.group_id).sort()
+      prev.filter((group) => group.groupId !== toRemove.groupId).sort()
     );
   };
   const handleAddNew = async (values: ManageGroupsForm) => {
@@ -165,7 +157,7 @@ const ManageManaging: FC<ManageManagingProps> = (props) => {
       form.setError("group_ids_str", { message: "Required" });
       return;
     }
-    if (hasIntersection(ids,managing_ids)) {
+    if (hasIntersection(ids, managing_ids)) {
       const message = `Some groups are already included.`;
       form.setError("group_ids_str", { message });
       return;
@@ -176,13 +168,11 @@ const ManageManaging: FC<ManageManagingProps> = (props) => {
         "groups",
         "GET",
         {
-          group_ids: ids,
-          type: [type],
-          exact: "true",
+          group_id: ids,
         },
         {}
       );
-      const groups = batchGetGroupsResSchema.parse(data);
+      const groups = batchGetGroupsByIdResSchema.parse(data);
       setIsLoading(false);
       form.reset();
       setDisplaying((prev) => [...prev, ...groups]);
@@ -210,13 +200,12 @@ const ManageManaging: FC<ManageManagingProps> = (props) => {
     form.clearErrors();
     setIsLoading(true);
     try {
-      const payload: PutFamiliesReq = {
+      const payload: PutUserManagesReq = {
         email: user.email,
-        toAdd: groupToBeAdded.map((grp) => grp.group_id),
-        toRemove: groupToBeRemoved.map((grp) => grp.group_id),
+        add: groupToBeAdded.map((g) => g.groupId),
+        remove: groupToBeRemoved.map((g) => g.groupId),
       };
-      const data = await requestAPI("manages", "PUT", {}, payload);
-      const updated = putFamiliesResSchema.parse(data);
+      const data = await requestAPI("user-manages", "PUT", {}, payload);
       toast({
         title: "Updated",
       });
@@ -249,10 +238,10 @@ const ManageManaging: FC<ManageManagingProps> = (props) => {
             {displaying.map((group, index) => {
               return (
                 <li
-                  key={`${group.group_id}-${index}`}
+                  key={`${group.groupId}-${index}`}
                   className="flex items-center gap-2"
                 >
-                  <div className="flex-grow">{`${group.group_name} (${group.group_id})`}</div>
+                  <div className="flex-grow">{`${group.groupName} (${group.groupId})`}</div>
 
                   <Button
                     variant={"ghost"}
@@ -272,10 +261,10 @@ const ManageManaging: FC<ManageManagingProps> = (props) => {
             {removed.map((group, index) => {
               return (
                 <li
-                  key={`${group.group_id}-${index}`}
+                  key={`${group.groupId}-${index}`}
                   className="flex items-center gap-2"
                 >
-                  <div className="flex-grow">{`${group.group_name} (${group.group_id})`}</div>
+                  <div className="flex-grow">{`${group.groupName} (${group.groupId})`}</div>
                   <Button
                     variant={"ghost"}
                     className="p-0"
@@ -342,7 +331,7 @@ const ManageManaging: FC<ManageManagingProps> = (props) => {
                 This action cannot be undone.{" "}
                 {groupToBeRemoved.length
                   ? `This will permanently remove ${groupToBeRemoved
-                      .map((g) => g.group_name)
+                      .map((g) => g.groupName)
                       .join(", ")} from the manage list of ${user.name}.`
                   : ""}
               </AlertDialogDescription>

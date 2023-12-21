@@ -26,8 +26,8 @@ import { delay, ClientErrorHandler } from "@/lib/utils";
 import { User } from "@/models/db_schemas";
 import { requestAPI } from "@/lib/request";
 import { emailSchema } from "@/models/utlis_schemas";
-import { getUsersResSchema } from "@/models/api_schemas";
 import { ManageManger } from "./ManageManager";
+import { getUserResSchema } from "@/models/api_schemas";
 
 const formSchema = z.object({
   email: emailSchema,
@@ -53,7 +53,8 @@ const SearchUser: FC<searchProps> = ({ isLoading, setIsLoading, setUser }) => {
     try {
       // console.log(values);
       const data = await requestAPI("users", "GET", {}, {}, values.email);
-      const user = getUsersResSchema.parse(data);
+      // console.log(data);
+      const user = getUserResSchema.parse(data);
       setUser(user);
     } catch (error: any) {
       // throw error
@@ -171,7 +172,7 @@ const ManageUser: FC = () => {
     setUser(undefined);
     try {
       const data = await requestAPI("users", "GET", {}, {}, user.email);
-      const updated = getUsersResSchema.parse(data);
+      const updated = getUserResSchema.parse(data);
       setUser(updated);
     } catch (error: any) {
       if (error instanceof AxiosError && error.response?.status === 404) {
@@ -201,7 +202,7 @@ const ManageUser: FC = () => {
           user.role === "student" ||
           user.role === "teacher" ? (
             <div className=" space-x-3">
-              <ShowExpiration expiration={user.expiration_date} />
+              <ShowExpiration expiration={user.expirationDate} />
               <span>
                 <UpdateExpiration
                   {...{ user, reload, isLoading, setIsLoading }}
