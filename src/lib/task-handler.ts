@@ -25,7 +25,7 @@ import {
   PutUsersReq,
 } from "@/models/api_schemas";
 
-const TEST_AUTH0 = false as const;
+const TEST_AUTH0 = process.env.TEST_AUTH0?.toUpperCase() === "TRUE";
 
 export const TRY_LIMIT = 3; //error hitting limit
 

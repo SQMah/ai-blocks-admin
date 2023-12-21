@@ -37,7 +37,7 @@ This is an admin panel for managing user and class information using Auth0 authe
 
 ## Important
 To test or NOT test Auth0 features
-Toggle `TEST_AUTH0` in `src/lib/task-handler.ts`.
+Toggle `MODIFY_AUTH0` in `.env`.
 
 ## Features
 - Create classes 

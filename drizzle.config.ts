@@ -13,6 +13,7 @@ export default {
   out: "./drizzle",
   driver: 'pg',
   dbCredentials: {
-    connectionString:dbStr,
-  }
+    connectionString:dbStr+"?sslmode=no-verify",
+  },
+  
 } satisfies Config;

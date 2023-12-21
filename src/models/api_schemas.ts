@@ -373,7 +373,9 @@ export const getUserManagesResSchema = z.array(groupSchema);
 export const deleteUserManagesReqSchema = z
   .object({
     email: emailSchema,
-    group_id: z.array(trimedNonEmptyString),
+    group_id: z.array(trimedNonEmptyString)
+    .or(trimedNonEmptyString)
+    .transform((i) => (Array.isArray(i) ? i : [i])),
   })
   .strict();
 
@@ -408,7 +410,9 @@ export const putGroupManagesResSchema = z.array(userSchema);
 
 export const deleteGroupManagesReqSchema = z
   .object({
-    emails: z.array(emailSchema),
+    emails: z.array(emailSchema)
+    .or(trimedNonEmptyString)
+    .transform((i) => (Array.isArray(i) ? i : [i])),
     group_id: trimedNonEmptyString,
   })
   .strict();

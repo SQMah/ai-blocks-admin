@@ -55,7 +55,7 @@ export const UpdateExpiration: FC<props> = ({
   user,
 }) => {
   const { toast } = useToast();
-
+  const [open, setOpen] = useState(false);
   const expiration = user.expirationDate;
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -82,6 +82,7 @@ export const UpdateExpiration: FC<props> = ({
         title: "Updated",
       });
       await reload();
+      setOpen(false);
     } catch (error: any) {
       const handler = new ClientErrorHandler(error);
       handler.log();
@@ -98,7 +99,7 @@ export const UpdateExpiration: FC<props> = ({
     form.watch("expiration_date") === "";
   return (
     <>
-      <Dialog>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button disabled={isLoading} variant={"secondary"} className="">
             {isLoading ? "loading..." : "Edit account expiration"}
@@ -164,7 +165,7 @@ export const UpdateAllExpiration: FC<AllProps> = ({
   role,
 }) => {
   const { toast } = useToast();
-
+  const [open, setOpen] = useState(false);
   const eariliestExpiration = findEarliestDate(
     users.map((user) => user.expirationDate)
   );
@@ -186,6 +187,13 @@ export const UpdateAllExpiration: FC<AllProps> = ({
         },
       };
       const update = await requestAPI("users", "PUT", {}, data);
+      toast({
+        title: "Updated",
+        description: `Updated expiration date for ${users.length} ${role}s`,
+      });
+      await reload();
+      setOpen(false);
+
     } catch (error) {
       const handler = new ClientErrorHandler(error);
       handler.log();
@@ -195,16 +203,12 @@ export const UpdateAllExpiration: FC<AllProps> = ({
         description: handler.message,
       });
     }
-    toast({
-      title: "Updated",
-      description: `Updated expiration date for ${users.length} ${role}s`,
-    });
-    await reload();
+    
   };
 
   return (
     <>
-      <Dialog>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button disabled={isLoading || users.length === 0} className="">
             {isLoading ? "loading..." : `Edit ${role}s' expirations`}

@@ -205,6 +205,7 @@ const ManageManaging: FC<ManageManagingProps> = (props) => {
         add: groupToBeAdded.map((g) => g.groupId),
         remove: groupToBeRemoved.map((g) => g.groupId),
       };
+      // console.log(payload);
       const data = await requestAPI("user-manages", "PUT", {}, payload);
       toast({
         title: "Updated",

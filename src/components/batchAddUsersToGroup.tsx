@@ -4,6 +4,7 @@ import {
   Dispatch,
   SetStateAction,
   useId,
+  useState,
 } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -82,6 +83,7 @@ const BatchAddUsersToGroup: FC<props> = (props) => {
     type,
     users,
   } = props;
+  const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const inputId = useId();
   const form = useForm<z.infer<typeof formSchema>>({
@@ -114,6 +116,7 @@ const BatchAddUsersToGroup: FC<props> = (props) => {
     try {
       const userRes = await requestAPI("users", "GET", {email:emails}, {});
       const parsed = batchGetUsersResSchema.parse(userRes);
+      // console.log(parsed)
       const notFound = emails.filter((email) => {
         return !parsed.find((u) => u.email === email);
       });
@@ -135,7 +138,7 @@ const BatchAddUsersToGroup: FC<props> = (props) => {
     } catch (error) {
       const handler = new ClientErrorHandler(error);
       if (handler.isAxiosError && handler.status_code === 404) {
-        console.log("...");
+        // console.log("...");
         form.setError("emails_str", {
           message: handler.message.split(":")[2],
         });
@@ -150,11 +153,13 @@ const BatchAddUsersToGroup: FC<props> = (props) => {
       setIsLoading(false);
       return;
     }
+    // console.log("start put");
     try {
       const payload = {
         emails,
         group_id,
       };
+      // console.log(payload);
       if (role === "parent" && type === "family") {
         const response = await requestAPI("group-manages", "POST", {}, payload);
         toast({
@@ -176,6 +181,8 @@ const BatchAddUsersToGroup: FC<props> = (props) => {
       const gData = await requestAPI("groups", "GET", {},{},group_id);
       const group = getGroupByIdResSchema.parse(gData);
       await handleChangeGroup(group);
+      setIsLoading(false);
+      setOpen(false);
     } catch (error: any) {
       const handler = new ClientErrorHandler(error);
       handler.log();
@@ -184,15 +191,15 @@ const BatchAddUsersToGroup: FC<props> = (props) => {
         title: "Create Module Error",
         description: handler.message,
       });
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const disableSave = !form.watch("emails_str").length;
 
   return (
     <>
-      <Dialog>
+      <Dialog open={open} onOpenChange={setOpen} >
         <DialogTrigger asChild>
           <Button disabled={isLoading} variant={"default"} className="">
             {isLoading ? "loading..." : `Add ${role}s`}

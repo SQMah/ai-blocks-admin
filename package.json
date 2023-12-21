@@ -11,6 +11,7 @@
     "test:ci": "jest --ci",
     "drizzle:introspect": "NODE_TLS_REJECT_UNAUTHORIZED=0 drizzle-kit introspect:pg --config=drizzle.config.ts",
     "drizzle:generate": "NODE_TLS_REJECT_UNAUTHORIZED=0 drizzle-kit generate:pg --config=drizzle.config.ts",
+    "drizzle:push": "NODE_TLS_REJECT_UNAUTHORIZED=0 drizzle-kit push:pg --config=drizzle.config.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

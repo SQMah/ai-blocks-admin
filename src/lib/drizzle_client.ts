@@ -12,7 +12,7 @@ if (!db_url) throw Error("db url not set");
 // for query purposes
 const queryClient = postgres(db_url, {
   max: DB_MAX_CON,
-  // ssl: { rejectUnauthorized: false },
+  ssl: { rejectUnauthorized: false },
 });
 
 if (process.env.NODE_ENV === "production") {

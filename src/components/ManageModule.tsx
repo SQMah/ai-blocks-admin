@@ -123,6 +123,7 @@ const formSchema = z.object({
 
 const AddModule: FC<props> = (props) => {
   const { reload, isLoading, setIsLoading } = props;
+  const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const inputId = useId();
   const form = useForm<z.infer<typeof formSchema>>({
@@ -142,6 +143,7 @@ const AddModule: FC<props> = (props) => {
         title: "Updated",
       });
       await reload();
+      setOpen(false);
     } catch (error: any) {
       const handler = new ClientErrorHandler(error);
       handler.log();
@@ -158,7 +160,7 @@ const AddModule: FC<props> = (props) => {
 
   return (
     <>
-      <Dialog>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button disabled={isLoading} variant={"default"} className="">
             {isLoading ? "loading..." : "Create Module"}

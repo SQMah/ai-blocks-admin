@@ -79,6 +79,7 @@ import DeleteGroup from "./DeleteGroup";
 import RemoveManagersFromGroup from "./RemoveManagersFromGroup";
 import BatchAddUsersToGroup from "./batchAddUsersToGroup";
 import RemoveStudentFromGroup from "./RemoveStudentFromGroup";
+import { set } from "date-fns";
 
 const formSchema = z.object({
   email: emailSchema,
@@ -465,6 +466,7 @@ const UpdateCapacity: FC<CapacProps> = ({
   data,
 }) => {
   const { toast } = useToast();
+  const [open, setOpen] = useState<boolean>(false);
   const updateScehma = z.object({
     capacity: z
       .string()
@@ -512,6 +514,7 @@ const UpdateCapacity: FC<CapacProps> = ({
       });
       const group = putGroupsResSchema.parse(response);
       await handleChangeGroup(group);
+      setOpen(false);
     } catch (error: any) {
       const handler = new ClientErrorHandler(error);
       handler.log();
@@ -527,7 +530,7 @@ const UpdateCapacity: FC<CapacProps> = ({
   if (data.type !== "class") return null;
   return (
     <>
-      <Dialog>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button disabled={isLoading} variant={"secondary"} className="">
             {isLoading ? "loading..." : "Update class capacity"}
@@ -590,6 +593,7 @@ const UpdateName: FC<NameProps> = ({
   data,
 }) => {
   const { toast } = useToast();
+  const [open, setOpen] = useState<boolean>(false);
   const updateScehma = z.object({
     group_name: trimedNonEmptyString,
   });
@@ -619,6 +623,7 @@ const UpdateName: FC<NameProps> = ({
       });
       const group = putGroupsResSchema.parse(response);
       await handleChangeGroup(group);
+      setOpen(false);
     } catch (error: any) {
       const handler = new ClientErrorHandler(error);
       handler.log();
@@ -633,7 +638,7 @@ const UpdateName: FC<NameProps> = ({
 
   return (
     <>
-      <Dialog>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button disabled={isLoading} variant={"secondary"} className="">
             {isLoading ? "loading..." : `Update ${data.type} name`}
@@ -906,7 +911,7 @@ const ManageGroup: FC = () => {
         <Tabs defaultValue="teacher" className="">
           <div className="flex justify-center">
             <TabsList className="">
-              <TabsTrigger value="teacher">By teacher</TabsTrigger>
+              <TabsTrigger value="teacher">By manager</TabsTrigger>
               <TabsTrigger value="groupId">By group ID</TabsTrigger>
               <TabsTrigger value="groupName">By group name</TabsTrigger>
             </TabsList>
@@ -925,7 +930,7 @@ const ManageGroup: FC = () => {
             />
           </TabsContent>
         </Tabs>
-        {data && !isLoading ? (
+        {data ? (
           <>
             {/* <pre>{JSON.stringify(data,null,2)}</pre> */}
             <div className="space-y-4">

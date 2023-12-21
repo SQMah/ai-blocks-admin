@@ -1318,18 +1318,18 @@ export async function updateUserManages(
       if (toAdd.length) {
         updates.addTasks(
           tx
-            .insert(enrolls)
+            .insert(manages)
             .values(add.map((groupId) => ({ userId: user.userId, groupId })))
         );
       }
       if (remove.length) {
         updates.addTasks(
           tx
-            .delete(enrolls)
+            .delete(manages)
             .where(
               and(
-                eq(enrolls.userId, user.userId),
-                inArray(enrolls.groupId, remove)
+                eq(manages.userId, user.userId),
+                inArray(manages.groupId, remove)
               )
             )
         );
