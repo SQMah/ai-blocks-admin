@@ -22,7 +22,7 @@ const handleGet = async (req: NextApiRequest, res: NextApiResponse) => {
 
 const handlePost = async (req: NextApiRequest, res: NextApiResponse) => {
   try {
-    console.log(req.body)
+    // console.log(req.body)
     const payload = postModulesReqSchema.parse(req.body)
     // const user = UserSchema.parse(data)
     const data = await createModule(payload)

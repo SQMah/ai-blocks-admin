@@ -119,6 +119,7 @@ interface props {
 
 const formSchema = z.object({
   module_name: trimedNonEmptyString,
+  module_id:trimedNonEmptyString,
 });
 
 const AddModule: FC<props> = (props) => {
@@ -126,10 +127,12 @@ const AddModule: FC<props> = (props) => {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const inputId = useId();
+  const inputName = useId();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       module_name: "",
+      module_id:"",
     },
   });
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -137,11 +140,13 @@ const AddModule: FC<props> = (props) => {
     try {
       const payload = {
         module_name: values.module_name,
+        module_id:values.module_id,
       };
       const response = await requestAPI("modules", "POST", {}, payload);
       toast({
         title: "Updated",
       });
+      form.reset();
       await reload();
       setOpen(false);
     } catch (error: any) {
@@ -175,13 +180,25 @@ const AddModule: FC<props> = (props) => {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
+            <FormField
+                control={form.control}
+                name="module_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel htmlFor={inputId}>Module ID</FormLabel>
+                    <Input id={inputId} {...field} type="text"></Input>
+                    <FormDescription></FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="module_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel htmlFor={inputId}>Module name</FormLabel>
-                    <Input id={inputId} {...field} type="text"></Input>
+                    <FormLabel htmlFor={inputName}>Module name</FormLabel>
+                    <Input id={inputName} {...field} type="text"></Input>
                     <FormDescription></FormDescription>
                     <FormMessage />
                   </FormItem>

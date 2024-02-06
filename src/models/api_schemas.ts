@@ -421,6 +421,7 @@ export const deleteGroupManagesResSchema = z.undefined();
 
 export const createModuleSchema = z
   .object({
+    module_id:trimedNonEmptyString,
     module_name: trimedNonEmptyString,
   })
   .strict();

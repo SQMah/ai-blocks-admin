@@ -209,7 +209,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * *IMPORTANT: WILL update modified date of group
- * !NOT TESTED WITH ALRGE DATA
+ * !NOT TESTED WITH LARGE DATA
  *
  * @param tx transcation context
  * @param groupIds grooup_ids to be recomputed
@@ -1536,12 +1536,11 @@ export async function deleteGroupManages(emails: string[], groupId: string) {
 //crud module
 
 export async function createModule(payload: CreateModulePayload) {
-  const { module_name } = payload;
-  const moduleId = uuid();
+  const { module_name,module_id } = payload;
   try {
     const res = await db
       .insert(modules)
-      .values({ moduleId, moduleName: module_name })
+      .values({ moduleId:module_id, moduleName: module_name })
       .returning();
     const data = res.at(0);
     if (!data) throw new APIError("DB Error");
