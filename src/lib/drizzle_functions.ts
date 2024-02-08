@@ -321,7 +321,7 @@ export async function moduleCompletionNum(
 
 /**
  * *IMPORTANT: WILL update student modified date of group
- * !NOT TESTED WITH ALRGE DATA
+ * !NOT TESTED WITH LARGE DATA
  *
  * @param tx transcation context
  * @param groupIds grooup_ids to be recomputed

@@ -129,16 +129,16 @@ export const enrolls = pgTable("Enrolls", {
 
 export const groupInvitations = pgTable("GroupInvitations", {
 	invitationId: text("invitation_id").primaryKey().notNull(),
-	userEmail: text("user_email").notNull(),
+	email: text("email").notNull(),
 	groupId: text("group_id").notNull().references(() => groups.groupId, { onDelete: "cascade", onUpdate: "cascade" } ),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	paginationKey: serial("pagination_key").notNull(),
 },
 (table) => {
 	return {
+		emailIdx: index("GroupInvitations_email_idx").on(table.email),
+		emailGroupIdKey: uniqueIndex("GroupInvitations_email_group_id_key").on(table.email, table.groupId),
 		groupIdIdx: index("GroupInvitations_group_id_idx").on(table.groupId),
-		emailIdx: index("GroupInvitations_email_idx").on(table.userEmail),
-		emailGroupIdKey: uniqueIndex("GroupInvitations_email_group_id_key").on(table.userEmail, table.groupId),
 		paginationKeyIdx: index("GroupInvitations_pagination_key_idx").on(table.paginationKey),
 	}
 });
