@@ -25,7 +25,7 @@ import {
   PutUsersReq,
 } from "@/models/api_schemas";
 
-const TEST_AUTH0 = process.env.TEST_AUTH0?.toUpperCase() === "TRUE";
+const MODIFY_AUTH0 = process.env.MODIFY_AUTH0?.toUpperCase() === "TRUE";
 
 export const TRY_LIMIT = 3; //error hitting limit
 
@@ -92,7 +92,7 @@ export class TaskHandler {
   logic = {
     createSingleUser: (payload: PostUsersReq) => {
       this.addDBTasks(new createSignleUserTask(this, payload));
-      if (TEST_AUTH0) {
+      if (MODIFY_AUTH0) {
         this.addAuth0Tasks(
           new CreateAuth0AccountTask(this, payload.email, payload.name)
         ).addAuth0Tasks(
@@ -102,12 +102,12 @@ export class TaskHandler {
     },
     deleteUser: (email: string) => {
       this.addDBTasks(new DeleteUserTask(this, email));
-      if (TEST_AUTH0) {
+      if (MODIFY_AUTH0) {
         this.addAuth0Tasks(new DeleteAuth0AccountTask(this, email));
       }
     },
     batchCreateUser: (payload: PostBatchCreateUsersReq) => {
-      if (TEST_AUTH0) {
+      if (MODIFY_AUTH0) {
         payload.users.forEach((user) => {
           const { email, name } = user;
           this.addAuth0Tasks(
